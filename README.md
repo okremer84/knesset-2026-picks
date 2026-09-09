@@ -1,11 +1,18 @@
-<div align="center">
+# בחירות 2026 - ליגת חיזוי המנדטים (Knesset 2026 Prediction League)
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+אפליקציית חיזוי תוצאות הבחירות לכנסת ה-26, המאפשרת למשתמשים לנחש את חלוקת 120 המנדטים, להקים ליגות חברים פרטיות, ולעקוב אחר השוואות לסקרים חיים.
 
-  <h1>Built with AI Studio</h2>
+---
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 📌 Backoffice / Roadmap Note: סריקת סקרים מתמונה (AI Photo Scanner)
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
-
-</div>
+> **תזכורת לפיתוח בסשן הבא:**
+> פיצ'ר סריקת תמונות הסקרים בעזרת AI (`PhotoScanner.tsx`) הוסר מניווט המשתמשים הראשי מכיוון שהוא מיועד להיות **פיצ'ר ניהול פנימי (Backoffice Feature)**.
+> 
+> **יעדים לסשן הבא:**
+> 1. **ממשק ניהול (Backoffice / Admin Panel)**:
+>    - העברת כלי הסריקה למסך מנהל מאובטח לעדכון מאגר הסקרים של המערכת.
+> 2. **אוטומציה (Automated Pipeline)**:
+>    - הקמת תהליך אוטומטי (Background Job / Webhook / RSS / Social Feeds) לניטור סקרי בחירות חדשים מערוצי התקשורת (ערוץ 12, ערוץ 11, ערוץ 13, ערוץ 14 וכו').
+>    - פיענוח אוטומטי של נתוני הסקר (תאריך, מכון סקרים, מנדטים לכל מפלגה) באמצעות Gemini Multimodal Vision API.
+>    - הזנה אוטומטית למאגר הנתונים המרכזי כדי שכל המשתמשים באפליקציה יקבלו סקרים מעודכנים בזמן אמת ללא צורך בהעלאה ידנית.

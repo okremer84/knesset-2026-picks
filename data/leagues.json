@@ -1,0 +1,120 @@
+{
+  "knesset26-official": {
+    "id": "knesset26-official",
+    "name": "ליגת הבחירות הארצית לכנסת ה-26 🇮🇱",
+    "description": "הליגה הפתוחה לכל חובבי הפוליטיקה בישראל. מי יקלע הכי קרוב לחלוקת 120 המנדטים?",
+    "creatorName": "מערכת פנטזי בחירות",
+    "createdAt": "2026-09-09T18:26:35.090Z",
+    "targetSurveyId": "kan11-kantar-first",
+    "electionStage": "voting_open",
+    "unsubmittedPlayers": [
+      {
+        "id": "unsub-1",
+        "name": "רוני כהן",
+        "joinedAt": "2026-09-09T15:10:00.000Z"
+      },
+      {
+        "id": "unsub-2",
+        "name": "שירה לוי",
+        "joinedAt": "2026-09-09T16:30:00.000Z"
+      }
+    ],
+    "members": [
+      {
+        "id": "pred-1",
+        "memberName": "דני הפרשן",
+        "submittedAt": "2026-09-08T18:26:35.090Z",
+        "note": "בנט ואיזנקוט ישנו את המפה הפוליטית",
+        "seats": {
+          "yashar": 22,
+          "likud": 22,
+          "beyachad": 13,
+          "democrats": 10,
+          "utj": 8,
+          "shas": 8,
+          "israel_beitenu": 8,
+          "otzma_yehudit": 7,
+          "joint_list": 6,
+          "raam": 5,
+          "religious_zionism": 5,
+          "amcha": 3,
+          "hendel": 3,
+          "balad": 0,
+          "other_parties": 0,
+          "kachol_lavan": 0
+        }
+      },
+      {
+        "id": "pred-2",
+        "memberName": "מיכל ירושלים",
+        "submittedAt": "2026-09-09T06:26:35.090Z",
+        "note": "הליכוד יתחזק בימי הבחירות האחרונים",
+        "seats": {
+          "likud": 26,
+          "yashar": 20,
+          "beyachad": 11,
+          "shas": 9,
+          "utj": 8,
+          "democrats": 9,
+          "otzma_yehudit": 8,
+          "israel_beitenu": 7,
+          "joint_list": 6,
+          "religious_zionism": 5,
+          "raam": 5,
+          "amcha": 3,
+          "hendel": 3,
+          "balad": 0,
+          "other_parties": 0,
+          "kachol_lavan": 0
+        }
+      },
+      {
+        "id": "pred-3",
+        "memberName": "יוסי מהמילואים",
+        "submittedAt": "2026-09-09T14:26:35.090Z",
+        "note": "הפתעות של מפלגות הרמטכ\"לים והימין",
+        "seats": {
+          "yashar": 25,
+          "likud": 20,
+          "beyachad": 14,
+          "democrats": 9,
+          "utj": 8,
+          "shas": 7,
+          "israel_beitenu": 7,
+          "otzma_yehudit": 7,
+          "joint_list": 6,
+          "raam": 5,
+          "religious_zionism": 5,
+          "amcha": 4,
+          "hendel": 3,
+          "balad": 0,
+          "other_parties": 0,
+          "kachol_lavan": 0
+        }
+      },
+      {
+        "id": "pred-1788986436392-12gu",
+        "memberName": "i",
+        "seats": {
+          "yashar": 0,
+          "likud": 5,
+          "beyachad": 5,
+          "democrats": 5,
+          "utj": 5,
+          "shas": 50,
+          "israel_beitenu": 0,
+          "otzma_yehudit": 0,
+          "joint_list": 0,
+          "raam": 49,
+          "religious_zionism": 0,
+          "amcha": 0,
+          "hendel": 0,
+          "balad": 0,
+          "other_parties": 0,
+          "kachol_lavan": 0
+        },
+        "submittedAt": "2026-09-09T20:40:36.392Z"
+      }
+    ]
+  }
+}

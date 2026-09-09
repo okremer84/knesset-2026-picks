@@ -1,0 +1,7 @@
+{
+  "name": "בחירות פנטזי - ליגת הניחושים לכנסת",
+  "description": "פלטפורמת פנטזי לבחירות לכנסת: יצירת ליגות חברים, ניחוש 120 מנדטים, סריקת סקרים מתמונות עם AI, ניתוח נתונים היסטוריים וחישוב ניקוד בזמן אמת.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
