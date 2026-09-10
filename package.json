@@ -11,7 +11,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "polls:sync": "php artisan polls:sync",
-    "test:polls": "python3 -m unittest discover -s scripts/polls -v && node --import tsx --test scripts/polls/map-surveys.test.ts"
+    "test:polls": "python3 -m unittest discover -s scripts/polls -v && node --import tsx --test scripts/polls/map-surveys.test.ts",
+    "test:frontend": "node --import tsx --test tests/frontend/*.test.tsx"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

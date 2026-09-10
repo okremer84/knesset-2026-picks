@@ -157,4 +157,27 @@ class GameTest extends TestCase
         $this->assertEquals(8, $ranks[1]['turnoutDiff']);
         $this->assertSame(0, $ranks[0]['error']);
     }
+
+    public function test_withdrawn_surveys_cannot_be_selected_but_existing_snapshots_survive(): void
+    {
+        $league = $this->league(User::factory()->create());
+        Survey::whereKey('test-poll')->update(['active' => false]);
+        $this->getJson('/api/surveys')->assertJsonCount(0, 'surveys');
+        $this->postJson('/api/leagues', [
+            'name' => 'Stale selection', 'locksAt' => now()->addDay()->toIso8601String(), 'targetSurveyId' => 'test-poll',
+        ])->assertUnprocessable()->assertJsonValidationErrors('targetSurveyId');
+        $this->postJson('/api/leagues/'.$league->id.'/stage', [
+            'stage' => 'voting_open', 'targetSurveyId' => 'test-poll',
+        ])->assertUnprocessable()->assertJsonValidationErrors('targetSurveyId');
+        $this->getJson('/api/leagues/'.$league->id)->assertOk()->assertJsonPath('league.benchmarkSurvey.seats.likud', 60);
+        $this->assertDatabaseCount('leagues', 1);
+        $this->assertDatabaseCount('league_events', 0);
+        $this->poll(['id' => 'active-poll']);
+        $this->postJson('/api/leagues', [
+            'name' => 'Current selection', 'locksAt' => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->assertJsonPath('league.targetSurveyId', 'active-poll');
+        $this->postJson('/api/leagues/'.$league->id.'/stage', [
+            'stage' => 'voting_open', 'targetSurveyId' => 'active-poll',
+        ])->assertOk()->assertJsonPath('league.targetSurveyId', 'active-poll');
+    }
 }

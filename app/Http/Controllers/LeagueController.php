@@ -37,9 +37,9 @@ class LeagueController extends Controller
 
     public function create(Request $r)
     {
-        $data = $r->validate(['name' => 'required|string|max:100', 'description' => 'nullable|string|max:1000', 'locksAt' => 'required|date|after:now', 'targetSurveyId' => 'nullable|string|exists:surveys,id']);
+        $data = $r->validate(['name' => 'required|string|max:100', 'description' => 'nullable|string|max:1000', 'locksAt' => 'required|date|after:now', 'targetSurveyId' => ['nullable', 'string', Rule::exists('surveys', 'id')->where('active', true)]]);
         $l = DB::transaction(function () use ($data, $r) {
-            $survey = isset($data['targetSurveyId']) ? Survey::findOrFail($data['targetSurveyId']) : Survey::where('active', true)->where('kind', 'opinion_poll')->get()->sortByDesc(fn ($s) => $s->payload['date'])->first();
+            $survey = isset($data['targetSurveyId']) ? Survey::where('active', true)->findOrFail($data['targetSurveyId']) : Survey::where('active', true)->where('kind', 'opinion_poll')->get()->sortByDesc(fn ($s) => $s->payload['date'])->first();
             abort_unless($survey && $survey->kind === 'opinion_poll', 422, 'יש לבחור סקר תקין');
             $l = League::create(['name' => $data['name'], 'description' => $data['description'] ?? null, 'owner_id' => $r->user()->id, 'invite_code' => Str::random(40),
                 'locks_at' => $data['locksAt'], 'benchmark' => $survey?->payload]);
@@ -89,13 +89,13 @@ class LeagueController extends Controller
     {
         $this->owner($league, $r);
         $data = $r->validate(['stage' => ['required', Rule::in(['voting_open', 'exit_poll', 'final_results'])],
-            'targetSurveyId' => 'required|string|exists:surveys,id', 'benchmarkTurnoutPercentage' => 'nullable|numeric|between:0,100|decimal:0,1']);
+            'targetSurveyId' => ['required', 'string', Rule::exists('surveys', 'id')->where('active', true)], 'benchmarkTurnoutPercentage' => 'nullable|numeric|between:0,100|decimal:0,1']);
         DB::transaction(function () use ($league, $data, $r) {
             $l = League::whereKey($league->id)->lockForUpdate()->firstOrFail();
             $order = ['voting_open' => 0, 'exit_poll' => 1, 'final_results' => 2];
             abort_if($order[$data['stage']] < $order[$l->stage] || $l->stage === 'final_results', 409, 'לא ניתן לשנות שלב סופי או לפתוח מחדש');
             abort_if($data['stage'] !== 'voting_open' && now()->lt($l->locks_at), 409, 'יש להמתין למועד נעילת התחזיות');
-            $survey = Survey::findOrFail($data['targetSurveyId']);
+            $survey = Survey::where('active', true)->findOrFail($data['targetSurveyId']);
             $kind = ['voting_open' => 'opinion_poll', 'exit_poll' => 'exit_poll', 'final_results' => 'official_results'][$data['stage']];
             abort_unless($survey->kind === $kind, 422, 'סוג נתונים לא מתאים לשלב');
             if ($kind === 'official_results') {

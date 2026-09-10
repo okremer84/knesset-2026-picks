@@ -31,6 +31,7 @@ The seeder imports only the bundled, previously reviewed Wikipedia feed into an 
 - Other players' picks stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
 - Lower total absolute seat error wins. Exact hits among parties with seats break ties; closeness to official turnout is the next tiebreak. Complete ties share a position.
 - A poll's unreported parties are excluded from comparison rather than invented as zero.
+- New benchmarks must use active surveys; withdrawn surveys remain available only through existing league snapshots and revision history.
 - Each league saves its benchmark payload. Later source corrections do not silently rescore the league. Commissioner changes are recorded in the audit log.
 - Opinion-poll standings are provisional. Exit polls and official results must be published by an operator before a commissioner can select them. Stage changes cannot reopen voting or overwrite a finalized result.
 
@@ -65,6 +66,7 @@ Set `kind` to `opinion_poll`, `exit_poll`, or `official_results`. Election-resul
 ```sh
 php artisan test
 vendor/bin/pint --test
+npm run test:frontend
 npm run lint
 npm run build
 ```

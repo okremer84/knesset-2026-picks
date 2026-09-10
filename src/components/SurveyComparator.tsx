@@ -9,7 +9,7 @@ import {
   Target,
 } from 'lucide-react';
 import { Survey } from '../types';
-import { calculateScore } from '../utils/scoring';
+import { calculateScore, calculateBlocs } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
 
 interface SurveyComparatorProps {
@@ -76,12 +76,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
   }, [userSeats]);
 
   // Survey bloc tallies
-  const pollBlocCounts = activeSurvey?.blocs || {
-    coalition: 0,
-    opposition: 0,
-    arab: 0,
-    other: 0,
-  };
+  const pollBlocCounts = activeSurvey?.blocs ?? calculateBlocs(activeSurvey?.seats ?? {});
 
   // Live score calculation
   const scoreResult = useMemo(() => {
