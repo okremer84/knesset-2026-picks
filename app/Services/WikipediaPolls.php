@@ -214,7 +214,7 @@ class WikipediaPolls
         if (! $polls) {
             throw new RuntimeException('No current mapped polls; source layout may have changed');
         }
-        uasort($polls, fn ($a, $b) => strcmp($b['date'], $a['date']) ?: strcmp($a['id'],$b['id']));
+        uasort($polls, fn ($a, $b) => strcmp($b['date'], $a['date']) ?: strcmp($a['id'], $b['id']));
 
         return array_values($polls);
     }

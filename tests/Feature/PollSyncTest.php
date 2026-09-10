@@ -70,6 +70,6 @@ class PollSyncTest extends TestCase
         $id = Survey::first()->id;
         Survey::whereKey($id)->update(['active' => false]);
         $this->seed();
-        $this->assertDatabaseHas('surveys',['id' => $id, 'active' => false]);
+        $this->assertDatabaseHas('surveys', ['id' => $id, 'active' => false]);
     }
 }
