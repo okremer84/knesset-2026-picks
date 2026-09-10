@@ -15,6 +15,7 @@ export interface Prediction {
   seats: Record<string, number>; // partyId -> seat count
   submittedAt: string;
   note?: string;
+  turnoutPercentage?: number; // tiebreaker vote participation % (e.g. 71.5)
 }
 
 export type ElectionStage = 'voting_open' | 'exit_poll' | 'final_results';
@@ -35,6 +36,7 @@ export interface League {
   unsubmittedPlayers?: UnsubmittedPlayer[];
   electionStage?: ElectionStage;
   targetSurveyId?: string; // which survey to rank against by default
+  benchmarkTurnoutPercentage?: number; // actual or benchmark turnout % for tiebreaker (e.g. 70.6)
 }
 
 export interface Survey {

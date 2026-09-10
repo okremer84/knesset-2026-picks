@@ -7,6 +7,7 @@
     "createdAt": "2026-09-09T18:26:35.090Z",
     "targetSurveyId": "kan11-kantar-first",
     "electionStage": "voting_open",
+    "benchmarkTurnoutPercentage": 70.6,
     "unsubmittedPlayers": [
       {
         "id": "unsub-1",
@@ -17,6 +18,11 @@
         "id": "unsub-2",
         "name": "שירה לוי",
         "joinedAt": "2026-09-09T16:30:00.000Z"
+      },
+      {
+        "id": "unsub-1788991286608-pixf",
+        "name": "j",
+        "joinedAt": "2026-09-09T22:01:26.608Z"
       }
     ],
     "members": [
@@ -25,6 +31,7 @@
         "memberName": "דני הפרשן",
         "submittedAt": "2026-09-08T18:26:35.090Z",
         "note": "בנט ואיזנקוט ישנו את המפה הפוליטית",
+        "turnoutPercentage": 71.8,
         "seats": {
           "yashar": 22,
           "likud": 22,
@@ -49,6 +56,7 @@
         "memberName": "מיכל ירושלים",
         "submittedAt": "2026-09-09T06:26:35.090Z",
         "note": "הליכוד יתחזק בימי הבחירות האחרונים",
+        "turnoutPercentage": 69.4,
         "seats": {
           "likud": 26,
           "yashar": 20,
@@ -73,6 +81,7 @@
         "memberName": "יוסי מהמילואים",
         "submittedAt": "2026-09-09T14:26:35.090Z",
         "note": "הפתעות של מפלגות הרמטכ\"לים והימין",
+        "turnoutPercentage": 72.2,
         "seats": {
           "yashar": 25,
           "likud": 20,
@@ -88,13 +97,13 @@
           "amcha": 4,
           "hendel": 3,
           "balad": 0,
-          "other_parties": 0,
           "kachol_lavan": 0
         }
       },
       {
         "id": "pred-1788986436392-12gu",
         "memberName": "i",
+        "turnoutPercentage": 70.8,
         "seats": {
           "yashar": 0,
           "likud": 5,
@@ -110,7 +119,6 @@
           "amcha": 0,
           "hendel": 0,
           "balad": 0,
-          "other_parties": 0,
           "kachol_lavan": 0
         },
         "submittedAt": "2026-09-09T20:40:36.392Z"
