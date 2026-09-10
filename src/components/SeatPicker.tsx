@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { useUser } from './AuthGate';
 import { PARTIES_LIST } from '../data/parties';
 import { LeaderPortrait } from './LeaderPortrait';
 
@@ -31,11 +32,10 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
   activeLeagueName,
   onNavigateToSurveys,
 }) => {
-  const [memberName, setMemberName] = useState(() => {
-    return localStorage.getItem('knesset_fantasy_username') || '';
-  });
+  const user = useUser();
+  const memberName = user.name;
   const [turnoutPercentage, setTurnoutPercentage] = useState(() => {
-    return localStorage.getItem('knesset_fantasy_turnout') || '71.5';
+    return localStorage.getItem('knesset_fantasy_turnout_' + user.id) || '71.5';
   });
   const [note, setNote] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -124,25 +124,14 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       return;
     }
 
-    localStorage.setItem('knesset_fantasy_username', memberName.trim());
-    localStorage.setItem('knesset_fantasy_turnout', turnoutPercentage.trim());
+    localStorage.setItem('knesset_fantasy_turnout_' + user.id, turnoutPercentage.trim());
 
     try {
-      confetti({
-        particleCount: 100,
-        spread: 80,
-        origin: { y: 0.6 },
-      });
-    } catch {
-      // Confetti fallback
-    }
+      await onSubmitPrediction(memberName.trim(), note.trim() || undefined, Math.round(turnoutNum * 10) / 10);
+      setShowSubmitModal(false);
+      confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+    } catch (e) { setErrorMessage((e as Error).message || 'התחזית לא נשמרה'); }
 
-    await onSubmitPrediction(
-      memberName.trim(),
-      note.trim() || undefined,
-      Math.round(turnoutNum * 10) / 10
-    );
-    setShowSubmitModal(false);
   };
 
   const handleBottomSubmit = (e: React.FormEvent | React.MouseEvent) => {
@@ -428,7 +417,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                   required
                   autoFocus
                   value={memberName}
-                  onChange={(e) => setMemberName(e.target.value)}
+                  readOnly
                   placeholder="למשל: דני לוי, נבחרת המשרד..."
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm shadow-xs"
                 />

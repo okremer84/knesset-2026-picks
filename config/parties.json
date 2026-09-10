@@ -1,0 +1,62 @@
+{
+  "yashar": {
+    "name": "ישר!",
+    "bloc": "opposition"
+  },
+  "likud": {
+    "name": "הליכוד",
+    "bloc": "coalition"
+  },
+  "beyachad": {
+    "name": "ביחד",
+    "bloc": "opposition"
+  },
+  "democrats": {
+    "name": "הדמוקרטים",
+    "bloc": "opposition"
+  },
+  "utj": {
+    "name": "יהדות התורה",
+    "bloc": "coalition"
+  },
+  "shas": {
+    "name": "ש\"ס",
+    "bloc": "coalition"
+  },
+  "israel_beitenu": {
+    "name": "ישראל ביתנו",
+    "bloc": "opposition"
+  },
+  "otzma_yehudit": {
+    "name": "עוצמה יהודית",
+    "bloc": "coalition"
+  },
+  "joint_list": {
+    "name": "הרשימה המשותפת",
+    "bloc": "arab"
+  },
+  "raam": {
+    "name": "רע\"ם",
+    "bloc": "arab"
+  },
+  "religious_zionism": {
+    "name": "הציונות הדתית",
+    "bloc": "coalition"
+  },
+  "amcha": {
+    "name": "עמך ישראל",
+    "bloc": "coalition"
+  },
+  "hendel": {
+    "name": "המילואימניקים (הנדל וזליכה)",
+    "bloc": "other"
+  },
+  "kachol_lavan": {
+    "name": "כחול לבן",
+    "bloc": "opposition"
+  },
+  "balad": {
+    "name": "בל\"ד",
+    "bloc": "arab"
+  }
+}

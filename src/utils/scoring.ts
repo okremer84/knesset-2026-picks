@@ -12,7 +12,7 @@ export function calculateScore(
   const predictedBlocs: Record<string, number> = { coalition: 0, opposition: 0, arab: 0, other: 0 };
   const actualBlocs: Record<string, number> = { coalition: 0, opposition: 0, arab: 0, other: 0 };
 
-  const partyBreakdown = PARTIES_LIST.map((party) => {
+  const partyBreakdown = PARTIES_LIST.filter(p => Object.hasOwn(actualSeats, p.id)).map((party) => {
     const predicted = Number(predictedSeats[party.id]) || 0;
     const actual = Number(actualSeats[party.id]) || 0;
     const diff = Math.abs(predicted - actual);
@@ -23,11 +23,7 @@ export function calculateScore(
       exactHitsCount++;
     }
 
-    // Party points: 10 points for exact, down to 0 if diff >= 5
-    let partyPoints = Math.max(0, 10 - diff * 2);
-    if (isExact) {
-      partyPoints += 2; // Bonus for exact hit
-    }
+    const partyPoints = diff;
 
     // Sum blocs
     predictedBlocs[party.bloc] = (predictedBlocs[party.bloc] || 0) + predicted;
@@ -45,48 +41,13 @@ export function calculateScore(
     };
   });
 
-  // Calculate top party prediction
-  let maxPredictedParty = '';
-  let maxPredictedVal = -1;
-  let maxActualParty = '';
-  let maxActualVal = -1;
-
-  for (const p of PARTIES_LIST) {
-    const pred = Number(predictedSeats[p.id]) || 0;
-    const act = Number(actualSeats[p.id]) || 0;
-    if (pred > maxPredictedVal) {
-      maxPredictedVal = pred;
-      maxPredictedParty = p.id;
-    }
-    if (act > maxActualVal) {
-      maxActualVal = act;
-      maxActualParty = p.id;
-    }
-  }
-
-  // Base score: 100 minus penalty for seat deviations
-  // Note: Total seat diff across 120 seats: e.g., if sum of diffs is 16, penalty is 16 * 1.5 = 24 -> score 76
-  let baseScore = Math.max(0, 100 - Math.round(totalSeatDiff * 1.25));
-
-  // Bonuses
-  let bonusPoints = exactHitsCount * 3;
-  if (maxPredictedParty === maxActualParty && maxActualVal > 0) {
-    bonusPoints += 5; // Correctly guessed largest party
-  }
-
-  const coalitionDiff = Math.abs((predictedBlocs.coalition || 0) - (actualBlocs.coalition || 0));
-  if (coalitionDiff <= 1) {
-    bonusPoints += 5; // Close coalition bloc forecast
-  }
-
-  const totalScore = Math.min(120, Math.max(0, baseScore + bonusPoints));
-  const accuracyPercentage = Math.max(0, Math.min(100, Math.round((1 - (totalSeatDiff / 240)) * 100)));
-
-  let rankTitle = 'נפל מתחת לאחוז החסימה 🗳️';
-  if (totalScore >= 105) rankTitle = 'נביא בחירות אגדי 🔮';
-  else if (totalScore >= 92) rankTitle = 'אסטרטג פוליטי בכיר 🎯';
-  else if (totalScore >= 80) rankTitle = 'פרשן פוליטי מנוסה 🎙️';
-  else if (totalScore >= 65) rankTitle = 'עוקב פוליטי חד 📰';
+  const totalScore = totalSeatDiff;
+  const accuracyPercentage = Math.max(0, Math.min(100, Math.round((1 - totalSeatDiff / 240) * 100)));
+  let rankTitle = 'ממשיכים לנסות 🗳️';
+  if (totalScore === 0) rankTitle = 'תחזית מדויקת 🔮';
+  else if (totalScore <= 10) rankTitle = 'אסטרטג פוליטי בכיר 🎯';
+  else if (totalScore <= 25) rankTitle = 'פרשן פוליטי מנוסה 🎙️';
+  else if (totalScore <= 50) rankTitle = 'עוקב פוליטי חד 📰';
 
   const blocComparison = [
     {
@@ -121,7 +82,7 @@ export function calculateScore(
 
   return {
     totalScore,
-    maxScore: 120,
+    maxScore: 240,
     accuracyPercentage,
     exactHitsCount,
     totalSeatDiff,
