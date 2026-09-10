@@ -71,19 +71,17 @@ export const LeagueView: React.FC<LeagueViewProps> = ({
 
   // Handle stage switch
   const handleStageChange = async (newStage: ElectionStage) => {
-    setElectionStage(newStage);
-
     // Auto switch benchmark survey if switching to exit_poll or final_results
     let targetSurvey = selectedSurveyId;
     if (newStage === 'exit_poll') {
-      const exitSurvey = allSurveys.find((s) => s.id === 'exit-poll-2200') || allSurveys[0];
+      const exitSurvey = allSurveys.find((s) => s.kind === 'exit_poll');
+      if (!exitSurvey) { alert('טרם פורסם מדגם קלפיות מאומת'); return; }
       targetSurvey = exitSurvey.id;
       onSelectSurveyId(targetSurvey);
     } else if (newStage === 'final_results') {
       const officialSurvey =
-        allSurveys.find((s) => s.id === 'knesset26-official-results') ||
-        allSurveys.find((s) => s.id === 'knesset25-actual') ||
-        allSurveys[0];
+        allSurveys.find((s) => s.kind === 'official_results');
+      if (!officialSurvey) { alert('טרם פורסמו תוצאות רשמיות מאומתות'); return; }
       targetSurvey = officialSurvey.id;
       onSelectSurveyId(targetSurvey);
     }
@@ -95,6 +93,7 @@ export const LeagueView: React.FC<LeagueViewProps> = ({
         body: JSON.stringify({ stage: newStage, targetSurveyId: targetSurvey }),
       });
       if (res.ok) {
+        setElectionStage(newStage);
         const data = await res.json();
         if (data.league && onLeagueUpdate) {
           onLeagueUpdate(data.league);
