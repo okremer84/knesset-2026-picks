@@ -18,15 +18,30 @@ export default function App() {
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
   const [isCreateLeagueModalOpen, setIsCreateLeagueModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [loadingLeague, setLoadingLeague] = useState(true);
 
-  // User's current draft seats (starts empty by default)
+  // Helper to sanitize any raw seats object to strictly PARTIES_LIST keys
+  const sanitizeSeatsMap = (raw: any): Record<string, number> => {
+    const clean: Record<string, number> = {};
+    if (!raw || typeof raw !== 'object') {
+      return clean;
+    }
+    PARTIES_LIST.forEach((p) => {
+      const val = Number(raw[p.id]);
+      if (!isNaN(val) && val > 0) {
+        clean[p.id] = Math.min(120, Math.floor(val));
+      }
+    });
+    return clean;
+  };
+
+  // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem('knesset_fantasy_user_seats_v2');
       if (saved) {
-        return JSON.parse(saved);
+        return sanitizeSeatsMap(JSON.parse(saved));
       }
     } catch {
       // Fallback
@@ -35,7 +50,7 @@ export default function App() {
     return {};
   });
 
-  // Calculate total seats allocated by user
+  // Calculate total seats allocated by user (only valid parties)
   const totalUserSeats = PARTIES_LIST.reduce(
     (sum, p) => sum + (Number(userSeats[p.id]) || 0),
     0
@@ -107,17 +122,51 @@ export default function App() {
       .finally(() => setLoadingLeague(false));
   };
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (text: string, type?: 'success' | 'error' | 'info') => {
+    let resolvedType: 'success' | 'error' | 'info' = type || 'success';
+    if (!type) {
+      if (
+        text.includes('שגיאה') ||
+        text.includes('חייב להיות') ||
+        text.includes('חרגת') ||
+        text.includes('חסר') ||
+        text.includes('לא נמצא')
+      ) {
+        resolvedType = 'error';
+      }
+    }
+    setToast({ text, type: resolvedType });
+    setTimeout(() => {
+      setToast((prev) => (prev?.text === text ? null : prev));
+    }, 4500);
   };
 
   // Submit user's prediction to the active league
-  const handleSubmitPrediction = async (memberName: string, note?: string) => {
+  const handleSubmitPrediction = async (memberName: string, note?: string, turnoutPercentage?: number) => {
     if (!currentLeague) {
-      showToast('לא נמצאה ליגה פעילה. אנא צור ליגה תחילה.');
+      showToast('לא נמצאה ליגה פעילה. אנא צור ליגה תחילה.', 'error');
       return;
     }
+
+    // Always sanitize to strictly PARTIES_LIST keys with integer values
+    const cleanSeats: Record<string, number> = {};
+    let totalAllocated = 0;
+    PARTIES_LIST.forEach((p) => {
+      const count = Math.max(0, Math.floor(Number(userSeats[p.id]) || 0));
+      cleanSeats[p.id] = count;
+      totalAllocated += count;
+    });
+
+    if (totalAllocated !== 120) {
+      showToast(
+        `סך המנדטים חייב להיות בדיוק 120. כרגע הוזנו ${totalAllocated} מנדטים.`,
+        'error'
+      );
+      return;
+    }
+
+    // Update local state to clean representation
+    setUserSeats(cleanSeats);
 
     setIsSubmitting(true);
     try {
@@ -126,8 +175,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           memberName,
-          seats: userSeats,
+          seats: cleanSeats,
           note,
+          turnoutPercentage,
         }),
       });
 
@@ -137,11 +187,11 @@ export default function App() {
       }
 
       setCurrentLeague(data.league);
-      showToast('התחזית שלך נשמרה בהצלחה בליגה! 🎉');
+      showToast('התחזית שלך נשמרה בהצלחה בליגה! 🎉', 'success');
       setActiveTab('league');
     } catch (err: any) {
       console.error('Submit prediction error:', err);
-      showToast(err.message || 'שגיאה בשמירת התחזית לליגה');
+      showToast(err.message || 'שגיאה בשמירת התחזית לליגה', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,10 +292,31 @@ export default function App() {
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-red-500 selection:text-white">
       
       {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 border border-slate-700 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
+      {toast && (
+        <div
+          role="status"
+          className={`fixed top-20 right-4 sm:right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold transition-all border backdrop-blur-md ${
+            toast.type === 'error'
+              ? 'bg-red-950/95 border-red-500/80 text-white shadow-red-950/40'
+              : toast.type === 'info'
+              ? 'bg-slate-900/95 border-blue-500/80 text-white shadow-black/40'
+              : 'bg-slate-900/95 border-emerald-500/80 text-white shadow-black/40'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.text}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="text-slate-400 hover:text-white mr-1 text-base leading-none p-0.5 cursor-pointer"
+            aria-label="סגור"
+          >
+            ×
+          </button>
         </div>
       )}
 

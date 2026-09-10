@@ -1,13 +1,9 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { DEFAULT_SURVEYS } from './src/data/surveys.js';
 import { League, Prediction, Survey } from './src/types.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
@@ -33,6 +29,7 @@ const SEED_LEAGUES: League[] = [
     createdAt: new Date().toISOString(),
     targetSurveyId: 'kan11-kantar-first',
     electionStage: 'voting_open',
+    benchmarkTurnoutPercentage: 70.6,
     unsubmittedPlayers: [
       {
         id: 'unsub-1',
@@ -51,6 +48,7 @@ const SEED_LEAGUES: League[] = [
         memberName: 'דני הפרשן',
         submittedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
         note: 'בנט ואיזנקוט ישנו את המפה הפוליטית',
+        turnoutPercentage: 71.8,
         seats: {
           yashar: 22,
           likud: 22,
@@ -76,6 +74,7 @@ const SEED_LEAGUES: League[] = [
         memberName: 'מיכל ירושלים',
         submittedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
         note: 'הליכוד יתחזק בימי הבחירות האחרונים',
+        turnoutPercentage: 69.4,
         seats: {
           likud: 26,
           yashar: 20,
@@ -101,6 +100,7 @@ const SEED_LEAGUES: League[] = [
         memberName: 'יוסי מהמילואים',
         submittedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
         note: 'הפתעות של מפלגות הרמטכ"לים והימין',
+        turnoutPercentage: 72.2,
         seats: {
           yashar: 25,
           likud: 20,
@@ -235,10 +235,8 @@ app.post('/api/surveys/scan', async (req, res) => {
     "religious_zionism": 5,
     "amcha": 4,
     "hendel": 4,
-    "yesh_atid": 0,
-    "balad": 0,
-    "yamin_mamlachti": 0,
-    "other_parties": 0
+    "kachol_lavan": 0,
+    "balad": 0
   },
   "blocs": {
     "coalition": 52,
@@ -365,20 +363,41 @@ app.post('/api/leagues', (req, res) => {
   }
 });
 
+const VALID_PARTY_IDS = [
+  'yashar',
+  'likud',
+  'beyachad',
+  'democrats',
+  'utj',
+  'shas',
+  'israel_beitenu',
+  'otzma_yehudit',
+  'joint_list',
+  'raam',
+  'religious_zionism',
+  'amcha',
+  'hendel',
+  'kachol_lavan',
+  'balad',
+];
+
 // Submit / Join prediction to a league
 app.post('/api/leagues/:id/predict', (req, res) => {
   try {
-    const { memberName, seats, note } = req.body;
+    const { memberName, seats, note, turnoutPercentage } = req.body;
     const leagueId = req.params.id;
 
     if (!memberName || !seats) {
       return res.status(400).json({ error: 'שם משתתף ופירוט מנדטים הינם חובה' });
     }
 
-    // Validate 120 seats sum
+    // Clean and validate 120 seats sum using only the 15 valid Knesset election parties
+    const cleanedSeats: Record<string, number> = {};
     let totalSeats = 0;
-    for (const key of Object.keys(seats)) {
-      totalSeats += Number(seats[key]) || 0;
+    for (const partyId of VALID_PARTY_IDS) {
+      const val = Math.max(0, Math.floor(Number(seats[partyId]) || 0));
+      cleanedSeats[partyId] = val;
+      totalSeats += val;
     }
 
     if (totalSeats !== 120) {
@@ -393,12 +412,21 @@ app.post('/api/leagues/:id/predict', (req, res) => {
       return res.status(404).json({ error: 'הליגה לא נמצאה' });
     }
 
+    let parsedTurnout: number | undefined = undefined;
+    if (turnoutPercentage !== undefined && turnoutPercentage !== null && turnoutPercentage !== '') {
+      const num = Number(turnoutPercentage);
+      if (!isNaN(num) && num >= 0 && num <= 100) {
+        parsedTurnout = Math.round(num * 10) / 10;
+      }
+    }
+
     const newPrediction: Prediction = {
       id: `pred-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       memberName: memberName.trim(),
-      seats,
+      seats: cleanedSeats,
       submittedAt: new Date().toISOString(),
       note: note ? note.trim() : undefined,
+      turnoutPercentage: parsedTurnout,
     };
 
     // If member already exists, update their prediction, else append
@@ -432,7 +460,7 @@ app.post('/api/leagues/:id/predict', (req, res) => {
 // Update election stage for a league
 app.post('/api/leagues/:id/stage', (req, res) => {
   try {
-    const { stage, targetSurveyId } = req.body;
+    const { stage, targetSurveyId, benchmarkTurnoutPercentage } = req.body;
     const leagueId = req.params.id;
     const leagues = loadLeagues();
     const league = leagues[leagueId];
@@ -445,6 +473,9 @@ app.post('/api/leagues/:id/stage', (req, res) => {
     }
     if (targetSurveyId) {
       league.targetSurveyId = targetSurveyId;
+    }
+    if (benchmarkTurnoutPercentage !== undefined) {
+      league.benchmarkTurnoutPercentage = Number(benchmarkTurnoutPercentage) || 70.6;
     }
 
     leagues[leagueId] = league;

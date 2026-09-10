@@ -25,7 +25,6 @@ export const DEFAULT_SURVEYS: Survey[] = [
       hendel: 0,
       kachol_lavan: 0,
       balad: 0,
-      other_parties: 0,
     },
     blocs: {
       coalition: 52, // ליכוד 22, ש"ס 7, יהדות התורה 8, עוצמה יהודית 6, ציונות דתית 5, עמך ישראל (וינטר) 4
@@ -58,7 +57,6 @@ export const DEFAULT_SURVEYS: Survey[] = [
       hendel: 0,
       kachol_lavan: 0,
       balad: 0,
-      other_parties: 0,
     },
     blocs: {
       coalition: 53,
@@ -91,7 +89,6 @@ export const DEFAULT_SURVEYS: Survey[] = [
       hendel: 0,
       kachol_lavan: 0,
       balad: 0,
-      other_parties: 0,
     },
     blocs: {
       coalition: 54,
@@ -124,7 +121,6 @@ export const DEFAULT_SURVEYS: Survey[] = [
       hendel: 0,
       kachol_lavan: 0,
       balad: 0,
-      other_parties: 0,
     },
     blocs: {
       coalition: 51,
@@ -157,7 +153,6 @@ export const DEFAULT_SURVEYS: Survey[] = [
       hendel: 0,
       kachol_lavan: 0,
       balad: 0,
-      other_parties: 0,
     },
     blocs: {
       coalition: 61,
@@ -190,7 +185,6 @@ export const DEFAULT_SURVEYS: Survey[] = [
       hendel: 0,
       kachol_lavan: 0,
       balad: 0,
-      other_parties: 0,
     },
     blocs: {
       coalition: 51,
@@ -223,7 +217,6 @@ export const DEFAULT_SURVEYS: Survey[] = [
       hendel: 0,
       kachol_lavan: 0,
       balad: 0,
-      other_parties: 0,
     },
     blocs: {
       coalition: 64,

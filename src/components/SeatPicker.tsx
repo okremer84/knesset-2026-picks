@@ -17,7 +17,7 @@ import { LeaderPortrait } from './LeaderPortrait';
 interface SeatPickerProps {
   currentSeats: Record<string, number>;
   onSeatsChange: (seats: Record<string, number>) => void;
-  onSubmitPrediction: (memberName: string, note?: string) => Promise<void>;
+  onSubmitPrediction: (memberName: string, note?: string, turnoutPercentage?: number) => Promise<void>;
   isSubmitting: boolean;
   activeLeagueName?: string;
   onNavigateToSurveys?: () => void;
@@ -33,6 +33,9 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 }) => {
   const [memberName, setMemberName] = useState(() => {
     return localStorage.getItem('knesset_fantasy_username') || '';
+  });
+  const [turnoutPercentage, setTurnoutPercentage] = useState(() => {
+    return localStorage.getItem('knesset_fantasy_turnout') || '71.5';
   });
   const [note, setNote] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -69,10 +72,18 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       numVal = val;
     }
     const clamped = Math.max(0, Math.min(120, isNaN(numVal) ? 0 : numVal));
-    onSeatsChange({
-      ...currentSeats,
-      [partyId]: clamped,
+    
+    // Construct sanitized seats containing strictly valid PARTIES_LIST keys
+    const nextSeats: Record<string, number> = {};
+    PARTIES_LIST.forEach((p) => {
+      if (p.id === partyId) {
+        nextSeats[p.id] = clamped;
+      } else {
+        const existing = Number(currentSeats[p.id]);
+        nextSeats[p.id] = !isNaN(existing) && existing >= 0 ? existing : 0;
+      }
     });
+    onSeatsChange(nextSeats);
     setErrorMessage('');
   };
 
@@ -107,7 +118,14 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       return;
     }
 
+    const turnoutNum = parseFloat(turnoutPercentage);
+    if (isNaN(turnoutNum) || turnoutNum < 30 || turnoutNum > 100) {
+      setErrorMessage('נא להזין שיעור הצבעה תקין בין 30% ל-100% (למשל 71.5%) כשובר שוויון');
+      return;
+    }
+
     localStorage.setItem('knesset_fantasy_username', memberName.trim());
+    localStorage.setItem('knesset_fantasy_turnout', turnoutPercentage.trim());
 
     try {
       confetti({
@@ -119,7 +137,11 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       // Confetti fallback
     }
 
-    await onSubmitPrediction(memberName.trim(), note.trim() || undefined);
+    await onSubmitPrediction(
+      memberName.trim(),
+      note.trim() || undefined,
+      Math.round(turnoutNum * 10) / 10
+    );
     setShowSubmitModal(false);
   };
 
@@ -410,6 +432,63 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                   placeholder="למשל: דני לוי, נבחרת המשרד..."
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm shadow-xs"
                 />
+              </div>
+
+              {/* Tiebreaker: Turnout Percentage */}
+              <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black text-slate-900 text-right">
+                    תחזית אחוז הצבעה ארצי (שובר שוויון בליגה) *
+                  </label>
+                  <span className="text-xs font-black text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md border border-amber-300/70">
+                    {turnoutPercentage ? `${turnoutPercentage}%` : '—'}
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="30"
+                    max="100"
+                    required
+                    value={turnoutPercentage}
+                    onChange={(e) => setTurnoutPercentage(e.target.value)}
+                    placeholder="71.5"
+                    className="w-full px-3.5 py-2.5 pl-9 bg-white border border-slate-300 rounded-xl text-slate-900 font-black placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm shadow-xs"
+                  />
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">
+                    %
+                  </span>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[10px] font-bold text-slate-500">הצעות מהירות:</span>
+                  {[
+                    { label: '68.5%', val: '68.5' },
+                    { label: '70.6% (כנסת 25)', val: '70.6' },
+                    { label: '71.5%', val: '71.5' },
+                    { label: '73.0%', val: '73.0' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.val}
+                      type="button"
+                      onClick={() => setTurnoutPercentage(preset.val)}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer border ${
+                        turnoutPercentage === preset.val
+                          ? 'bg-amber-500 text-white border-amber-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-800'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="text-[11px] text-slate-600 leading-relaxed text-right">
+                  🎯 <strong>איך עובד שובר השוויון?</strong> אם שני משתתפים יסיימו בתיקו בנקודות הפנטזי, מי שניחש את שיעור ההצבעה הארצי הקרוב ביותר לתוצאה בפועל ינצח בדירוג.
+                </p>
               </div>
 
               <div>
