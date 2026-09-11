@@ -180,4 +180,31 @@ class GameTest extends TestCase
             'stage' => 'voting_open', 'targetSurveyId' => 'active-poll',
         ])->assertOk()->assertJsonPath('league.targetSurveyId', 'active-poll');
     }
+
+    public function test_password_reset_invalidates_the_authenticated_request_session(): void
+    {
+        config(['session.driver' => 'database']);
+        $user = User::factory()->create(['password' => Hash::make('old-password-123')]);
+        $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'old-password-123'])->assertOk();
+        $this->assertAuthenticatedAs($user);
+        $payload = ['email' => $user->email, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123'];
+        $this->postJson('/api/auth/reset-password', [...$payload, 'token' => 'invalid'])->assertUnprocessable();
+        $this->assertAuthenticatedAs($user);
+        $this->postJson('/api/auth/reset-password', [...$payload, 'token' => Password::createToken($user)])->assertOk();
+        $this->assertGuest();
+        $this->getJson('/api/auth/user')->assertUnauthorized();
+        $this->assertDatabaseMissing('sessions', ['user_id' => $user->id]);
+        $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'new-password-123'])->assertOk();
+    }
+
+    public function test_league_index_returns_only_summaries_and_show_loads_details(): void
+    {
+        $user = User::factory()->create();
+        $league = $this->league($user);
+        $this->postJson('/api/leagues/'.$league->id.'/predict', $this->picks())->assertOk();
+        $this->getJson('/api/leagues')->assertOk()->assertExactJson([
+            'leagues' => [['id' => $league->id, 'name' => $league->name]],
+        ]);
+        $this->getJson('/api/leagues/'.$league->id)->assertOk()->assertJsonCount(1, 'league.members');
+    }
 }

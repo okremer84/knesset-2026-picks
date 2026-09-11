@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Trophy, X } from 'lucide-react';
 import { Survey } from '../types';
 import { useUser } from './AuthGate';
+import { resolveOpinionPollId } from '../utils/surveys';
 
 interface CreateLeagueModalProps {
   isOpen: boolean;
@@ -20,9 +21,12 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
   const creatorName = useUser().name;
   const [locksAt, setLocksAt] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedSurveyId, setSelectedSurveyId] = useState(surveys[0]?.id || 'kan11-kantar-first');
+  const [selectedSurveyId, setSelectedSurveyId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const opinionPolls = surveys.filter(s => s.kind === 'opinion_poll');
+  const resolvedSurveyId = resolveOpinionPollId(surveys, selectedSurveyId);
 
   if (!isOpen) return null;
 
@@ -33,11 +37,13 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
       return;
     }
 
+    if (!resolvedSurveyId) { setError('אין כרגע סקר זמין לבחירה'); return; }
+
     setIsSubmitting(true);
     setError('');
 
     try {
-      await onCreateLeague(name.trim(), creatorName.trim(), description.trim() || undefined, selectedSurveyId, new Date(locksAt).toISOString());
+      await onCreateLeague(name.trim(), creatorName.trim(), description.trim() || undefined, resolvedSurveyId, new Date(locksAt).toISOString());
       setName('');
       setDescription('');
       onClose();
@@ -113,11 +119,12 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
               סקר ברירת מחדל לחישוב תוצאות
             </label>
             <select
-              value={selectedSurveyId}
+              value={resolvedSurveyId}
               onChange={(e) => setSelectedSurveyId(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
             >
-              {surveys.filter(s => s.kind === 'opinion_poll').map((s) => (
+              {!resolvedSurveyId && <option value="">אין סקרים זמינים</option>}
+              {opinionPolls.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.title} ({s.date})
                 </option>
@@ -145,7 +152,7 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !resolvedSurveyId}
               className="px-5 py-2.5 rounded-xl bg-[#e62b1e] hover:bg-[#c92318] text-white font-black transition-colors shadow-sm cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'יוצר ליגה...' : 'צור ליגה והזמן חברים'}

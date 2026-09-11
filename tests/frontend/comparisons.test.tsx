@@ -39,3 +39,16 @@ test('historical UI counts allocations to parties absent from its historical map
   assert.ok(html.includes('פחות עדיף'));
   assert.ok(!html.includes('נקודות</strong>'));
 });
+
+test('omitted party allocations do not change displayed user bloc totals', () => {
+  const survey: Survey = {
+    id: 'partial', title: 'Partial poll', kind: 'opinion_poll',
+    institute: 'Test', channelOrMedia: 'Test', date: '2026-09-09',
+    seats: { likud: 100, raam: 20 }, notReportedPartyIds: ['balad'],
+  };
+  const html = renderToStaticMarkup(<SurveyComparator surveys={[survey]} userSeats={{ likud: 100, raam: 10, balad: 10 }} onNavigateToPicker={() => {}}/>);
+  // The Arab bloc compares the 10 reported-party seats, excluding 10 Balad seats.
+  const arabCard = html.slice(html.indexOf('מפלגות ערביות'), html.indexOf('הנדל וזליכה / אחרות')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(arabCard, /מפלגות ערביות 10 \/ בסקר: 20/);
+  assert.match(arabCard, /-10 מתחת לסקר/);
+});

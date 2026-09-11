@@ -25,7 +25,7 @@ class LeagueController extends Controller
 
     public function index(Request $r)
     {
-        return ['leagues' => League::whereHas('users', fn ($q) => $q->where('users.id', $r->user()->id))->get()->map(fn ($l) => $this->payload($l, $r))];
+        return ['leagues' => League::whereHas('users', fn ($q) => $q->where('users.id', $r->user()->id))->orderBy('created_at')->orderBy('id')->get(['id', 'name'])];
     }
 
     public function show(League $league, Request $r)

@@ -65,7 +65,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
 
   // Live user bloc tallies
   const userBlocCounts = useMemo(() => {
-    return PARTIES_LIST.reduce(
+    return PARTIES_LIST.filter(p => activeSurvey && Object.hasOwn(activeSurvey.seats, p.id)).reduce(
       (acc, party) => {
         const seats = Number(userSeats[party.id]) || 0;
         acc[party.bloc] = (acc[party.bloc] || 0) + seats;
@@ -73,7 +73,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
       },
       { coalition: 0, opposition: 0, arab: 0, other: 0 } as Record<string, number>
     );
-  }, [userSeats]);
+  }, [userSeats, activeSurvey]);
 
   // Survey bloc tallies
   const pollBlocCounts = activeSurvey?.blocs ?? calculateBlocs(activeSurvey?.seats ?? {});

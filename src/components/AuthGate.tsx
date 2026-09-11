@@ -27,7 +27,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       if (result.user) setUser(result.user);
       else {
         setNotice(result.message || 'הבקשה התקבלה');
-        if (mode === 'reset-password') { window.history.replaceState({}, '', '/'); setMode('login'); }
+        if (mode === 'reset-password') { setUser(null); window.history.replaceState({}, '', '/'); setMode('login'); }
       }
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }

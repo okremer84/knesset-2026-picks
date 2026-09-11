@@ -9,14 +9,14 @@ import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
 import { DEFAULT_SURVEYS } from './data/surveys';
 import { PARTIES_LIST } from './data/parties';
-import { League, Prediction, Survey } from './types';
+import { League, LeagueSummary, Prediction, Survey } from './types';
 import { CheckCircle2, AlertCircle, Share2, Copy } from 'lucide-react';
 
 export default function App() {
   const user = useUser();
   const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הסקרים עד לקבלת עדכון מהשרת');
   const [joinCode, setJoinCode] = useState('');
-  const [myLeagues, setMyLeagues] = useState<League[]>([]);
+  const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
   const [activeTab, setActiveTab] = useState<'picker' | 'league' | 'surveys' | 'historical'>('picker');
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
@@ -75,9 +75,9 @@ export default function App() {
     fetch('/api/surveys')
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data.surveys) && data.surveys.length) {
+        if (Array.isArray(data.surveys)) {
           setAllSurveys(data.surveys);
-          setSurveyNotice(data.sync?.status === 'failed' ? 'עדכון הסקרים האחרון נכשל. מוצגים הנתונים מהעדכון התקין האחרון.' : '');
+          setSurveyNotice(!data.surveys.length ? 'אין כרגע סקרים זמינים בשרת' : data.sync?.status === 'failed' ? 'עדכון הסקרים האחרון נכשל. מוצגים הנתונים מהעדכון התקין האחרון.' : '');
         }
       })
       .catch(() => setSurveyNotice('לא ניתן לטעון סקרים מהשרת. מוצג עותק שמור עם תאריכי המקור.'));
@@ -90,54 +90,36 @@ export default function App() {
     }
   }, [allSurveys, selectedSurveyId]);
 
-  // Load league based on URL parameter or fetch active league
+  // Load small membership summaries, then fetch only the selected league's details.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const leagueParam = params.get('league');
-    const invite = params.get('invite');
-    if (invite) { handleJoinExistingLeagueById(invite).finally(() => setLoadingLeague(false)); return; }
-
-    setLoadingLeague(true);
-    if (leagueParam) {
-      fetch(`/api/leagues/${leagueParam}`)
-        .then((res) => {
-          if (!res.ok) throw new Error('League not found');
-          return res.json();
-        })
-        .then((data) => {
-          if (data.league) {
-            setCurrentLeague(data.league);
-      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-            if (data.league.targetSurveyId) {
-              setSelectedSurveyId(data.league.targetSurveyId);
-            }
-          }
-        })
-        .catch(() => {
-          // Fallback to list
-          fetchFirstLeague();
-        })
-        .finally(() => setLoadingLeague(false));
-    } else {
-      fetchFirstLeague();
+    let cancelled = false;
+    async function loadLeagues() {
+      try {
+        const res = await fetch('/api/leagues');
+        if (!res.ok) throw new Error('לא ניתן לטעון את הליגות');
+        const data: { leagues: LeagueSummary[] } = await res.json();
+        if (cancelled) return;
+        setMyLeagues(data.leagues);
+        const params = new URLSearchParams(window.location.search);
+        const invite = params.get('invite');
+        if (invite) { await handleJoinExistingLeagueById(invite); return; }
+        const id = params.get('league') || data.leagues[0]?.id;
+        if (!id) return;
+        const response = await fetch('/api/leagues/' + encodeURIComponent(id));
+        if (!response.ok) throw new Error('לא ניתן לפתוח את הליגה');
+        const detail: { league: League } = await response.json();
+        if (cancelled) return;
+        setCurrentLeague(detail.league);
+        if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
+      } catch (e) {
+        if (!cancelled) showToast((e as Error).message, 'error');
+      } finally {
+        if (!cancelled) setLoadingLeague(false);
+      }
     }
+    loadLeagues();
+    return () => { cancelled = true; };
   }, []);
-
-  const fetchFirstLeague = () => {
-    fetch('/api/leagues')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.leagues && data.leagues.length > 0) {
-          setMyLeagues(data.leagues);
-          setCurrentLeague(data.leagues[0]);
-          if (data.leagues[0].targetSurveyId) {
-            setSelectedSurveyId(data.leagues[0].targetSurveyId);
-          }
-        }
-      })
-      .catch((err) => console.error('Error fetching leagues:', err))
-      .finally(() => setLoadingLeague(false));
-  };
 
   const showToast = (text: string, type?: 'success' | 'error' | 'info') => {
     let resolvedType: 'success' | 'error' | 'info' = type || 'success';

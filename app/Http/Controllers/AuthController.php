@@ -69,6 +69,10 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['email' => __($status)]);
         }
 
+        Auth::logout();
+        $r->session()->invalidate();
+        $r->session()->regenerateToken();
+
         return ['message' => 'הסיסמה עודכנה'];
     }
 }

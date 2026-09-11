@@ -27,6 +27,8 @@ export interface UnsubmittedPlayer {
   joinedAt: string;
 }
 
+export type LeagueSummary = Pick<League, 'id' | 'name'>;
+
 export interface League {
   isCommissioner: boolean;
   isLocked: boolean;
