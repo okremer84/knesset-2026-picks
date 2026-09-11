@@ -3,8 +3,8 @@ import { Trophy, CheckCircle2, BarChart3, History, Share2, Users, PlusCircle } f
 import { League } from '../types';
 
 interface HeaderProps {
-  activeTab: 'picker' | 'league' | 'scanner' | 'surveys' | 'historical';
-  setActiveTab: (tab: 'picker' | 'league' | 'scanner' | 'surveys' | 'historical') => void;
+  activeTab: 'picker' | 'league' | 'surveys' | 'historical';
+  setActiveTab: (tab: 'picker' | 'league' | 'surveys' | 'historical') => void;
   currentLeague: League | null;
   onOpenCreateLeague: () => void;
   onShareLeague: () => void;
@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {currentLeague.name}
                 </span>
                 <span className="bg-slate-200 px-1.5 py-0.5 rounded text-[11px] font-bold text-slate-700">
-                  {currentLeague.members.length} משתתפים
+                  {currentLeague.totalPlayersCount} משתתפים
                 </span>
                 <button
                   onClick={onShareLeague}
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
               }`}
             >
-              מתעדכן חי
+              עדכון לילי
             </span>
           </button>
 
@@ -152,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
                   activeTab === 'league' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                 }`}
               >
-                {currentLeague.members.length}
+                {currentLeague.totalPlayersCount}
               </span>
             )}
           </button>

@@ -10,6 +10,7 @@ export interface Party {
 }
 
 export interface Prediction {
+  userId: number;
   id: string;
   memberName: string;
   seats: Record<string, number>; // partyId -> seat count
@@ -26,7 +27,19 @@ export interface UnsubmittedPlayer {
   joinedAt: string;
 }
 
+export type LeagueSummary = Pick<League, 'id' | 'name'>;
+
 export interface League {
+  isCommissioner: boolean;
+  isLocked: boolean;
+  locksAt: string;
+  inviteCode: string;
+  predictionsHidden: boolean;
+  submittedCount: number;
+  totalPlayersCount: number;
+  benchmarkSurvey: Survey | null;
+  rankings: { predictionId: string; error: number; exactHits: number; turnoutDiff: number | null }[];
+  scoringVersion: string;
   id: string;
   name: string;
   description?: string;

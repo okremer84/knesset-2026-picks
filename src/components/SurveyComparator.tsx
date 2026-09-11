@@ -9,7 +9,7 @@ import {
   Target,
 } from 'lucide-react';
 import { Survey } from '../types';
-import { calculateScore } from '../utils/scoring';
+import { calculateScore, calculateBlocs } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
 
 interface SurveyComparatorProps {
@@ -65,7 +65,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
 
   // Live user bloc tallies
   const userBlocCounts = useMemo(() => {
-    return PARTIES_LIST.reduce(
+    return PARTIES_LIST.filter(p => activeSurvey && Object.hasOwn(activeSurvey.seats, p.id)).reduce(
       (acc, party) => {
         const seats = Number(userSeats[party.id]) || 0;
         acc[party.bloc] = (acc[party.bloc] || 0) + seats;
@@ -73,15 +73,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
       },
       { coalition: 0, opposition: 0, arab: 0, other: 0 } as Record<string, number>
     );
-  }, [userSeats]);
+  }, [userSeats, activeSurvey]);
 
   // Survey bloc tallies
-  const pollBlocCounts = activeSurvey?.blocs || {
-    coalition: 52,
-    opposition: 52,
-    arab: 12,
-    other: 4,
-  };
+  const pollBlocCounts = activeSurvey?.blocs ?? calculateBlocs(activeSurvey?.seats ?? {});
 
   // Live score calculation
   const scoreResult = useMemo(() => {
@@ -95,7 +90,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
       .map((s) => {
         let totalDiff = 0;
         let exactHits = 0;
-        PARTIES_LIST.forEach((p) => {
+        PARTIES_LIST.filter(p => Object.hasOwn(s.seats, p.id)).forEach((p) => {
           const u = Number(userSeats[p.id]) || 0;
           const a = Number(s.seats[p.id]) || 0;
           const diff = Math.abs(u - a);
@@ -116,6 +111,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
   // Party rows filtered
   const filteredParties = useMemo(() => {
     return PARTIES_LIST.filter((party) => {
+      if (!activeSurvey || !Object.hasOwn(activeSurvey.seats, party.id)) return false;
       const userVal = Number(userSeats[party.id]) || 0;
       const surveyVal = Number(activeSurvey?.seats[party.id]) || 0;
       const diff = Math.abs(userVal - surveyVal);
@@ -244,6 +240,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
         </div>
       </div>
 
+      {!!activeSurvey?.notReportedPartyIds?.length && <p className="text-sm text-amber-800 bg-amber-50 p-3 rounded-xl">מפלגות שלא דווחו בסקר אינן מוצגות או נכללות בניקוד: {activeSurvey.notReportedPartyIds.map(id => PARTIES_LIST.find(p => p.id === id)?.name || id).join(', ')}</p>}
       {/* Warning / Guidance banner if not 120 */}
       {!isPredictionComplete && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-medium">
@@ -410,7 +407,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-500" />
               <h3 className="text-base sm:text-lg font-black text-slate-900">
-                מדדי דיוק וניקוד פנטזי מול {activeSurvey?.channelOrMedia}
+                מדדי דיוק ושגיאות מול {activeSurvey?.channelOrMedia}
               </h3>
             </div>
             {closestSurvey && (
@@ -423,9 +420,9 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="text-xs text-slate-500 font-bold">ניקוד פנטזי מושג</div>
+              <div className="text-xs text-slate-500 font-bold">סך שגיאות — פחות עדיף</div>
               <div className="text-3xl font-black text-[#e62b1e] mt-1">
-                {scoreResult.totalScore} <span className="text-sm font-normal text-slate-500">/ 120</span>
+                {scoreResult.totalScore}
               </div>
               <div className="text-[11px] font-bold text-slate-700 mt-1 truncate">
                 {scoreResult.rankTitle}

@@ -25,7 +25,7 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
   const isPredictionComplete = totalUserSeats === 120;
 
   // Convert election results to Record<partyId, seats> for comparison
-  const historicalBenchmarkSeats: Record<string, number> = {};
+  const historicalBenchmarkSeats: Record<string, number> = Object.fromEntries(PARTIES_LIST.map(p => [p.id, 0]));
   selectedElection.results.forEach((r) => {
     if (r.partyName.includes('הליכוד')) historicalBenchmarkSeats['likud'] = r.seats;
     else if (r.partyName.includes('סמוטריץ') || r.partyName.includes('הציונות הדתית')) {
@@ -175,12 +175,13 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
             <div>
               <div className="font-bold text-emerald-900 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                בדיקת התחזית שלך מול תוצאות האמת של הכנסת ה-{selectedElection.knessetNumber}:
+                השוואה משוערת לפי מיפוי מפלגות המשחק לכנסת ה-{selectedElection.knessetNumber}:
               </div>
+              <p className="text-emerald-800 mt-1">הרשימות והבריתות השתנו בין הבחירות; זהו מיפוי משוער, לא דירוג רשמי.</p>
               <div className="text-emerald-800 mt-0.5">
-                אם הבחירות היו מסתיימות בדיוק כמו בכנסת ה-{selectedElection.knessetNumber}, היית מקבל{' '}
-                <strong className="text-emerald-950 text-sm">{historicalScore.totalScore} נקודות</strong>{' '}
-                ({historicalScore.accuracyPercentage}% דיוק).
+                סך ההפרשים בהשוואה ההיסטורית:{' '}
+                <strong className="text-emerald-950 text-sm">{historicalScore.totalSeatDiff} מנדטים</strong>{' '}
+                — פחות עדיף, אפס פירושו התאמה מלאה למיפוי.
               </div>
             </div>
 

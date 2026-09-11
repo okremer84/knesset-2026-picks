@@ -1,76 +1,80 @@
-# בחירות 2026 - ליגת חיזוי המנדטים (Knesset 2026 Prediction League)
+# Knesset Fantasy
 
-אפליקציית חיזוי תוצאות הבחירות לכנסת ה-26, המאפשרת למשתמשים לנחש את חלוקת 120 המנדטים, להקים ליגות חברים פרטיות, ולעקוב אחר השוואות לסקרים חיים.
+A Hebrew React frontend with a Laravel 13 backend for private fantasy election leagues. PHP owns authentication, SQL persistence, deadlines, scoring and the nightly Wikipedia import. Vite builds the existing picker, survey comparison and historical views; Laravel serves the application from `public/`.
 
----
+## Local setup
 
-## Wikipedia poll sync
-
-The app now serves real Wikipedia polls through `/api/surveys`. The bundled JSON
-snapshot also works when the backend is unavailable. Design fixtures (including
-imaginary exit polls/final results) remain in `DEMO_SURVEYS`, outside the live feed.
-Election-stage transitions require a real survey of the appropriate kind.
+Requires PHP 8.4+, Composer 2 and Node 22+. PHP needs DOM, mbstring and PDO with SQLite for local development or MySQL for production.
 
 ```sh
-npm install
-python3 -m pip install -r scripts/polls/requirements.txt
-npm run test:polls
-npm run polls:sync
-npm run dev
+composer install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+php artisan migrate
+php artisan db:seed
+npm ci
+npm run build
+php artisan serve
 ```
 
-Set `PYTHON` if your Python executable has a different path. Import a downloaded
-Wikipedia HTML page with `npm run polls:sync -- --html /absolute/path/polls.html`.
-The generated `data/wikipedia-surveys.json` is atomically replaced after validation.
-Express reads it on every request; a sync on the app host needs no restart.
-`POLL_SURVEYS_FILE` overrides the feed path for both the server and sync command.
+Open http://localhost:8000 and register an account. For frontend development, also run `npm run dev` in a second terminal, while continuing to browse port 8000.
 
-The current mapping covers polls ending **September 8, 2026 onward**, matching the
-current table's party/alliances. Earlier valid polls remain in the raw archive and
-aren't mapped onto today's ballot. Mapping rules are explicit in
-`scripts/polls/map-surveys.ts`; new party names and unexpected missing values block
-publication. Balad is not separately reported in these polls and is explicitly
-marked in `notReportedPartyIds`; the existing game compares absent seat keys as zero.
-Bloc totals use this app's party configuration, not Wikipedia's coalition column.
+The seeder imports only the bundled, previously reviewed Wikipedia feed into an empty database. It never creates demo users and never overwrites live surveys. Local password-reset emails appear in `storage/logs/laravel.log`; configure a real mail provider on Cloud.
 
-Raw snapshots, SQLite revision history, extraction reviews, mapping reviews and run
-status live in `data/poll-sync/` (gitignored). On a persistent host keep this folder;
-GitHub Actions runs upload it as diagnostics retained for 30 days, while generated
-feed changes are retained in git. Unparsed historical rows require review. Failures
-exit nonzero and leave the last published feed intact. A killed Node process may
-leave `pipeline.lock`; remove it only after confirming the job has stopped.
+## Game rules
 
-### Nightly operation
+- Each account owns one prediction per league. Display names are labels, never authentication.
+- The creator is the commissioner. Others join using the random invitation code.
+- The commissioner chooses a future submission deadline when creating a league. The server rejects edits and new members at or after that instant. Existing members can still open their league.
+- Every prediction must contain exactly 120 nonnegative integer seats using recognized party IDs, and a turnout prediction with at most one decimal place.
+- Other players' picks stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
+- Lower total absolute seat error wins. Exact hits among parties with seats break ties; closeness to official turnout is the next tiebreak. Complete ties share a position.
+- A poll's unreported parties are excluded from comparison rather than invented as zero.
+- New benchmarks must use active surveys; withdrawn surveys remain available only through existing league snapshots and revision history.
+- Each league saves its benchmark payload. Later source corrections do not silently rescore the league. Commissioner changes are recorded in the audit log.
+- Opinion-poll standings are provisional. Exit polls and official results must be published by an operator before a commissioner can select them. Stage changes cannot reopen voting or overwrite a finalized result.
 
-After this workflow is merged into the default branch, `.github/workflows/sync-polls.yml`
-runs around **03:17 Asia/Jerusalem**, with separate summer/winter UTC candidates.
-GitHub may delay scheduled runs; the intended cron event, rather than actual start
-hour, decides which candidate runs. It also supports **Run workflow** manually.
-Repository Actions must allow the built-in token to write contents. Branch rules
-may prevent the generated-data push. Inspect failed runs in Actions.
+Authentication uses Laravel's hashed passwords, database sessions, HttpOnly cookies, CSRF checks and rate limits. All writes use same-origin requests. No public AI ingestion endpoint is exposed.
 
-The workflow commits the generated feed, **not a deployment**. A separately hosted
-app must pull/redeploy those commits, or run `npm run polls:sync` on its own nightly
-scheduler. GitHub-token commits do not trigger ordinary push workflows, so configure
-deployment explicitly (for example, a `workflow_run` deployment after sync), once
-hosting is chosen. Do not install both host and Actions schedules unnecessarily.
+## Poll imports
 
-Source: [Wikipedia polling tables](https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election).
-The UI retains attribution and original publisher links. Wikipedia can lag or be
-edited incorrectly; 120-seat totals are a validation check, not proof of accuracy.
-The scraper excludes hypothetical scenarios, approval polls and older years.
+```sh
+php artisan polls:sync
+php artisan polls:sync --html=/absolute/path/wikipedia.html
+php artisan schedule:list
+```
 
----
+The schedule is **03:17 Asia/Jerusalem every night**, with shared cache locks preventing simultaneous runs. Enable the scheduler on Cloud; locally use `php artisan schedule:work`.
 
-## 📌 Backoffice / Roadmap Note: סריקת סקרים מתמונה (AI Photo Scanner)
+The importer parses the 2026 seat-projection tables, expands row/column spans, resolves original citations and uses explicit current-party mappings in `config/poll-aliases.json`. The current mapping starts on 2026-09-08. Earlier alliances are deliberately not combined with today's lists.
 
-> **תזכורת לפיתוח בסשן הבא:**
-> פיצ'ר סריקת תמונות הסקרים בעזרת AI (`PhotoScanner.tsx`) הוסר מניווט המשתמשים הראשי מכיוון שהוא מיועד להיות **פיצ'ר ניהול פנימי (Backoffice Feature)**.
-> 
-> **יעדים לסשן הבא:**
-> 1. **ממשק ניהול (Backoffice / Admin Panel)**:
->    - העברת כלי הסריקה למסך מנהל מאובטח לעדכון מאגר הסקרים של המערכת.
-> 2. **אוטומציה (Automated Pipeline)**:
->    - הקמת תהליך אוטומטי (Background Job / Webhook / RSS / Social Feeds) לניטור סקרי בחירות חדשים מערוצי התקשורת (ערוץ 12, ערוץ 11, ערוץ 13, ערוץ 14 וכו').
->    - פיענוח אוטומטי של נתוני הסקר (תאריך, מכון סקרים, מנדטים לכל מפלגה) באמצעות Gemini Multimodal Vision API.
->    - הזנה אוטומטית למאגר הנתונים המרכזי כדי שכל המשתמשים באפליקציה יקבלו סקרים מעודכנים בזמן אמת ללא צורך בהעלאה ידנית.
+A successful batch is committed atomically. Unknown labels, ambiguous identities, missing figures, layout changes or an HTTP failure fail the run and retain the last good data. The command exits nonzero and writes a log entry. `poll_imports` keeps run status and source hashes; `survey_revisions` preserves corrections. Removed Wikipedia entries become inactive while their history and league snapshots remain.
+
+The API reports the latest import status. The frontend shows a notice after a failed import or when it must display its bundled fallback. Operators should monitor failed runs and the last successful timestamp, and arrange database backups. Source HTML is gzip-compressed and deduplicated by SHA-256 in `poll_snapshots`. A daily 03:05 Asia/Jerusalem cleanup removes bodies not observed for 30 days; import hashes/statuses and survey revisions remain. Run `php artisan polls:prune-snapshots` to clean up manually. Long-term raw-source archival is not configured.
+
+Wikipedia is a secondary source that can be edited incorrectly. Seat-total validation does not establish factual accuracy. Each poll includes its source links. Party labels and alliance mappings need human review when the ballot changes.
+
+### Publishing reviewed election results
+
+Use `php artisan polls:publish /path/to/reviewed-survey.json` through an operator console. The JSON uses the same Survey shape as `data/wikipedia-surveys.json`, with a unique `id`, `title`, `date` (YYYY-MM-DD), `institute`, `channelOrMedia`, `sourceUrl` (HTTPS), and `seats`.
+
+Set `kind` to `opinion_poll`, `exit_poll`, or `official_results`. Election-result payloads must explicitly report every configured party (including zeros) and sum to 120. Publishing a survey does not change any league automatically. The commissioner selects the published result after the deadline and enters the official turnout to finalize the league. Review final results carefully: finalized leagues cannot be changed through the app.
+
+## Checks
+
+```sh
+php artisan test
+vendor/bin/pint --test
+npm run test:frontend
+npm run lint
+npm run build
+```
+
+CI runs the backend suite against SQLite and MySQL 8.4. Tests cover authentication/reset, permissions, identity spoofing, private picks, deadlines, scoring, benchmark snapshots, parser fixtures, import idempotency and failed-source preservation. The public HTML fixture is a saved extract from [Wikipedia's polling table](https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election); the parser tests compare it with the previously reviewed feed.
+
+## Migration from the prototype
+
+The old Express server and public Gemini scanner are retired. `data/leagues.json` is no longer read or written. Existing anonymous records cannot safely be assigned to accounts by matching a display name; importing any real old leagues needs an explicit, verified ownership mapping. The legacy Python/TypeScript poll scripts remain for reference, but do not run in production.
+
+See [Laravel Cloud setup](docs/laravel-cloud.md) for deployment.
