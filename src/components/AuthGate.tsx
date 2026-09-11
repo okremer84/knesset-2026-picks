@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { clearCsrf, apiFetch, request } from '../lib/api';
+import { leaveResetRoute } from '../lib/navigation';
 type User = { id: number; name: string; email: string };
 const AuthContext = createContext<User | null>(null);
 export function useUser() { return useContext(AuthContext)!; }
@@ -60,7 +61,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         <button disabled={busy} className="w-full bg-red-600 text-white rounded-xl p-3 font-bold disabled:opacity-50">{busy ? 'רגע…' : titles[mode]}</button>
       </form>
       <div className="flex gap-4 text-sm">
-        {(['login','register','forgot-password'] as const).filter(m => m !== mode).map(m => <button key={m} className="underline" onClick={() => { setMode(m); setError(''); setNotice(''); }}>{titles[m]}</button>)}
+        {(['login','register','forgot-password'] as const).filter(m => m !== mode).map(m => <button key={m} className="underline" onClick={() => { leaveResetRoute(window.location, window.history); setMode(m); setError(''); setNotice(''); }}>{titles[m]}</button>)}
       </div>
     </div>
   </main>;

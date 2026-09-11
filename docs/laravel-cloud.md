@@ -57,7 +57,7 @@ Configure `MAIL_MAILER=smtp` and your provider's `MAIL_HOST`, `MAIL_PORT`, `MAIL
 - Create a short-lived test league, join with another account and verify that picks are hidden before the deadline and submissions fail afterwards.
 - Inspect `php artisan schedule:list`: `polls:sync` should run at 03:17 in Asia/Jerusalem.
 - Monitor `poll_imports` for failures or an absent successful run for more than a day. Logs include import errors and the frontend warns after a failed run.
-- Back up SQL data, including prediction revisions and league benchmark snapshots.
+- Back up SQL data, including prediction revisions and league benchmark snapshots. Source HTML bodies are compressed and deduplicated, then pruned after 30 days without another observation; hashes and import statuses remain.
 - Original anonymous prototype data remains outside the new backend. Do not publish or import it by guessing ownership from names.
 
 The GitHub checks include MySQL integration tests. A successful local SQLite run is not a substitute for the MySQL CI result or a first staging deployment.

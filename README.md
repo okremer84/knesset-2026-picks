@@ -49,9 +49,9 @@ The schedule is **03:17 Asia/Jerusalem every night**, with shared cache locks pr
 
 The importer parses the 2026 seat-projection tables, expands row/column spans, resolves original citations and uses explicit current-party mappings in `config/poll-aliases.json`. The current mapping starts on 2026-09-08. Earlier alliances are deliberately not combined with today's lists.
 
-A successful batch is committed atomically. Unknown labels, ambiguous identities, missing figures, layout changes or an HTTP failure fail the run and retain the last good data. The command exits nonzero and writes a log entry. `poll_imports` keeps run status and source HTML; `survey_revisions` preserves corrections. Removed Wikipedia entries become inactive while their history and league snapshots remain.
+A successful batch is committed atomically. Unknown labels, ambiguous identities, missing figures, layout changes or an HTTP failure fail the run and retain the last good data. The command exits nonzero and writes a log entry. `poll_imports` keeps run status and source hashes; `survey_revisions` preserves corrections. Removed Wikipedia entries become inactive while their history and league snapshots remain.
 
-The API reports the latest import status. The frontend shows a notice after a failed import or when it must display its bundled fallback. Operators should monitor failed runs and the last successful timestamp, and arrange database backups. Source snapshots currently have no automatic retention policy.
+The API reports the latest import status. The frontend shows a notice after a failed import or when it must display its bundled fallback. Operators should monitor failed runs and the last successful timestamp, and arrange database backups. Source HTML is gzip-compressed and deduplicated by SHA-256 in `poll_snapshots`. A daily 03:05 Asia/Jerusalem cleanup removes bodies not observed for 30 days; import hashes/statuses and survey revisions remain. Run `php artisan polls:prune-snapshots` to clean up manually. Long-term raw-source archival is not configured.
 
 Wikipedia is a secondary source that can be edited incorrectly. Seat-total validation does not establish factual accuracy. Each poll includes its source links. Party labels and alliance mappings need human review when the ballot changes.
 

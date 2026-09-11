@@ -6,6 +6,7 @@ use App\Models\Survey;
 use App\Services\PollStore;
 use App\Services\WikipediaPolls;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -71,5 +72,29 @@ class PollSyncTest extends TestCase
         Survey::whereKey($id)->update(['active' => false]);
         $this->seed();
         $this->assertDatabaseHas('surveys', ['id' => $id, 'active' => false]);
+    }
+
+    public function test_source_bodies_are_deduplicated_and_expire_without_losing_audit_records(): void
+    {
+        Http::fake(['*' => Http::response($this->html())]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $this->travel(20)->days();
+        $this->artisan('polls:sync')->assertSuccessful();
+        $hash = hash('sha256', $this->html());
+        $this->assertDatabaseCount('poll_snapshots', 1);
+        $this->assertDatabaseCount('poll_imports', 2);
+        $this->assertDatabaseMissing('poll_imports', ['source_html' => $this->html()]);
+        $body = DB::table('poll_snapshots')->where('source_hash', $hash)->value('compressed_html');
+        $this->assertSame($this->html(), gzdecode(base64_decode($body)));
+        $this->travel(20)->days();
+        $this->artisan('polls:prune-snapshots')->assertSuccessful();
+        $this->assertDatabaseCount('poll_snapshots', 1); // Latest observation was only 20 days ago.
+        $this->travel(11)->days();
+        $this->artisan('polls:prune-snapshots')->assertSuccessful();
+        $this->assertDatabaseCount('poll_snapshots', 0);
+        $this->assertDatabaseCount('poll_imports', 2);
+        $this->assertDatabaseHas('poll_imports', ['source_hash' => $hash, 'status' => 'succeeded']);
+        $this->assertDatabaseCount('survey_revisions', 6);
+        $this->assertDatabaseCount('surveys', 6);
     }
 }

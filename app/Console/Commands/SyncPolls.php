@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Survey;
+use App\Services\PollSnapshots;
 use App\Services\PollStore;
 use App\Services\WikipediaPolls;
 use Illuminate\Console\Command;
@@ -17,7 +18,7 @@ class SyncPolls extends Command
 
     protected $description = 'Atomically import validated current Wikipedia polls, preserving prior data on failure';
 
-    public function handle(WikipediaPolls $parser, PollStore $store): int
+    public function handle(WikipediaPolls $parser, PollStore $store, PollSnapshots $snapshots): int
     {
         $lock = Cache::lock('poll-import', 600);
         if (! $lock->get()) {
@@ -33,7 +34,7 @@ class SyncPolls extends Command
             if (! $html) {
                 throw new \RuntimeException('Empty poll source');
             }
-            DB::table('poll_imports')->where('id', $run)->update(['source_html' => $html, 'source_hash' => hash('sha256', $html)]);
+            DB::table('poll_imports')->where('id', $run)->update(['source_hash' => $snapshots->store($html)]);
             $polls = $parser->parse($html);
             DB::transaction(function () use ($polls, $store, $run) {
                 foreach ($polls as $poll) {

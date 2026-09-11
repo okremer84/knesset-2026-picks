@@ -4,6 +4,8 @@ import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
 import { useUser } from './components/AuthGate';
+import { surveySyncNotice } from './utils/surveys';
+import { initialLeagueId } from './lib/navigation';
 import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
@@ -77,7 +79,7 @@ export default function App() {
       .then((data) => {
         if (Array.isArray(data.surveys)) {
           setAllSurveys(data.surveys);
-          setSurveyNotice(!data.surveys.length ? 'אין כרגע סקרים זמינים בשרת' : data.sync?.status === 'failed' ? 'עדכון הסקרים האחרון נכשל. מוצגים הנתונים מהעדכון התקין האחרון.' : '');
+          setSurveyNotice(surveySyncNotice(data.surveys.length, data.sync));
         }
       })
       .catch(() => setSurveyNotice('לא ניתן לטעון סקרים מהשרת. מוצג עותק שמור עם תאריכי המקור.'));
@@ -101,15 +103,15 @@ export default function App() {
         if (cancelled) return;
         setMyLeagues(data.leagues);
         const params = new URLSearchParams(window.location.search);
-        const invite = params.get('invite');
-        if (invite) { await handleJoinExistingLeagueById(invite); return; }
-        const id = params.get('league') || data.leagues[0]?.id;
+        const id = await initialLeagueId(params, data.leagues, handleJoinExistingLeagueById);
+        if (cancelled) return;
         if (!id) return;
         const response = await fetch('/api/leagues/' + encodeURIComponent(id));
         if (!response.ok) throw new Error('לא ניתן לפתוח את הליגה');
         const detail: { league: League } = await response.json();
         if (cancelled) return;
         setCurrentLeague(detail.league);
+        window.history.replaceState({}, '', '/?league=' + detail.league.id);
         if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
       } catch (e) {
         if (!cancelled) showToast((e as Error).message, 'error');
@@ -228,7 +230,7 @@ export default function App() {
     }
 
     // Update URL query parameter without full reload
-    const newUrl = `${window.location.pathname}?league=${data.league.id}`;
+    const newUrl = `/?league=${data.league.id}`;
     window.history.pushState({ path: newUrl }, '', newUrl);
 
     showToast(`ליגת "${data.league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
@@ -241,26 +243,29 @@ export default function App() {
       const res = await fetch('/api/leagues/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({code: leagueId}) });
       const data = await res.json();
       if (!res.ok || !data.league) {
-        showToast('לא נמצאה ליגה עם קוד זה. בדוק את הקוד ונסה שוב.');
-        return;
+        const validation = Object.values(data.errors || {}).flat().join(' ');
+        showToast(validation || data.message || data.error || 'לא נמצאה ליגה עם קוד זה.', 'error');
+        return false;
       }
 
       setCurrentLeague(data.league);
       setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-      const newUrl = `${window.location.pathname}?league=${data.league.id}`;
+      const newUrl = `/?league=${data.league.id}`;
       window.history.pushState({ path: newUrl }, '', newUrl);
 
       showToast(`עברת בהצלחה לליגת "${data.league.name}"!`);
       setActiveTab('league');
+      return true;
     } catch (err) {
-      showToast('שגיאה בטעינת הליגה');
+      showToast('שגיאה בטעינת הליגה', 'error');
+      return false;
     }
   };
 
   // Share league link
   const handleShareLeague = () => {
     if (!currentLeague) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?invite=${currentLeague.inviteCode}`;
+    const shareUrl = `${window.location.origin}/?invite=${currentLeague.inviteCode}`;
 
     if (navigator.share) {
       navigator
