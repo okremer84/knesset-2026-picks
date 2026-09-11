@@ -128,9 +128,17 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
     try {
       await onSubmitPrediction(memberName.trim(), note.trim() || undefined, Math.round(turnoutNum * 10) / 10);
-      setShowSubmitModal(false);
-      confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-    } catch (e) { setErrorMessage((e as Error).message || 'התחזית לא נשמרה'); }
+    } catch (e) {
+      setErrorMessage((e as Error).message || 'התחזית לא נשמרה');
+      return;
+    }
+
+    setShowSubmitModal(false);
+    try {
+      await confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+    } catch {
+      // A cosmetic effect must never change the result of a successful save.
+    }
 
   };
 
