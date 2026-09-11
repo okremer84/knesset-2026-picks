@@ -1,0 +1,67 @@
+name: Sync Wikipedia polls
+on:
+  workflow_dispatch:
+  schedule:
+    # Both candidates are checked in Israel's timezone below (DST aware).
+    - cron: '17 0 * * *'
+    - cron: '17 1 * * *'
+permissions:
+  contents: write
+concurrency:
+  group: wikipedia-poll-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check Israel time
+        id: clock
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          offset = datetime.now(ZoneInfo('Asia/Jerusalem')).utcoffset().total_seconds() / 3600
+          expected = '17 0 * * *' if offset == 3 else '17 1 * * *'
+          run = os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch' or os.environ['SCHEDULE'] == expected
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'run={str(run).lower()}\n')
+          PY
+      - uses: actions/setup-node@v4
+        if: steps.clock.outputs.run == 'true'
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        if: steps.clock.outputs.run == 'true'
+        run: |
+          npm install --package-lock=false --ignore-scripts
+          python -m pip install -r scripts/polls/requirements.txt
+      - name: Test and sync
+        if: steps.clock.outputs.run == 'true'
+        run: |
+          npm run test:polls
+          npm run polls:sync
+      - name: Save diagnostics
+        if: always() && steps.clock.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: poll-sync-${{ github.run_id }}
+          path: data/poll-sync/
+          retention-days: 30
+      - name: Commit generated feed
+        if: steps.clock.outputs.run == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/wikipedia-surveys.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: refresh Wikipedia election polls'
+            git push
+          fi

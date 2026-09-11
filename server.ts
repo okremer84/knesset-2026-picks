@@ -14,6 +14,18 @@ app.use(express.json({ limit: '20mb' }));
 const DATA_DIR = path.join(process.cwd(), 'data');
 const LEAGUES_FILE = path.join(DATA_DIR, 'leagues.json');
 const CUSTOM_SURVEYS_FILE = path.join(DATA_DIR, 'custom_surveys.json');
+const POLL_SURVEYS_FILE = process.env.POLL_SURVEYS_FILE || path.join(DATA_DIR, 'wikipedia-surveys.json');
+
+function loadSurveys(): Survey[] {
+  let polls = DEFAULT_SURVEYS;
+  try {
+    const feed = JSON.parse(fs.readFileSync(POLL_SURVEYS_FILE, 'utf8'));
+    if (Array.isArray(feed.surveys) && feed.surveys.length) polls = feed.surveys;
+  } catch (error) {
+    console.warn('Using bundled Wikipedia poll snapshot:', String(error));
+  }
+  return [...loadCustomSurveys(), ...polls].sort((a, b) => b.date.localeCompare(a.date));
+}
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -27,7 +39,7 @@ const SEED_LEAGUES: League[] = [
     description: 'הליגה הפתוחה לכל חובבי הפוליטיקה בישראל. מי יקלע הכי קרוב לחלוקת 120 המנדטים?',
     creatorName: 'מערכת פנטזי בחירות',
     createdAt: new Date().toISOString(),
-    targetSurveyId: 'kan11-kantar-first',
+    targetSurveyId: DEFAULT_SURVEYS[0]?.id,
     electionStage: 'voting_open',
     benchmarkTurnoutPercentage: 70.6,
     unsubmittedPlayers: [
@@ -193,10 +205,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', serverTime: new Date().toISOString() });
 });
 
-// Get all surveys (default + scanned/custom)
+// Read the generated feed each request, so server-side syncs need no restart.
 app.get('/api/surveys', (req, res) => {
-  const custom = loadCustomSurveys();
-  res.json({ surveys: [...custom, ...DEFAULT_SURVEYS] });
+  res.json({ surveys: loadSurveys() });
 });
 
 // Scan poll screenshot with Gemini
@@ -348,7 +359,7 @@ app.post('/api/leagues', (req, res) => {
       description: description ? description.trim() : undefined,
       creatorName: creatorName.trim(),
       createdAt: new Date().toISOString(),
-      targetSurveyId: targetSurveyId || 'kan11-kantar-first',
+      targetSurveyId: targetSurveyId || loadSurveys()[0]?.id,
       members: [],
     };
 
@@ -468,6 +479,15 @@ app.post('/api/leagues/:id/stage', (req, res) => {
       return res.status(404).json({ error: 'הליגה לא נמצאה' });
     }
 
+    if (!['voting_open', 'exit_poll', 'final_results'].includes(stage)) {
+      return res.status(400).json({ error: 'שלב בחירות לא תקין' });
+    }
+    if (stage !== 'voting_open') {
+      const requiredKind = stage === 'exit_poll' ? 'exit_poll' : 'official_results';
+      if (!loadSurveys().some(s => s.id === targetSurveyId && s.kind === requiredKind)) {
+        return res.status(400).json({ error: 'טרם פורסמו נתונים מאומתים לשלב זה' });
+      }
+    }
     if (stage) {
       league.electionStage = stage;
     }

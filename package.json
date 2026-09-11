@@ -9,7 +9,9 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "polls:sync": "node --import tsx scripts/sync-polls.ts",
+    "test:polls": "python3 -m unittest discover -s scripts/polls -v && node --import tsx --test scripts/polls/map-surveys.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

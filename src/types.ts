@@ -40,6 +40,13 @@ export interface League {
 }
 
 export interface Survey {
+  kind?: 'opinion_poll' | 'exit_poll' | 'official_results';
+  source?: 'wikipedia';
+  sourceUrl?: string;
+  originalSourceUrls?: string[];
+  syncedAt?: string;
+  votePercentages?: Record<string, number>;
+  notReportedPartyIds?: string[];
   id: string;
   title: string;
   institute: string;

@@ -14,7 +14,7 @@ import { CheckCircle2, AlertCircle, Share2, Copy } from 'lucide-react';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'picker' | 'league' | 'scanner' | 'surveys' | 'historical'>('picker');
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
-  const [selectedSurveyId, setSelectedSurveyId] = useState<string>('kan11-kantar-first');
+  const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
   const [isCreateLeagueModalOpen, setIsCreateLeagueModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,12 +70,19 @@ export default function App() {
     fetch('/api/surveys')
       .then((res) => res.json())
       .then((data) => {
-        if (data.surveys && Array.isArray(data.surveys)) {
+        if (Array.isArray(data.surveys) && data.surveys.length) {
           setAllSurveys(data.surveys);
         }
       })
       .catch((err) => console.log('Using default surveys:', err));
   }, []);
+
+  // Old leagues may still reference demo survey IDs.
+  useEffect(() => {
+    if (allSurveys.length && !allSurveys.some(s => s.id === selectedSurveyId)) {
+      setSelectedSurveyId(allSurveys[0].id);
+    }
+  }, [allSurveys, selectedSurveyId]);
 
   // Load league based on URL parameter or fetch active league
   useEffect(() => {

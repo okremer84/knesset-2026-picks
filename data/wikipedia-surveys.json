@@ -1,0 +1,275 @@
+{
+  "syncedAt": "2026-09-09T23:02:48.469598+00:00",
+  "sourceSnapshot": "c9f4a005d64f49478be3f456069241d592bc19aac6dcc09ce0a7e8f99493af58",
+  "surveys": [
+    {
+      "id": "wiki-1460f3dc3dc33a6b0a8331f6e02d7e104c454a0f425bcd6fff5cea4047878063",
+      "title": "HaHadashot 12 · 2026-09-09",
+      "institute": "Midgam R&C",
+      "channelOrMedia": "HaHadashot 12",
+      "date": "2026-09-09",
+      "sampleSize": 504,
+      "seats": {
+        "likud": 21,
+        "beyachad": 13,
+        "religious_zionism": 5,
+        "otzma_yehudit": 6,
+        "kachol_lavan": 0,
+        "shas": 7,
+        "utj": 8,
+        "israel_beitenu": 9,
+        "raam": 4,
+        "joint_list": 7,
+        "democrats": 10,
+        "yashar": 25,
+        "hendel": 0,
+        "amcha": 5
+      },
+      "blocs": {
+        "coalition": 52,
+        "opposition": 57,
+        "arab": 11,
+        "other": 0
+      },
+      "kind": "opinion_poll",
+      "source": "wikipedia",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+      "originalSourceUrls": [
+        "https://www.mako.co.il/news-israel-elections/2026/Article-c27dc00e8c680a1026.htm"
+      ],
+      "syncedAt": "2026-09-09T23:02:48.469598+00:00",
+      "votePercentages": {
+        "kachol_lavan": 1.4,
+        "hendel": 2.9
+      },
+      "notReportedPartyIds": [
+        "balad"
+      ],
+      "notes": "תאריכי הסקר במקור: 9 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק."
+    },
+    {
+      "id": "wiki-1b4b8bc97448048dc12128388173560678bdbb54ca7fa71d62fc65715611987d",
+      "title": "i24 News · 2026-09-09",
+      "institute": "Direct Polls",
+      "channelOrMedia": "i24 News",
+      "date": "2026-09-09",
+      "sampleSize": 1054,
+      "seats": {
+        "likud": 27,
+        "beyachad": 10,
+        "religious_zionism": 6,
+        "otzma_yehudit": 8,
+        "kachol_lavan": 0,
+        "shas": 7,
+        "utj": 8,
+        "israel_beitenu": 7,
+        "raam": 5,
+        "joint_list": 7,
+        "democrats": 9,
+        "yashar": 22,
+        "hendel": 0,
+        "amcha": 4
+      },
+      "blocs": {
+        "coalition": 60,
+        "opposition": 48,
+        "arab": 12,
+        "other": 0
+      },
+      "kind": "opinion_poll",
+      "source": "wikipedia",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+      "originalSourceUrls": [
+        "https://www.i24news.tv/he/news/israel-elections-2026/polls/artc-a92f58d0"
+      ],
+      "syncedAt": "2026-09-09T23:02:48.469598+00:00",
+      "votePercentages": {
+        "kachol_lavan": 1.1,
+        "hendel": 1.4
+      },
+      "notReportedPartyIds": [
+        "balad"
+      ],
+      "notes": "תאריכי הסקר במקור: 9 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק."
+    },
+    {
+      "id": "wiki-36c0c1c5865c793f2bf42247230389a239a295bb85d558fafd6292813f456548",
+      "title": "Channel 13 · 2026-09-09",
+      "institute": "Midgam Project",
+      "channelOrMedia": "Channel 13",
+      "date": "2026-09-09",
+      "sampleSize": 1119,
+      "seats": {
+        "likud": 19,
+        "beyachad": 13,
+        "religious_zionism": 6,
+        "otzma_yehudit": 9,
+        "kachol_lavan": 0,
+        "shas": 7,
+        "utj": 8,
+        "israel_beitenu": 8,
+        "raam": 6,
+        "joint_list": 8,
+        "democrats": 10,
+        "yashar": 22,
+        "hendel": 0,
+        "amcha": 4
+      },
+      "blocs": {
+        "coalition": 53,
+        "opposition": 53,
+        "arab": 14,
+        "other": 0
+      },
+      "kind": "opinion_poll",
+      "source": "wikipedia",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+      "originalSourceUrls": [
+        "https://13tv.co.il/item/news/politics/politics/z10wm-905351997/"
+      ],
+      "syncedAt": "2026-09-09T23:02:48.469598+00:00",
+      "votePercentages": {
+        "kachol_lavan": 1.1,
+        "hendel": 3.2
+      },
+      "notReportedPartyIds": [
+        "balad"
+      ],
+      "notes": "תאריכי הסקר במקור: 9 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק."
+    },
+    {
+      "id": "wiki-7dd13be1c3a2f0b1b1788c5d1d55e734624a9286a0dae1d92d2b8f4108e6764a",
+      "title": "Walla · 2026-09-09",
+      "institute": "Lazar",
+      "channelOrMedia": "Walla",
+      "date": "2026-09-09",
+      "sampleSize": 506,
+      "seats": {
+        "likud": 21,
+        "beyachad": 14,
+        "religious_zionism": 5,
+        "otzma_yehudit": 7,
+        "kachol_lavan": 0,
+        "shas": 7,
+        "utj": 7,
+        "israel_beitenu": 9,
+        "raam": 5,
+        "joint_list": 7,
+        "democrats": 9,
+        "yashar": 25,
+        "hendel": 0,
+        "amcha": 4
+      },
+      "blocs": {
+        "coalition": 51,
+        "opposition": 57,
+        "arab": 12,
+        "other": 0
+      },
+      "kind": "opinion_poll",
+      "source": "wikipedia",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+      "originalSourceUrls": [
+        "https://www.maariv.co.il/news/politics/article-1364694"
+      ],
+      "syncedAt": "2026-09-09T23:02:48.469598+00:00",
+      "votePercentages": {
+        "kachol_lavan": 0.9,
+        "hendel": 2.8
+      },
+      "notReportedPartyIds": [
+        "balad"
+      ],
+      "notes": "תאריכי הסקר במקור: 9 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק."
+    },
+    {
+      "id": "wiki-b5902e0fd32d60f6248f56cf325e7126012771bf79d91b998d06e5db50686b33",
+      "title": "Kan 11 · 2026-09-09",
+      "institute": "Kantar",
+      "channelOrMedia": "Kan 11",
+      "date": "2026-09-09",
+      "sampleSize": 554,
+      "seats": {
+        "likud": 21,
+        "beyachad": 12,
+        "religious_zionism": 5,
+        "otzma_yehudit": 7,
+        "kachol_lavan": 0,
+        "shas": 7,
+        "utj": 8,
+        "israel_beitenu": 7,
+        "raam": 5,
+        "joint_list": 7,
+        "democrats": 9,
+        "yashar": 24,
+        "hendel": 4,
+        "amcha": 4
+      },
+      "blocs": {
+        "coalition": 52,
+        "opposition": 52,
+        "arab": 12,
+        "other": 4
+      },
+      "kind": "opinion_poll",
+      "source": "wikipedia",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+      "originalSourceUrls": [
+        "https://www.kan.org.il/content/kan-news/politic/1098105/"
+      ],
+      "syncedAt": "2026-09-09T23:02:48.469598+00:00",
+      "votePercentages": {
+        "kachol_lavan": 0.8
+      },
+      "notReportedPartyIds": [
+        "balad"
+      ],
+      "notes": "תאריכי הסקר במקור: 9 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק."
+    },
+    {
+      "id": "wiki-eec389c0a369e4dccf56f890c7c394b3ae7ae6154b4877cfe2cd3c067d611a97",
+      "title": "Maariv · 2026-09-08",
+      "institute": "Lazar",
+      "channelOrMedia": "Maariv",
+      "date": "2026-09-08",
+      "sampleSize": 600,
+      "seats": {
+        "likud": 20,
+        "beyachad": 13,
+        "religious_zionism": 5,
+        "otzma_yehudit": 8,
+        "kachol_lavan": 0,
+        "shas": 7,
+        "utj": 7,
+        "israel_beitenu": 9,
+        "raam": 5,
+        "joint_list": 7,
+        "democrats": 10,
+        "yashar": 25,
+        "hendel": 4,
+        "amcha": 0
+      },
+      "blocs": {
+        "coalition": 47,
+        "opposition": 57,
+        "arab": 12,
+        "other": 4
+      },
+      "kind": "opinion_poll",
+      "source": "wikipedia",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+      "originalSourceUrls": [
+        "https://www.jpost.com/israel-election-2026/article-907949"
+      ],
+      "syncedAt": "2026-09-09T23:02:48.469598+00:00",
+      "votePercentages": {
+        "kachol_lavan": 1.3,
+        "amcha": 2.8
+      },
+      "notReportedPartyIds": [
+        "balad"
+      ],
+      "notes": "תאריכי הסקר במקור: 7– 8 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק."
+    }
+  ]
+}

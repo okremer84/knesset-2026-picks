@@ -219,6 +219,13 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
             })}
           </div>
 
+          {activeSurvey?.sourceUrl && (
+            <div className="text-xs text-slate-500 flex flex-wrap gap-3">
+              <a href={activeSurvey.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">מקור: ויקיפדיה</a>
+              {activeSurvey.originalSourceUrls?.[0] && <a href={activeSurvey.originalSourceUrls[0]} target="_blank" rel="noopener noreferrer" className="underline">פרסום הסקר המקורי</a>}
+              {activeSurvey.syncedAt && <span>עודכן: {new Date(activeSurvey.syncedAt).toLocaleString('he-IL')}</span>}
+            </div>
+          )}
           <div className="text-xs font-medium text-slate-500 flex items-center justify-between gap-2 pt-0.5">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-800">
