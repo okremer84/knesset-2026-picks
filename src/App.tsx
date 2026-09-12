@@ -293,10 +293,30 @@ export default function App() {
   // Refresh deadlines, standings and invitations without trusting the browser clock.
   useEffect(() => {
     if (!currentLeague) return;
-    const refresh = () => fetch('/api/leagues/' + currentLeague.id).then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.league) setCurrentLeague(data.league); }).catch(() => {});
+    const leagueId = currentLeague.id;
+    const controller = new AbortController();
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || controller.signal.aborted) return;
+      refreshing = true;
+      try {
+        const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId), { signal: controller.signal });
+        const data = response.ok ? await response.json() : null;
+        if (data?.league?.id === leagueId && !controller.signal.aborted) {
+          setCurrentLeague(selected =>
+            !controller.signal.aborted && selected?.id === leagueId ? data.league : selected);
+        }
+      } catch {
+        // Keep the last successful state after cancellation or a failed refresh.
+      } finally {
+        refreshing = false;
+      }
+    };
     const timer = window.setInterval(refresh, 30000);
-    return () => window.clearInterval(timer);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
   }, [currentLeague?.id]);
 
   return (
