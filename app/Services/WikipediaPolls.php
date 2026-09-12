@@ -32,7 +32,7 @@ class WikipediaPolls
         foreach ($table->getElementsByTagName('tr') as $tr) {
             $row = [];
             $next = [];
-            foreach ($pending as $col => [$cell,$left]) {
+            foreach ($pending as $col => [$cell, $left]) {
                 $row[$col] = $cell;
                 if ($left > 1) {
                     $next[$col] = [$cell, $left - 1];
@@ -165,7 +165,8 @@ class WikipediaPolls
                     $identity = spl_object_id($cell);
                     if (isset($seen[$identity])) {
                         continue;
-                    } $seen[$identity] = true;
+                    }
+                    $seen[$identity] = true;
                     $labels = [];
                     foreach ($row as $j => $same) {
                         if ($same === $cell) {
