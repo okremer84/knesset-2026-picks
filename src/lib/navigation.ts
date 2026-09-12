@@ -13,3 +13,16 @@ export async function initialLeagueId(
 export function leaveResetRoute(location: Pick<Location, 'pathname'>, history: Pick<History, 'replaceState'>) {
   if (location.pathname.startsWith('/reset-password/')) history.replaceState({}, '', '/');
 }
+
+export async function loadInitialLeague(
+  id: string,
+  leagues: LeagueSummary[],
+  fetchLeague: (id: string) => Promise<Response>,
+): Promise<Response> {
+  const response = await fetchLeague(id);
+  const fallback = leagues.find(league => league.id !== id);
+  if ([403, 404].includes(response.status) && fallback) {
+    return fetchLeague(fallback.id);
+  }
+  return response;
+}

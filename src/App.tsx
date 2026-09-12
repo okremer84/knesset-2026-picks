@@ -5,7 +5,7 @@ import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
 import { useUser } from './components/AuthGate';
 import { surveySyncNotice } from './utils/surveys';
-import { initialLeagueId } from './lib/navigation';
+import { initialLeagueId, loadInitialLeague } from './lib/navigation';
 import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
@@ -106,7 +106,7 @@ export default function App() {
         const id = await initialLeagueId(params, data.leagues, handleJoinExistingLeagueById);
         if (cancelled) return;
         if (!id) return;
-        const response = await fetch('/api/leagues/' + encodeURIComponent(id));
+        const response = await loadInitialLeague(id, data.leagues, leagueId => fetch('/api/leagues/' + encodeURIComponent(leagueId)));
         if (!response.ok) throw new Error('לא ניתן לפתוח את הליגה');
         const detail: { league: League } = await response.json();
         if (cancelled) return;
