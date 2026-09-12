@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import laravel from 'laravel-vite-plugin';
 import fs from 'fs';
 import path from 'path';
 import {defineConfig, Plugin} from 'vite';
@@ -66,7 +67,7 @@ function aistudioMediaPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
+    plugins: [laravel({input: ['src/main.tsx'], refresh: true}), react(), tailwindcss(), aistudioMediaPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

@@ -9,3 +9,13 @@ coverage/
 data/poll-sync/
 __pycache__/
 .venv/
+
+/vendor/
+/public/build/
+/public/hot
+/bootstrap/cache/*.php
+/database/*.sqlite*
+/storage/*.key
+.phpunit.result.cache
+
+.phpunit.cache/

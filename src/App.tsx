@@ -2,17 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
-import { PhotoScanner } from './components/PhotoScanner';
+import { apiFetch as fetch } from './lib/api';
+import { useUser } from './components/AuthGate';
+import { surveySyncNotice } from './utils/surveys';
+import { initialLeagueId, loadInitialLeague } from './lib/navigation';
 import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
 import { DEFAULT_SURVEYS } from './data/surveys';
 import { PARTIES_LIST } from './data/parties';
-import { League, Prediction, Survey } from './types';
+import { League, LeagueSummary, Prediction, Survey } from './types';
 import { CheckCircle2, AlertCircle, Share2, Copy } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'picker' | 'league' | 'scanner' | 'surveys' | 'historical'>('picker');
+  const user = useUser();
+  const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הסקרים עד לקבלת עדכון מהשרת');
+  const [joinCode, setJoinCode] = useState('');
+  const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
+  const [activeTab, setActiveTab] = useState<'picker' | 'league' | 'surveys' | 'historical'>('picker');
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
@@ -39,7 +46,7 @@ export default function App() {
   // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
     try {
-      const saved = localStorage.getItem('knesset_fantasy_user_seats_v2');
+      const saved = localStorage.getItem('knesset_fantasy_user_seats_' + user.id);
       if (saved) {
         return sanitizeSeatsMap(JSON.parse(saved));
       }
@@ -59,7 +66,7 @@ export default function App() {
   // Persist draft seats to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('knesset_fantasy_user_seats_v2', JSON.stringify(userSeats));
+      localStorage.setItem('knesset_fantasy_user_seats_' + user.id, JSON.stringify(userSeats));
     } catch {
       // Ignore
     }
@@ -70,11 +77,12 @@ export default function App() {
     fetch('/api/surveys')
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data.surveys) && data.surveys.length) {
+        if (Array.isArray(data.surveys)) {
           setAllSurveys(data.surveys);
+          setSurveyNotice(surveySyncNotice(data.surveys.length, data.sync));
         }
       })
-      .catch((err) => console.log('Using default surveys:', err));
+      .catch(() => setSurveyNotice('לא ניתן לטעון סקרים מהשרת. מוצג עותק שמור עם תאריכי המקור.'));
   }, []);
 
   // Old leagues may still reference demo survey IDs.
@@ -84,50 +92,36 @@ export default function App() {
     }
   }, [allSurveys, selectedSurveyId]);
 
-  // Load league based on URL parameter or fetch active league
+  // Load small membership summaries, then fetch only the selected league's details.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const leagueParam = params.get('league');
-
-    setLoadingLeague(true);
-    if (leagueParam) {
-      fetch(`/api/leagues/${leagueParam}`)
-        .then((res) => {
-          if (!res.ok) throw new Error('League not found');
-          return res.json();
-        })
-        .then((data) => {
-          if (data.league) {
-            setCurrentLeague(data.league);
-            if (data.league.targetSurveyId) {
-              setSelectedSurveyId(data.league.targetSurveyId);
-            }
-          }
-        })
-        .catch(() => {
-          // Fallback to list
-          fetchFirstLeague();
-        })
-        .finally(() => setLoadingLeague(false));
-    } else {
-      fetchFirstLeague();
+    let cancelled = false;
+    async function loadLeagues() {
+      try {
+        const res = await fetch('/api/leagues');
+        if (!res.ok) throw new Error('לא ניתן לטעון את הליגות');
+        const data: { leagues: LeagueSummary[] } = await res.json();
+        if (cancelled) return;
+        setMyLeagues(data.leagues);
+        const params = new URLSearchParams(window.location.search);
+        const id = await initialLeagueId(params, data.leagues, handleJoinExistingLeagueById);
+        if (cancelled) return;
+        if (!id) return;
+        const response = await loadInitialLeague(id, data.leagues, leagueId => fetch('/api/leagues/' + encodeURIComponent(leagueId)));
+        if (!response.ok) throw new Error('לא ניתן לפתוח את הליגה');
+        const detail: { league: League } = await response.json();
+        if (cancelled) return;
+        setCurrentLeague(detail.league);
+        window.history.replaceState({}, '', '/?league=' + detail.league.id);
+        if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
+      } catch (e) {
+        if (!cancelled) showToast((e as Error).message, 'error');
+      } finally {
+        if (!cancelled) setLoadingLeague(false);
+      }
     }
+    loadLeagues();
+    return () => { cancelled = true; };
   }, []);
-
-  const fetchFirstLeague = () => {
-    fetch('/api/leagues')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.leagues && data.leagues.length > 0) {
-          setCurrentLeague(data.leagues[0]);
-          if (data.leagues[0].targetSurveyId) {
-            setSelectedSurveyId(data.leagues[0].targetSurveyId);
-          }
-        }
-      })
-      .catch((err) => console.error('Error fetching leagues:', err))
-      .finally(() => setLoadingLeague(false));
-  };
 
   const showToast = (text: string, type?: 'success' | 'error' | 'info') => {
     let resolvedType: 'success' | 'error' | 'info' = type || 'success';
@@ -151,8 +145,7 @@ export default function App() {
   // Submit user's prediction to the active league
   const handleSubmitPrediction = async (memberName: string, note?: string, turnoutPercentage?: number) => {
     if (!currentLeague) {
-      showToast('לא נמצאה ליגה פעילה. אנא צור ליגה תחילה.', 'error');
-      return;
+      throw new Error('לא נמצאה ליגה פעילה. אנא צור ליגה תחילה.');
     }
 
     // Always sanitize to strictly PARTIES_LIST keys with integer values
@@ -190,15 +183,17 @@ export default function App() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'שגיאה בשמירת התחזית');
+        throw new Error(data.message || data.error || 'שגיאה בשמירת התחזית');
       }
 
       setCurrentLeague(data.league);
+      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
       showToast('התחזית שלך נשמרה בהצלחה בליגה! 🎉', 'success');
       setActiveTab('league');
     } catch (err: any) {
       console.error('Submit prediction error:', err);
       showToast(err.message || 'שגיאה בשמירת התחזית לליגה', 'error');
+      throw err;
     } finally {
       setIsSubmitting(false);
     }
@@ -209,14 +204,15 @@ export default function App() {
     name: string,
     creatorName: string,
     description?: string,
-    targetSurveyId?: string
+    targetSurveyId?: string,
+    locksAt?: string
   ) => {
     const res = await fetch('/api/leagues', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name,
-        creatorName,
+        locksAt,
         description,
         targetSurveyId,
       }),
@@ -224,16 +220,17 @@ export default function App() {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(data.error || 'נכשלה יצירת הליגה');
+      throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
     }
 
     setCurrentLeague(data.league);
+      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
     if (data.league.targetSurveyId) {
       setSelectedSurveyId(data.league.targetSurveyId);
     }
 
     // Update URL query parameter without full reload
-    const newUrl = `${window.location.pathname}?league=${data.league.id}`;
+    const newUrl = `/?league=${data.league.id}`;
     window.history.pushState({ path: newUrl }, '', newUrl);
 
     showToast(`ליגת "${data.league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
@@ -243,28 +240,32 @@ export default function App() {
   // Switch / Join league by ID
   const handleJoinExistingLeagueById = async (leagueId: string) => {
     try {
-      const res = await fetch(`/api/leagues/${leagueId}`);
+      const res = await fetch('/api/leagues/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({code: leagueId}) });
       const data = await res.json();
       if (!res.ok || !data.league) {
-        showToast('לא נמצאה ליגה עם קוד זה. בדוק את הקוד ונסה שוב.');
-        return;
+        const validation = Object.values(data.errors || {}).flat().join(' ');
+        showToast(validation || data.message || data.error || 'לא נמצאה ליגה עם קוד זה.', 'error');
+        return false;
       }
 
       setCurrentLeague(data.league);
-      const newUrl = `${window.location.pathname}?league=${data.league.id}`;
+      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
+      const newUrl = `/?league=${data.league.id}`;
       window.history.pushState({ path: newUrl }, '', newUrl);
 
       showToast(`עברת בהצלחה לליגת "${data.league.name}"!`);
       setActiveTab('league');
+      return true;
     } catch (err) {
-      showToast('שגיאה בטעינת הליגה');
+      showToast('שגיאה בטעינת הליגה', 'error');
+      return false;
     }
   };
 
   // Share league link
   const handleShareLeague = () => {
     if (!currentLeague) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?league=${currentLeague.id}`;
+    const shareUrl = `${window.location.origin}/?invite=${currentLeague.inviteCode}`;
 
     if (navigator.share) {
       navigator
@@ -283,17 +284,40 @@ export default function App() {
     }
   };
 
-  // When a new survey is scanned via AI
-  const handleNewSurveyScanned = (newSurvey: Survey) => {
-    setAllSurveys((prev) => [newSurvey, ...prev.filter((s) => s.id !== newSurvey.id)]);
-    setSelectedSurveyId(newSurvey.id);
-    showToast(`הסקר "${newSurvey.title}" פוענח בהצלחה ונוסף לרשימת הסקרים!`);
-  };
+  const username = user.name;
+  const userPrediction = currentLeague?.members.find(m => m.userId === user.id);
+  useEffect(() => {
+    if (userPrediction) setUserSeats(userPrediction.seats);
+  }, [currentLeague?.id, userPrediction?.submittedAt]);
 
-  const username = localStorage.getItem('knesset_fantasy_username') || '';
-  const userPrediction = currentLeague?.members.find(
-    (m) => m.memberName.toLowerCase() === username.toLowerCase()
-  );
+  // Refresh deadlines, standings and invitations without trusting the browser clock.
+  useEffect(() => {
+    if (!currentLeague) return;
+    const leagueId = currentLeague.id;
+    const controller = new AbortController();
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || controller.signal.aborted) return;
+      refreshing = true;
+      try {
+        const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId), { signal: controller.signal });
+        const data = response.ok ? await response.json() : null;
+        if (data?.league?.id === leagueId && !controller.signal.aborted) {
+          setCurrentLeague(selected =>
+            !controller.signal.aborted && selected?.id === leagueId ? data.league : selected);
+        }
+      } catch {
+        // Keep the last successful state after cancellation or a failed refresh.
+      } finally {
+        refreshing = false;
+      }
+    };
+    const timer = window.setInterval(refresh, 30000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [currentLeague?.id]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-red-500 selection:text-white">
@@ -338,13 +362,16 @@ export default function App() {
       />
 
       {/* Main Content Area */}
+      {surveyNotice && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
+      {myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} onChange={e => { window.location.href = '/?league=' + e.target.value; }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {currentLeague?.isLocked && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזיות בליגה נעולות. אפשר להמשיך להשוות סקרים, אך לא לשנות את התחזית שהוגשה.</p>}
       <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && (
           <SeatPicker
             currentSeats={userSeats}
             onSeatsChange={setUserSeats}
             onSubmitPrediction={handleSubmitPrediction}
-            isSubmitting={isSubmitting}
+            isSubmitting={isSubmitting || !!currentLeague?.isLocked}
             activeLeagueName={currentLeague?.name}
             onNavigateToSurveys={() => setActiveTab('surveys')}
           />
@@ -353,6 +380,7 @@ export default function App() {
         {activeTab === 'league' && (
           currentLeague ? (
             <LeagueView
+              key={currentLeague.id}
               league={currentLeague}
               allSurveys={allSurveys}
               selectedSurveyId={selectedSurveyId}
@@ -366,18 +394,16 @@ export default function App() {
             />
           ) : (
             <div className="text-center py-16 bg-slate-50 border border-slate-200 rounded-2xl p-8">
-              <p className="text-slate-500 text-sm mb-4">טוען נתוני ליגה...</p>
+              <p className="text-slate-500 text-sm mb-4">{loadingLeague ? 'טוען נתוני ליגה…' : 'עדיין לא הצטרפת לליגה'}</p>
+              {!loadingLeague && <div className="space-y-4">
+                <button className="bg-red-600 text-white px-4 py-2 rounded-xl" onClick={() => setIsCreateLeagueModalOpen(true)}>יצירת ליגה</button>
+                <form onSubmit={e => { e.preventDefault(); handleJoinExistingLeagueById(joinCode.trim()); }} className="flex gap-2 justify-center flex-wrap"><input aria-label="קוד הזמנה" className="border rounded-xl p-2" value={joinCode} onChange={e => setJoinCode(e.target.value)} required placeholder="קוד הזמנה"/><button className="border rounded-xl p-2">הצטרפות לליגה</button></form>
+              </div>}
             </div>
           )
         )}
 
-        {activeTab === 'scanner' && (
-          <PhotoScanner
-            userSeats={userSeats}
-            onNewSurveyScanned={handleNewSurveyScanned}
-            onNavigateToPicker={() => setActiveTab('picker')}
-          />
-        )}
+
 
         {activeTab === 'surveys' && (
           <SurveyComparator
@@ -405,9 +431,9 @@ export default function App() {
             <div className="flex items-center gap-4 text-slate-500 font-medium">
               <span>120 מנדטים בדיוק</span>
               <span>•</span>
-              <span>סריקת סקרים עם Gemini AI</span>
+              <span>נתוני סקרים מוויקיפדיה</span>
               <span>•</span>
-              <span>סקר כאן חדשות (מכון קאנטאר)</span>
+              <span>סקרי דעת קהל אינם תוצאות רשמיות</span>
             </div>
           </div>
         </footer>

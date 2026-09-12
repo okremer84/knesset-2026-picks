@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Trophy, X } from 'lucide-react';
 import { Survey } from '../types';
+import { useUser } from './AuthGate';
+import { resolveOpinionPollId } from '../utils/surveys';
 
 interface CreateLeagueModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateLeague: (name: string, creatorName: string, description?: string, targetSurveyId?: string) => Promise<void>;
+  onCreateLeague: (name: string, creatorName: string, description?: string, targetSurveyId?: string, locksAt?: string) => Promise<void>;
   surveys: Survey[];
 }
 
@@ -16,13 +18,15 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
   surveys,
 }) => {
   const [name, setName] = useState('');
-  const [creatorName, setCreatorName] = useState(() => {
-    return localStorage.getItem('knesset_fantasy_username') || '';
-  });
+  const creatorName = useUser().name;
+  const [locksAt, setLocksAt] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedSurveyId, setSelectedSurveyId] = useState(surveys[0]?.id || 'kan11-kantar-first');
+  const [selectedSurveyId, setSelectedSurveyId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const opinionPolls = surveys.filter(s => s.kind === 'opinion_poll');
+  const resolvedSurveyId = resolveOpinionPollId(surveys, selectedSurveyId);
 
   if (!isOpen) return null;
 
@@ -33,12 +37,13 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
       return;
     }
 
+    if (!resolvedSurveyId) { setError('אין כרגע סקר זמין לבחירה'); return; }
+
     setIsSubmitting(true);
     setError('');
 
     try {
-      localStorage.setItem('knesset_fantasy_username', creatorName.trim());
-      await onCreateLeague(name.trim(), creatorName.trim(), description.trim() || undefined, selectedSurveyId);
+      await onCreateLeague(name.trim(), creatorName.trim(), description.trim() || undefined, resolvedSurveyId, new Date(locksAt).toISOString());
       setName('');
       setDescription('');
       onClose();
@@ -90,7 +95,7 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
               type="text"
               required
               value={creatorName}
-              onChange={(e) => setCreatorName(e.target.value)}
+              readOnly
               placeholder="שמך המלא או כינוי"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
             />
@@ -114,11 +119,12 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
               סקר ברירת מחדל לחישוב תוצאות
             </label>
             <select
-              value={selectedSurveyId}
+              value={resolvedSurveyId}
               onChange={(e) => setSelectedSurveyId(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
             >
-              {surveys.map((s) => (
+              {!resolvedSurveyId && <option value="">אין סקרים זמינים</option>}
+              {opinionPolls.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.title} ({s.date})
                 </option>
@@ -126,6 +132,10 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
             </select>
           </div>
 
+          <label className="block font-bold">מועד נעילת התחזיות (לפי השעון המקומי שלך) *
+            <input type="datetime-local" required value={locksAt} onChange={e => setLocksAt(e.target.value)} className="w-full border rounded-xl p-3 mt-2"/>
+            <span className="block text-slate-500 mt-1">לאחר מועד זה לא ניתן להצטרף או לעדכן תחזיות.</span>
+          </label>
           {error && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
               {error}
@@ -142,7 +152,7 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !resolvedSurveyId}
               className="px-5 py-2.5 rounded-xl bg-[#e62b1e] hover:bg-[#c92318] text-white font-black transition-colors shadow-sm cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'יוצר ליגה...' : 'צור ליגה והזמן חברים'}
