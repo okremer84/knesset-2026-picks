@@ -457,7 +457,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 {scoreResult.totalSeatDiff}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 font-medium">
-                ממוצע של {(scoreResult.totalSeatDiff / PARTIES_LIST.length).toFixed(1)} למפלגה
+                ממוצע של {(scoreResult.partyBreakdown.length ? (scoreResult.totalSeatDiff / scoreResult.partyBreakdown.length).toFixed(1) : '—')} למפלגה
               </div>
             </div>
 

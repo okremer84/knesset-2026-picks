@@ -52,3 +52,15 @@ test('omitted party allocations do not change displayed user bloc totals', () =>
   assert.match(arabCard, /מפלגות ערביות 10 \/ בסקר: 20/);
   assert.match(arabCard, /-10 מתחת לסקר/);
 });
+
+test('average error uses scored parties, including reported zeroes, and handles no reported parties', () => {
+  const render = (seats: Record<string, number>) => renderToStaticMarkup(
+    <SurveyComparator surveys={[{
+      id: 'average', title: 'Partial poll', kind: 'opinion_poll',
+      institute: 'Test', channelOrMedia: 'Test', date: '2026-09-09', seats,
+    }]} userSeats={{ likud: 90, raam: 20, balad: 10 }} onNavigateToPicker={() => {}}/>
+  ).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+  assert.match(render({ likud: 100, raam: 20 }), /ממוצע של 5\.0 למפלגה/);
+  assert.match(render({ likud: 100, raam: 20, balad: 0 }), /ממוצע של 6\.7 למפלגה/);
+  assert.match(render({}), /ממוצע של — למפלגה/);
+});
