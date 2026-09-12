@@ -12,6 +12,10 @@ This change prepares the repository for Cloud. It does not create a Cloud applic
 
 ## Build commands
 
+Use npm for frontend dependencies, matching CI and the committed `package-lock.json`. Keep this as the only JavaScript lockfile; an obsolete `bun.lock` caused Cloud's dependency installation to select Bun 1.2.23, which could not read its newer lockfile format. Upgrading Bun in custom build commands did not fix the stale dependency entries in that lockfile.
+
+In Cloud's environment settings, replace the previous `npm install -g bun` / `bun install --frozen-lockfile` workaround with the complete build commands below, then deploy the commit containing the lockfile removal.
+
 ```sh
 composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 npm ci
