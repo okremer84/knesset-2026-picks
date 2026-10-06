@@ -50,7 +50,7 @@ class GoogleAuthTest extends TestCase
             new Response(200, [], json_encode(['access_token' => 'test-token', 'expires_in' => 3600])),
             new Response(200, [], json_encode(array_replace([
                 'sub' => 'google-123', 'email' => 'MAYA@example.org',
-                'name' => 'Maya', 'email_verified' => true,
+                'name' => 'Maya', 'email_verified' => true, 'picture' => 'https://example.org/google.jpg',
             ], $overrides))),
         );
     }
@@ -73,6 +73,7 @@ class GoogleAuthTest extends TestCase
         $user = User::sole();
         $this->assertSame('google-123', $user->google_id);
         $this->assertSame('maya@example.org', $user->email);
+        $this->assertSame('https://example.org/google.jpg', $user->avatar_url);
         $this->assertNotNull($user->email_verified_at);
         $this->assertAuthenticatedAs($user);
         $this->getJson('/api/auth/user')->assertOk()->assertJsonPath('user.name', 'Maya')
@@ -141,6 +142,17 @@ class GoogleAuthTest extends TestCase
         $this->get('/auth/google?invite=abc')->assertRedirect('/?invite=abc&auth_error=unavailable');
         $this->get('/auth/google/callback?code=test')->assertRedirect('/?auth_error=unavailable');
         $this->assertGuest();
+    }
+
+    public function test_google_photo_refresh_preserves_custom_photo_and_display_name(): void
+    {
+        $user = User::factory()->create(['google_id' => 'google-123', 'name' => 'Custom name', 'avatar_data' => 'data:image/png;base64,custom']);
+        $state = $this->begin();
+        $this->profile(['picture' => 'https://example.org/google.jpg']);
+        $this->completeGoogleSignIn($state)->assertRedirect('/');
+        $this->assertSame('https://example.org/google.jpg', $user->fresh()->google_avatar_url);
+        $this->assertSame('data:image/png;base64,custom', $user->fresh()->avatar_url);
+        $this->assertSame('Custom name', $user->fresh()->name);
     }
 
     public function test_password_routes_are_removed(): void

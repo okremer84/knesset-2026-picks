@@ -86,6 +86,12 @@ class AuthController extends Controller
                 }
             }
         }
+        $avatar = $google->getAvatar();
+        if (is_string($avatar) && filter_var($avatar, FILTER_VALIDATE_URL)
+            && parse_url($avatar, PHP_URL_SCHEME) === 'https') {
+            $user->google_avatar_url = $avatar;
+            $user->save();
+        }
         Auth::login($user);
         $request->session()->regenerate();
 

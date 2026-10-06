@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LeagueController;
+use App\Http\Controllers\ProfileController;
 use App\Models\Survey;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,7 @@ Route::prefix('api')->group(function () {
     Route::get('auth/config', [AuthController::class, 'config']);
     Route::middleware('auth')->group(function () {
         Route::get('auth/user', fn (Request $r) => ['user' => $r->user()]);
+        Route::post('auth/profile', [ProfileController::class, 'update'])->middleware('throttle:10,1');
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('leagues', [LeagueController::class, 'index']);
         Route::post('leagues', [LeagueController::class, 'create'])->middleware('throttle:10,1');

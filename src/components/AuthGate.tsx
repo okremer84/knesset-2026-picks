@@ -1,18 +1,20 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { clearCsrf, apiFetch, request } from '../lib/api';
-type User = { id: number; name: string; email: string };
+export type User = { id: number; name: string; email: string; avatar_url?: string | null };
 const AuthContext = createContext<User | null>(null);
+const AccountContext = createContext<{ user: User; logout: () => Promise<void>; error: string; updateUser: (user: User) => void } | null>(null);
+export function useAccount() { return useContext(AccountContext)!; }
 export function useUser() { return useContext(AuthContext)!; }
 
 export function GoogleSignIn({ enabled, error, href }: { enabled: boolean; error: string; href: string }) {
-  return <main dir="rtl" className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-    <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-5">
-      <div className="text-red-600 text-4xl font-black">120</div>
+  return <main dir="rtl" className="sign-in-page">
+    <div className="sign-in-card space-y-5">
+      <div className="brand-number">120</div>
       <h1 className="text-2xl font-black">כניסה לפנטזי בחירות</h1>
       <p className="text-slate-600 text-sm">מתחברים עם Google ומתחילים לשחק. התחזיות שלך נשמרות בחשבון האישי.</p>
       {error && <p role="alert" className="text-red-700">{error}</p>}
       {enabled
-        ? <a href={href} className="flex justify-center w-full border border-slate-300 bg-white text-slate-900 rounded-xl p-3 font-bold hover:bg-slate-50">המשך עם Google</a>
+        ? <a href={href} className="button-primary w-full">המשך עם Google</a>
         : <><button disabled className="w-full border border-slate-200 text-slate-400 rounded-xl p-3 font-bold">המשך עם Google</button>
           <p role="status" className="text-slate-600 text-sm">ההתחברות עם Google עדיין לא זמינה. נסו שוב בקרוב.</p></>}
     </div>
@@ -52,11 +54,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
   if (loading) return <p dir="rtl" className="p-12 text-center">טוען את החשבון…</p>;
   if (user) return <AuthContext.Provider value={user}>
-    <div dir="rtl" className="bg-slate-950 text-white px-6 py-2 flex justify-between text-sm">
-      <span>שלום, {user.name}</span><button onClick={logout} className="underline">התנתקות</button>
-      {error && <span role="alert">{error}</span>}
-    </div>
-    <React.Fragment key={user.id}>{children}</React.Fragment>
+    <AccountContext.Provider value={{ user, logout, error, updateUser: setUser }}>
+      <React.Fragment key={user.id}>{children}</React.Fragment>
+    </AccountContext.Provider>
   </AuthContext.Provider>;
   const params = new URLSearchParams();
   const current = new URLSearchParams(window.location.search);

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Dialog } from './Dialog';
 import { Trophy, Lock, Users, Share2 } from 'lucide-react';
 import { League, Prediction, Survey, ElectionStage } from '../types';
 import { calculateScore } from '../utils/scoring';
@@ -42,13 +43,13 @@ export function LeagueView({ league, allSurveys, onOpenCreateLeague, onJoinExist
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <div dir="rtl" className="space-y-6">
-    <section className="bg-slate-950 text-white p-6 rounded-2xl space-y-4">
+    <section className="league-heading space-y-5">
       <div className="flex flex-wrap justify-between gap-4">
-        <div><p className="text-red-400 font-bold flex gap-2"><Trophy size={18}/> ליגת הבחירות</p><h2 className="text-3xl font-black mt-2">{league.name}</h2><p className="text-slate-300 mt-2">{league.description}</p></div>
+        <div><p className="eyebrow flex gap-2"><Trophy size={18}/> ליגת הבחירות</p><h2 className="text-3xl font-black mt-2">{league.name}</h2><p className="text-slate-500 mt-2">{league.description}</p></div>
         <div className="text-sm space-y-2"><p>מנהל הליגה: {league.creatorName}</p><p className="flex gap-2"><Users size={16}/>{league.totalPlayersCount} משתתפים · {league.submittedCount} תחזיות הוגשו</p></div>
       </div>
       <p className="flex gap-2 items-center"><Lock size={16}/>{league.isLocked ? 'התחזיות נעולות' : 'אפשר להגיש ולעדכן עד'} · {new Date(league.locksAt).toLocaleString('he-IL')}</p>
-      <div className="flex flex-wrap items-center gap-3"><button onClick={share} className="bg-red-600 px-4 py-2 rounded-xl font-bold flex gap-2"><Share2 size={18}/> הזמנת חברים</button><code dir="ltr" className="break-all text-xs text-slate-300">{league.inviteCode}</code></div>
+      <div className="flex flex-wrap items-center gap-3"><button onClick={share} className="button-quiet border border-slate-300 flex gap-2"><Share2 size={18}/> הזמנת חברים</button><code dir="ltr" className="break-all text-xs text-slate-500">{league.inviteCode}</code></div>
     </section>
     {error && <p role="alert" className="p-4 bg-red-50 text-red-800 rounded-xl">{error}</p>}
     {notice && <p role="status" className="p-4 bg-emerald-50 text-emerald-800 rounded-xl">{notice}</p>}
@@ -74,10 +75,10 @@ export function LeagueView({ league, allSurveys, onOpenCreateLeague, onJoinExist
         })}</tbody>
       </table></div>
       {!league.members.length && <p className="p-6 text-slate-500">עדיין אין תחזית להצגה.</p>}
-      {!league.isLocked && <button onClick={onNavigateToPicker} className="m-4 bg-red-600 text-white px-5 py-3 rounded-xl font-bold">{userPrediction ? 'עדכון התחזית שלי' : 'הגשת תחזית'}</button>}
+      {!league.isLocked && <button onClick={onNavigateToPicker} className="m-4 bg-[#a43128] text-white px-5 py-3 rounded-xl font-bold">{userPrediction ? 'עדכון התחזית שלי' : 'הגשת תחזית'}</button>}
     </section>
     {!!league.unsubmittedPlayers?.length && <p className="text-sm text-slate-500">טרם הגישו: {league.unsubmittedPlayers.map(p => p.name).join(', ')}</p>}
-    {league.isCommissioner && league.electionStage !== 'final_results' && <form onSubmit={update} className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-3">
+    {league.isCommissioner && league.electionStage !== 'final_results' && <details className="league-settings"><summary>ניהול הליגה</summary><form onSubmit={update} className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-3">
       <h3 className="font-black">ניהול שלב הליגה</h3>
       <p className="text-sm text-slate-600">עדכוני סקרים אינם משנים אוטומטית את ההשוואה השמורה. מדגם ותוצאות רשמיות ניתנים לבחירה רק לאחר פרסומם ונעילת התחזיות.</p>
       <div className="flex flex-wrap gap-3">
@@ -91,15 +92,15 @@ export function LeagueView({ league, allSurveys, onOpenCreateLeague, onJoinExist
         {stage === 'final_results' && <label>שיעור הצבעה רשמי (%)<input className={button} type="number" required min={0} max={100} step={0.1} value={turnout} onChange={e => setTurnout(e.target.value)}/></label>}
         <button className={button} disabled={busy || !surveyId}>{busy ? 'שומר…' : 'שמירת השלב וההשוואה'}</button>
       </div>
-    </form>}
-    <div className="flex flex-wrap gap-3"><button className={button} onClick={onOpenCreateLeague}>יצירת ליגה נוספת</button><form className="flex flex-wrap gap-2" onSubmit={e => { e.preventDefault(); onJoinExistingLeagueById(code.trim()); }}><input aria-label="קוד הזמנה" dir="ltr" placeholder="קוד הזמנה לליגה" value={code} onChange={e => setCode(e.target.value)} required className={button}/><button className={button}>הצטרפות לליגה</button></form></div>
-    {member && detail && <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <section role="dialog" aria-modal="true" aria-label="פירוט תחזית" className="bg-white p-6 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-auto">
+    </form></details>}
+    <details className="league-settings"><summary>יצירה או הצטרפות לליגה נוספת</summary><div className="flex flex-wrap gap-3"><button className={button} onClick={onOpenCreateLeague}>יצירת ליגה נוספת</button><form className="flex flex-wrap gap-2" onSubmit={e => { e.preventDefault(); onJoinExistingLeagueById(code.trim()); }}><input aria-label="קוד הזמנה" dir="ltr" placeholder="קוד הזמנה לליגה" value={code} onChange={e => setCode(e.target.value)} required className={button}/><button className={button}>הצטרפות לליגה</button></form></div></details>
+    {member && detail && <Dialog open={!!member} onClose={() => setInspect(null)} label="פירוט תחזית">
+      <section>
         <div className="flex justify-between"><h3 className="text-xl font-black">{member.memberName} · {detail.totalSeatDiff} שגיאות</h3><button onClick={() => setInspect(null)} className="underline">סגירה</button></div>
         <p className="my-3 text-sm">הוגש: {new Date(member.submittedAt).toLocaleString('he-IL')} · שיעור הצבעה: {member.turnoutPercentage}%</p>
         <p className="my-3">{member.note}</p>
         <table className="w-full text-sm text-right"><thead><tr>{['מפלגה','תחזית','מקור','הפרש'].map(t => <th className="p-2" key={t}>{t}</th>)}</tr></thead><tbody>{detail.partyBreakdown.map(p => <tr className="border-t border-slate-100" key={p.partyId}><td className="p-2">{p.partyName}</td><td className="p-2">{p.predicted}</td><td className="p-2">{p.actual}</td><td className="p-2">{p.diff}</td></tr>)}</tbody></table>
       </section>
-    </div>}
+    </Dialog>}
   </div>;
 }

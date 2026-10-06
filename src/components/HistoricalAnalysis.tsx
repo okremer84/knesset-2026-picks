@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { History, TrendingUp, BookOpen, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, BookOpen, CheckCircle2 } from 'lucide-react';
 import { HISTORICAL_ELECTIONS, HISTORICAL_INSIGHTS } from '../data/historical';
 import { calculateScore } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
@@ -50,30 +50,20 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
     : null;
 
   return (
-    <div className="space-y-6 bg-white text-slate-900 pb-12">
+    <div className="space-y-6 text-slate-900 pb-8">
       
-      {/* Intro Header */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center gap-2">
-          <History className="w-6 h-6 text-[#e62b1e]" />
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-            ארכיון הבחירות לכנסת וניתוח מגמות
-          </h2>
-        </div>
-        <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl font-medium">
-          סקירה היסטורית של הבחירות האחרונות בישראל (הכנסת ה-22 עד ה-25),
-          סטיות הסקרים מתוצאות האמת, וניתוח השפעת אחוז החסימה על מפת המנדטים.
-        </p>
-
+      <div>
+        <div className="page-heading"><div><p className="eyebrow">ארכיון / הכנסת ה־22 עד ה־25</p><h1>מה קרה בפעם הקודמת?</h1><p>תוצאות האמת, הפתעות הסקרים ואחוז החסימה בבחירות האחרונות.</p></div></div>
         {/* Knesset Selector Pills */}
         <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 no-scrollbar">
           {HISTORICAL_ELECTIONS.map((election) => (
             <button
               key={election.knessetNumber}
               onClick={() => setSelectedKnessetNumber(election.knessetNumber)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              aria-pressed={selectedKnessetNumber === election.knessetNumber}
+              className={`px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap cursor-pointer ${
                 selectedKnessetNumber === election.knessetNumber
-                  ? 'bg-[#e62b1e] text-white shadow-sm'
+                  ? 'bg-slate-900 text-white'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
               }`}
             >
@@ -84,10 +74,10 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
       </div>
 
       {/* Selected Election Detail Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6  space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-slate-200">
           <div>
-            <span className="text-xs font-black text-[#e62b1e]">
+            <span className="text-xs font-black text-[#a43128]">
               {selectedElection.date} • אחוז הצבעה: {selectedElection.turnoutPercentage}%
             </span>
             <h3 className="text-xl font-black text-slate-900 mt-1">
@@ -107,7 +97,7 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
             </div>
             <div className="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 text-center">
               <div className="text-slate-500 text-[10px] font-bold">גוש אופוזיציה</div>
-              <div className="text-base font-black text-[#e62b1e]">
+              <div className="text-base font-black text-[#a43128]">
                 {selectedElection.blocTotals.opposition}
               </div>
             </div>
@@ -124,7 +114,7 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-              <BookOpen className="w-4 h-4 text-[#e62b1e]" />
+              <BookOpen className="w-4 h-4 text-[#a43128]" />
               אירועים מרכזיים והכרעת הבחירות
             </div>
             <p className="text-slate-600 leading-relaxed font-medium">
@@ -159,7 +149,7 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
                   <div className="text-[10px] text-slate-500">{r.leader}</div>
                 </div>
                 <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-white text-base shrink-0 shadow-sm"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-white text-base shrink-0 "
                   style={{ backgroundColor: r.color }}
                 >
                   {r.seats}
@@ -185,7 +175,7 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
               </div>
             </div>
 
-            <div className="px-3 py-1.5 rounded-lg bg-white text-emerald-800 font-bold shrink-0 border border-emerald-300 shadow-sm">
+            <div className="px-3 py-1.5 rounded-lg bg-white text-emerald-800 font-bold shrink-0 border border-emerald-300 ">
               {historicalScore.rankTitle}
             </div>
           </div>
@@ -197,10 +187,10 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
         {HISTORICAL_INSIGHTS.map((insight, idx) => (
           <div
             key={idx}
-            className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 text-xs"
+            className="bg-white border border-slate-200 rounded-2xl p-5  space-y-2 text-xs"
           >
             <div className="font-black text-slate-900 text-sm flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-red-50 text-[#e62b1e] border border-red-200 flex items-center justify-center font-black text-xs">
+              <span className="w-6 h-6 rounded-lg bg-red-50 text-[#a43128] border border-red-200 flex items-center justify-center font-black text-xs">
                 {idx + 1}
               </span>
               {insight.title}

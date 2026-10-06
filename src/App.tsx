@@ -12,7 +12,7 @@ import { CreateLeagueModal } from './components/CreateLeagueModal';
 import { DEFAULT_SURVEYS } from './data/surveys';
 import { PARTIES_LIST } from './data/parties';
 import { League, LeagueSummary, Prediction, Survey } from './types';
-import { CheckCircle2, AlertCircle, Share2, Copy } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const user = useUser();
@@ -262,28 +262,6 @@ export default function App() {
     }
   };
 
-  // Share league link
-  const handleShareLeague = () => {
-    if (!currentLeague) return;
-    const shareUrl = `${window.location.origin}/?invite=${currentLeague.inviteCode}`;
-
-    if (navigator.share) {
-      navigator
-        .share({
-          title: `ליגת הבחירות לכנסת: ${currentLeague.name}`,
-          text: `הצטרפו לליגת הבחירות לכנסת "${currentLeague.name}" בפנטזי בחירות! מי ינחש הכי קרוב ל-120 המנדטים?`,
-          url: shareUrl,
-        })
-        .catch(() => {
-          navigator.clipboard.writeText(shareUrl);
-          showToast('קישור הליגה הועתק ללוח!');
-        });
-    } else {
-      navigator.clipboard.writeText(shareUrl);
-      showToast('קישור הליגה הועתק ללוח!');
-    }
-  };
-
   const username = user.name;
   const userPrediction = currentLeague?.members.find(m => m.userId === user.id);
   useEffect(() => {
@@ -320,7 +298,7 @@ export default function App() {
   }, [currentLeague?.id]);
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-red-500 selection:text-white">
+    <div dir="rtl" className={`app-shell ${activeTab === 'picker' ? 'picks-surface' : ''}`}>
       
       {/* Toast Notification */}
       {toast && (
@@ -355,25 +333,22 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        currentLeague={currentLeague}
-        onOpenCreateLeague={() => setIsCreateLeagueModalOpen(true)}
-        onShareLeague={handleShareLeague}
-        predictedCount={totalUserSeats}
       />
 
       {/* Main Content Area */}
       {surveyNotice && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
-      {myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} onChange={e => { window.location.href = '/?league=' + e.target.value; }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {activeTab === 'league' && myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} onChange={e => { window.location.href = '/?league=' + e.target.value; }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
       {currentLeague?.isLocked && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזיות בליגה נעולות. אפשר להמשיך להשוות סקרים, אך לא לשנות את התחזית שהוגשה.</p>}
-      <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
+      <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && (
           <SeatPicker
             currentSeats={userSeats}
             onSeatsChange={setUserSeats}
             onSubmitPrediction={handleSubmitPrediction}
-            isSubmitting={isSubmitting || !!currentLeague?.isLocked}
+            isSubmitting={isSubmitting}
             activeLeagueName={currentLeague?.name}
-            onNavigateToSurveys={() => setActiveTab('surveys')}
+            onChooseLeague={() => setActiveTab('league')}
+            isLocked={!!currentLeague?.isLocked}
           />
         )}
 
@@ -393,10 +368,10 @@ export default function App() {
               onLeagueUpdate={(updatedLeague) => setCurrentLeague(updatedLeague)}
             />
           ) : (
-            <div className="text-center py-16 bg-slate-50 border border-slate-200 rounded-2xl p-8">
-              <p className="text-slate-500 text-sm mb-4">{loadingLeague ? 'טוען נתוני ליגה…' : 'עדיין לא הצטרפת לליגה'}</p>
+            <div className="empty-leagues">
+              <h1 className="text-3xl font-bold mb-3">הליגות שלי</h1><p className="text-slate-500 text-sm mb-6">{loadingLeague ? 'טוען נתוני ליגה…' : 'עדיין לא הצטרפת לליגה'}</p>
               {!loadingLeague && <div className="space-y-4">
-                <button className="bg-red-600 text-white px-4 py-2 rounded-xl" onClick={() => setIsCreateLeagueModalOpen(true)}>יצירת ליגה</button>
+                <button className="button-primary" onClick={() => setIsCreateLeagueModalOpen(true)}>יצירת ליגה</button>
                 <form onSubmit={e => { e.preventDefault(); handleJoinExistingLeagueById(joinCode.trim()); }} className="flex gap-2 justify-center flex-wrap"><input aria-label="קוד הזמנה" className="border rounded-xl p-2" value={joinCode} onChange={e => setJoinCode(e.target.value)} required placeholder="קוד הזמנה"/><button className="border rounded-xl p-2">הצטרפות לליגה</button></form>
               </div>}
             </div>
@@ -421,23 +396,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Broadcast Studio Footer (for non-picker tabs) */}
-      {activeTab !== 'picker' && (
-        <footer className="border-t border-slate-200 bg-slate-50 py-6 text-center text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <div className="font-medium text-slate-700">
-              פנטזי בחירות לכנסת ה-26 • מיועד לחובבי פוליטיקה, חברים ומשפחות
-            </div>
-            <div className="flex items-center gap-4 text-slate-500 font-medium">
-              <span>120 מנדטים בדיוק</span>
-              <span>•</span>
-              <span>נתוני סקרים מוויקיפדיה</span>
-              <span>•</span>
-              <span>סקרי דעת קהל אינם תוצאות רשמיות</span>
-            </div>
-          </div>
-        </footer>
-      )}
+      <footer className="site-footer"><span>120 · פנטזי בחירות</span><span>סקרי דעת קהל אינם תוצאות רשמיות</span></footer>
 
       {/* Create League Modal */}
       <CreateLeagueModal

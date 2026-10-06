@@ -91,3 +91,10 @@ Keep `APP_URL` on the same domain. Redeploy after saving these values because th
 Google's stable account ID identifies returning users. The app requires a verified Google email and does not retain Google access or refresh tokens. Existing password accounts are not automatically linked by matching email; any legacy-account migration must explicitly verify ownership before linking the Google ID. League invitations are preserved across sign-in.
 
 References: [Laravel Socialite](https://laravel.com/docs/13.x/socialite), [Google OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect).
+
+
+### Profile names and photos
+
+The profile modal lets each signed-in user update their display name and upload a replacement avatar. Google photos are captured on sign-in; existing users must sign in again to populate their Google photo. Later sign-ins preserve custom names and uploaded photos.
+
+Deploy migrations normally (`php artisan migrate --force`) to add the profile photo fields. Uploads are resized in the browser to at most 512 pixels and validated by the server (JPEG, PNG or WebP, maximum 256 KiB and 1024 pixels per side). The small thumbnail is stored in SQL so it survives Cloud deployments without an object-storage bucket or local filesystem dependency. Email and Google account identity cannot be edited through the profile endpoint.

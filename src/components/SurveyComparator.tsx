@@ -1,13 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import {
-  BarChart3,
-  ArrowRight,
-  Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  TrendingUp,
-  Target,
-} from 'lucide-react';
+import { BarChart3, CheckCircle2, AlertCircle, TrendingUp, Target } from 'lucide-react';
 import { Survey } from '../types';
 import { calculateScore, calculateBlocs } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
@@ -127,123 +119,23 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
   }, [userSeats, activeSurvey, filterMode]);
 
   return (
-    <div className="space-y-6 bg-white text-slate-900 pb-16">
-      
-      {/* Header with Live Notification and Survey Selector */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-emerald-50 text-emerald-700 font-black text-xs px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                מתעדכן אוטומטית בזמן אמת
-              </span>
-              <span className="text-xs text-slate-500 font-medium">
-                מבוסס על הבחירות שהזנת בלוח הניחוש
-              </span>
-            </div>
+    <div className="space-y-6 text-slate-900 pb-8">
 
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2 flex items-center gap-2">
-              <BarChart3 className="w-7 h-7 text-[#e62b1e]" />
-              השוואת הניחוש שלך מול סקרי הבחירות
-            </h2>
-
-            <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl font-medium">
-              כל מנדט שתשנו בלוח הניחוש מתעדכן כאן באופן מיידי. השוו מול סקרי כל הערוצים, בדקו את חלוקת הגושים וראו לאיזה סקר אתם הכי קרובים.
-            </p>
-          </div>
-
-          {/* User prediction status & Action */}
-          <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-2.5 shrink-0">
-            <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm text-xs font-bold">
-              <span className="text-slate-500">הניחוש הנוכחי שלך:</span>
-              <span
-                className={`text-sm font-black ${
-                  totalUserSeats === 120
-                    ? 'text-emerald-600'
-                    : totalUserSeats > 120
-                    ? 'text-red-600'
-                    : 'text-amber-600'
-                }`}
-              >
-                {totalUserSeats} / 120 מנדטים
-              </span>
-              {totalUserSeats === 120 && (
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={onNavigateToPicker}
-              className="px-4 py-2 rounded-xl bg-[#e62b1e] hover:bg-[#c92318] text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-            >
-              <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-              עריכת הניחוש בלוח
-            </button>
-          </div>
-        </div>
-
-        {/* Survey Channel Buttons (Most recent from each channel) */}
-        <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col gap-2.5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 w-full">
-            {channelSurveys.map((s) => {
-              const isSelected = activeSurvey?.id === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSelectedSurveyId(s.id)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
-                    isSelected
-                      ? 'bg-[#e62b1e] text-white shadow-sm ring-2 ring-red-500/20'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-                  }`}
-                >
-                  <span className="truncate">{s.channelOrMedia}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded font-mono shrink-0 ${
-                      isSelected
-                        ? 'bg-white/20 text-white'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {s.date}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {activeSurvey?.sourceUrl && (
-            <div className="text-xs text-slate-500 flex flex-wrap gap-3">
-              <a href={activeSurvey.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">מקור: ויקיפדיה</a>
-              {activeSurvey.originalSourceUrls?.[0] && <a href={activeSurvey.originalSourceUrls[0]} target="_blank" rel="noopener noreferrer" className="underline">פרסום הסקר המקורי</a>}
-              {activeSurvey.syncedAt && <span>עודכן: {new Date(activeSurvey.syncedAt).toLocaleString('he-IL')}</span>}
-            </div>
-          )}
-          <div className="text-xs font-medium text-slate-500 flex items-center justify-between gap-2 pt-0.5">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-800">
-                {activeSurvey?.institute || activeSurvey?.title}
-              </span>
-              {activeSurvey?.sampleSize ? (
-                <span>• {activeSurvey.sampleSize} נשאלים</span>
-              ) : null}
-            </div>
-            {activeSurvey?.notes && (
-              <span className="text-[11px] text-slate-500 hidden md:inline truncate max-w-md">
-                {activeSurvey.notes}
-              </span>
-            )}
-          </div>
-        </div>
+      <div className="page-heading">
+        <div><p className="eyebrow">סקרי הבחירות / תמונת מצב</p><h1>איפה התחזית שלך עומדת?</h1><p>השוואת המנדטים והגושים מול הסקר שבחרתם. פחות הפרשים, תחזית קרובה יותר.</p></div>
+      </div>
+      <div className="survey-toolbar">
+        <label>סקר להשוואה<select value={activeSurvey?.id || ''} onChange={e => setSelectedSurveyId(e.target.value)}>
+          {!surveys.length && <option value="">אין סקרים זמינים</option>}
+          {[...surveys].sort((a, b) => b.date.localeCompare(a.date)).map(s => <option key={s.id} value={s.id}>{s.channelOrMedia || s.title} · {s.date} · {s.institute}</option>)}
+        </select></label>
+        <div className="survey-source">{activeSurvey?.sourceUrl && <a href={activeSurvey.sourceUrl} target="_blank" rel="noopener noreferrer">מקור הנתונים</a>}{activeSurvey?.originalSourceUrls?.[0] && <a href={activeSurvey.originalSourceUrls[0]} target="_blank" rel="noopener noreferrer">פרסום הסקר</a>}<span>התחזית שלך: {totalUserSeats} / 120</span></div>
       </div>
 
-      {!!activeSurvey?.notReportedPartyIds?.length && <p className="text-sm text-amber-800 bg-amber-50 p-3 rounded-xl">מפלגות שלא דווחו בסקר אינן מוצגות או נכללות בניקוד: {activeSurvey.notReportedPartyIds.map(id => PARTIES_LIST.find(p => p.id === id)?.name || id).join(', ')}</p>}
+      {!!activeSurvey?.notReportedPartyIds?.length && <p className="text-sm text-slate-600 border-r-2 border-slate-300 pr-3">מפלגות שלא דווחו בסקר אינן מוצגות או נכללות בניקוד: {activeSurvey.notReportedPartyIds.map(id => PARTIES_LIST.find(p => p.id === id)?.name || id).join(', ')}</p>}
       {/* Warning / Guidance banner if not 120 */}
       {!isPredictionComplete && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-medium">
+        <div className="py-3 border-b border-slate-200 text-slate-600 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-medium">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>
@@ -261,52 +153,52 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
           <button
             type="button"
             onClick={onNavigateToPicker}
-            className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors"
+            className="button-quiet underline shrink-0"
           >
             חזרה ללוח הניחוש
           </button>
         </div>
       )}
 
-      {/* Broadcast Studio Bloc Comparison - User vs Survey */}
-      <div className="rounded-2xl bg-[#111625] text-white p-5 shadow-xl border border-slate-800">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 pb-3 mb-4">
+      {/* Bloc comparison */}
+      <div className="rounded-lg bg-white text-slate-900 p-5 border border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-3 mb-4">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-            <span className="font-black text-base sm:text-lg text-white">
+
+            <span className="font-black text-base sm:text-lg text-slate-900">
               השוואת הגושים: הניחוש שלך מול סקר {activeSurvey?.channelOrMedia}
             </span>
           </div>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-500">
             {activeSurvey?.institute ? `מכון: ${activeSurvey.institute} • ` : ''}
             תאריך: {activeSurvey?.date}
           </span>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-center">
-          
+
           {/* Opposition Bloc */}
-          <div className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800">
-            <span className="text-xs text-slate-400 font-bold block">
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+            <span className="text-xs text-slate-500 font-bold block">
               גוש איזנקוט / אופוזיציה
             </span>
             <div className="flex items-baseline justify-center gap-1.5 mt-1.5">
-              <span className="text-3xl font-black text-sky-400">
+              <span className="text-3xl font-black text-slate-700">
                 {userBlocCounts.opposition}
               </span>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500">
                 / בסקר: {pollBlocCounts.opposition}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
               {userBlocCounts.opposition - pollBlocCounts.opposition === 0 ? (
-                <span className="text-emerald-400">✓ פגיעה בול</span>
+                <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.opposition - pollBlocCounts.opposition > 0 ? (
-                <span className="text-sky-300">
+                <span className="text-slate-700">
                   +{userBlocCounts.opposition - pollBlocCounts.opposition} מעל הסקר
                 </span>
               ) : (
-                <span className="text-amber-400">
+                <span className="text-slate-700">
                   {userBlocCounts.opposition - pollBlocCounts.opposition} מתחת לסקר
                 </span>
               )}
@@ -314,27 +206,27 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
           </div>
 
           {/* Coalition Bloc */}
-          <div className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800">
-            <span className="text-xs text-slate-400 font-bold block">
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+            <span className="text-xs text-slate-500 font-bold block">
               גוש נתניהו / קואליציה
             </span>
             <div className="flex items-baseline justify-center gap-1.5 mt-1.5">
-              <span className="text-3xl font-black text-blue-400">
+              <span className="text-3xl font-black text-slate-700">
                 {userBlocCounts.coalition}
               </span>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500">
                 / בסקר: {pollBlocCounts.coalition}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
               {userBlocCounts.coalition - pollBlocCounts.coalition === 0 ? (
-                <span className="text-emerald-400">✓ פגיעה בול</span>
+                <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.coalition - pollBlocCounts.coalition > 0 ? (
-                <span className="text-sky-300">
+                <span className="text-slate-700">
                   +{userBlocCounts.coalition - pollBlocCounts.coalition} מעל הסקר
                 </span>
               ) : (
-                <span className="text-amber-400">
+                <span className="text-slate-700">
                   {userBlocCounts.coalition - pollBlocCounts.coalition} מתחת לסקר
                 </span>
               )}
@@ -342,27 +234,27 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
           </div>
 
           {/* Arab Parties Bloc */}
-          <div className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800">
-            <span className="text-xs text-slate-400 font-bold block">
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+            <span className="text-xs text-slate-500 font-bold block">
               מפלגות ערביות
             </span>
             <div className="flex items-baseline justify-center gap-1.5 mt-1.5">
-              <span className="text-3xl font-black text-emerald-400">
+              <span className="text-3xl font-black text-slate-700">
                 {userBlocCounts.arab}
               </span>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500">
                 / בסקר: {pollBlocCounts.arab}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
               {userBlocCounts.arab - pollBlocCounts.arab === 0 ? (
-                <span className="text-emerald-400">✓ פגיעה בול</span>
+                <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.arab - pollBlocCounts.arab > 0 ? (
-                <span className="text-sky-300">
+                <span className="text-slate-700">
                   +{userBlocCounts.arab - pollBlocCounts.arab} מעל הסקר
                 </span>
               ) : (
-                <span className="text-amber-400">
+                <span className="text-slate-700">
                   {userBlocCounts.arab - pollBlocCounts.arab} מתחת לסקר
                 </span>
               )}
@@ -370,27 +262,27 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
           </div>
 
           {/* Other / Threshold Parties */}
-          <div className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800">
-            <span className="text-xs text-slate-400 font-bold block">
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+            <span className="text-xs text-slate-500 font-bold block">
               הנדל וזליכה / אחרות
             </span>
             <div className="flex items-baseline justify-center gap-1.5 mt-1.5">
-              <span className="text-3xl font-black text-purple-400">
+              <span className="text-3xl font-black text-slate-700">
                 {userBlocCounts.other}
               </span>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500">
                 / בסקר: {pollBlocCounts.other}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
               {userBlocCounts.other - pollBlocCounts.other === 0 ? (
-                <span className="text-emerald-400">✓ פגיעה בול</span>
+                <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.other - pollBlocCounts.other > 0 ? (
-                <span className="text-sky-300">
+                <span className="text-slate-700">
                   +{userBlocCounts.other - pollBlocCounts.other} מעל הסקר
                 </span>
               ) : (
-                <span className="text-amber-400">
+                <span className="text-slate-700">
                   {userBlocCounts.other - pollBlocCounts.other} מתחת לסקר
                 </span>
               )}
@@ -402,10 +294,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
 
       {/* Summary Score Card */}
       {scoreResult && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 ">
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-amber-500" />
+
               <h3 className="text-base sm:text-lg font-black text-slate-900">
                 מדדי דיוק ושגיאות מול {activeSurvey?.channelOrMedia}
               </h3>
@@ -418,10 +310,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-            
+
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
               <div className="text-xs text-slate-500 font-bold">סך שגיאות — פחות עדיף</div>
-              <div className="text-3xl font-black text-[#e62b1e] mt-1">
+              <div className="text-3xl font-black text-[#a43128] mt-1">
                 {scoreResult.totalScore}
               </div>
               <div className="text-[11px] font-bold text-slate-700 mt-1 truncate">
@@ -466,7 +358,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
       )}
 
       {/* Side by side party comparison */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden ">
         <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h3 className="font-black text-slate-900 text-base sm:text-lg">
@@ -482,9 +374,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('all')}
+                aria-pressed={filterMode === 'all'}
               className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 filterMode === 'all'
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-white text-slate-900 '
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -493,9 +386,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('exact')}
+                aria-pressed={filterMode === 'exact'}
               className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 filterMode === 'exact'
-                  ? 'bg-white text-emerald-700 shadow-sm'
+                  ? 'bg-white text-emerald-700 '
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -504,9 +398,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('diff')}
+                aria-pressed={filterMode === 'diff'}
               className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                 filterMode === 'diff'
-                  ? 'bg-white text-blue-700 shadow-sm'
+                  ? 'bg-white text-blue-700 '
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -540,7 +435,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2.5">
                         <span
-                          className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-white text-xs shrink-0 shadow-sm"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-white text-xs shrink-0 "
                           style={{ backgroundColor: party.color }}
                         >
                           {party.ballotLetter}
@@ -560,7 +455,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                       {userVal}
                     </td>
 
-                    <td className="py-3.5 px-4 text-center font-black text-base text-[#e62b1e]">
+                    <td className="py-3.5 px-4 text-center font-black text-base text-[#a43128]">
                       {surveyVal}
                     </td>
 
@@ -590,7 +485,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                           <span className="w-8 text-slate-400 shrink-0">סקר:</span>
                           <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
                             <div
-                              className="bg-[#e62b1e] h-full rounded-full transition-all"
+                              className="bg-[#a43128] h-full rounded-full transition-all"
                               style={{ width: `${Math.min(100, (surveyVal / 40) * 100)}%` }}
                             />
                           </div>

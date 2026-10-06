@@ -144,12 +144,12 @@ export const PARTIES_LIST: Party[] = [
   {
     id: 'balad',
     name: 'בל"ד',
-    leader: 'סאמי אבו שחאדה',
+    leader: 'פרופ׳ יוסף ג׳בארין',
     ballotLetter: 'ד',
     color: '#b91c1c',
     bloc: 'arab',
-    description: 'ברית לאומית דמוקרטית בראשות סאמי אבו שחאדה',
-    leaderImageUrl: '/leaders/balad.png'
+    description: 'ברית לאומית דמוקרטית בראשות פרופ׳ יוסף ג׳בארין',
+    leaderImageUrl: '/leaders/balad-jabareen.png'
   }
 ];
 

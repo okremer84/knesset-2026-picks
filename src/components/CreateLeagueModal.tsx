@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Dialog } from './Dialog';
 import { Trophy, X } from 'lucide-react';
 import { Survey } from '../types';
 import { useUser } from './AuthGate';
@@ -55,8 +56,8 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white border border-slate-300 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-slate-900">
+    <Dialog open={isOpen} onClose={onClose} label="פתיחת ליגה חדשה">
+      <div className="space-y-5">
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <div className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-amber-500" />
@@ -66,6 +67,7 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="סגירה"
             className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center cursor-pointer font-bold"
           >
             <X className="w-4 h-4" />
@@ -74,10 +76,10 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="block font-bold text-slate-800 mb-1">
+            <label htmlFor="league-name" className="block font-bold text-slate-800 mb-1">
               שם הליגה *
             </label>
-            <input
+            <input autoFocus id="league-name"
               type="text"
               required
               value={name}
@@ -88,10 +90,10 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-bold text-slate-800 mb-1">
+            <label htmlFor="league-creator" className="block font-bold text-slate-800 mb-1">
               השם שלך (מנהל הליגה) *
             </label>
-            <input
+            <input id="league-creator"
               type="text"
               required
               value={creatorName}
@@ -102,10 +104,10 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-bold text-slate-800 mb-1">
+            <label htmlFor="league-description" className="block font-bold text-slate-800 mb-1">
               תיאור קצר או חוקים לחברים (אופציונלי)
             </label>
-            <textarea
+            <textarea id="league-description"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -115,10 +117,10 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-bold text-slate-800 mb-1">
+            <label htmlFor="league-survey" className="block font-bold text-slate-800 mb-1">
               סקר ברירת מחדל לחישוב תוצאות
             </label>
-            <select
+            <select id="league-survey"
               value={resolvedSurveyId}
               onChange={(e) => setSelectedSurveyId(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
@@ -153,13 +155,13 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !resolvedSurveyId}
-              className="px-5 py-2.5 rounded-xl bg-[#e62b1e] hover:bg-[#c92318] text-white font-black transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[#a43128] hover:bg-[#87281f] text-white font-black transition-colors  cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'יוצר ליגה...' : 'צור ליגה והזמן חברים'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </Dialog>
   );
 };
