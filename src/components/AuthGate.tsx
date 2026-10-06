@@ -1,68 +1,68 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { clearCsrf, apiFetch, request } from '../lib/api';
-import { leaveResetRoute } from '../lib/navigation';
 type User = { id: number; name: string; email: string };
 const AuthContext = createContext<User | null>(null);
 export function useUser() { return useContext(AuthContext)!; }
+
+export function GoogleSignIn({ enabled, error, href }: { enabled: boolean; error: string; href: string }) {
+  return <main dir="rtl" className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-5">
+      <div className="text-red-600 text-4xl font-black">120</div>
+      <h1 className="text-2xl font-black">כניסה לפנטזי בחירות</h1>
+      <p className="text-slate-600 text-sm">מתחברים עם Google ומתחילים לשחק. התחזיות שלך נשמרות בחשבון האישי.</p>
+      {error && <p role="alert" className="text-red-700">{error}</p>}
+      {enabled
+        ? <a href={href} className="flex justify-center w-full border border-slate-300 bg-white text-slate-900 rounded-xl p-3 font-bold hover:bg-slate-50">המשך עם Google</a>
+        : <><button disabled className="w-full border border-slate-200 text-slate-400 rounded-xl p-3 font-bold">המשך עם Google</button>
+          <p role="status" className="text-slate-600 text-sm">ההתחברות עם Google עדיין לא זמינה. נסו שוב בקרוב.</p></>}
+    </div>
+  </main>;
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot-password' | 'reset-password'>(
-    window.location.pathname.startsWith('/reset-password/') ? 'reset-password' : 'login');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [error, setError] = useState(() => {
+    const code = new URLSearchParams(window.location.search).get('auth_error');
+    if (code === 'account_exists') return 'קיים חשבון עם כתובת האימייל הזו. פנו למנהל האתר כדי לחבר אותו ל-Google.';
+    if (code === 'unavailable') return 'ההתחברות עם Google עדיין לא זמינה. נסו שוב בקרוב.';
+    return code ? 'ההתחברות לא הושלמה. נסו שוב עם Google.' : '';
+  });
   useEffect(() => {
-    apiFetch('/api/auth/user').then(async res => {
-      if (res.ok) setUser((await res.json()).user);
-      else if (res.status !== 401) throw new Error('לא ניתן לטעון את החשבון');
-    }).catch(e => setError(e.message)).finally(() => setLoading(false));
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('auth_error')) {
+      url.searchParams.delete('auth_error');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+    Promise.all([
+      apiFetch('/api/auth/user').then(async res => {
+        if (res.ok) setUser((await res.json()).user);
+        else if (res.status !== 401) throw new Error('לא ניתן לטעון את החשבון');
+      }),
+      apiFetch('/api/auth/config').then(async res => {
+        if (!res.ok) throw new Error('לא ניתן לטעון את אפשרויות ההתחברות');
+        setGoogleEnabled((await res.json()).googleEnabled);
+      }),
+    ]).catch(e => setError(e.message)).finally(() => setLoading(false));
   }, []);
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); setError(''); setNotice(''); setBusy(true);
-    const data = Object.fromEntries(new FormData(e.currentTarget).entries());
-    if (mode === 'reset-password') data.token = window.location.pathname.split('/').pop()!;
-    try {
-      const result = await request<{ user?: User; message?: string }>('/api/auth/' + mode, data);
-      clearCsrf();
-      if (result.user) setUser(result.user);
-      else {
-        setNotice(result.message || 'הבקשה התקבלה');
-        if (mode === 'reset-password') { setUser(null); window.history.replaceState({}, '', '/'); setMode('login'); }
-      }
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
-  }
   async function logout() {
-    try { await request('/api/auth/logout', {}); clearCsrf(); setUser(null); setMode('login'); }
+    try { await request('/api/auth/logout', {}); clearCsrf(); setUser(null); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
   if (loading) return <p dir="rtl" className="p-12 text-center">טוען את החשבון…</p>;
-  if (user && mode !== 'reset-password') return <AuthContext.Provider value={user}>
+  if (user) return <AuthContext.Provider value={user}>
     <div dir="rtl" className="bg-slate-950 text-white px-6 py-2 flex justify-between text-sm">
       <span>שלום, {user.name}</span><button onClick={logout} className="underline">התנתקות</button>
       {error && <span role="alert">{error}</span>}
     </div>
     <React.Fragment key={user.id}>{children}</React.Fragment>
   </AuthContext.Provider>;
-  const titles = { login: 'כניסה לפנטזי בחירות', register: 'יצירת חשבון', 'forgot-password': 'איפוס סיסמה', 'reset-password': 'בחירת סיסמה חדשה' };
-  const field = 'w-full p-3 border border-slate-300 rounded-xl bg-white';
-  return <main dir="rtl" className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-    <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-5">
-      <div className="text-red-600 text-4xl font-black">120</div>
-      <h1 className="text-2xl font-black">{titles[mode]}</h1>
-      <p className="text-slate-600 text-sm">התחזיות שלך נשמרות בחשבון האישי. תחזיות החברים נחשפות לאחר נעילת הליגה.</p>
-      <form onSubmit={submit} className="space-y-4">
-        {mode === 'register' && <label className="block">שם לתצוגה<input name="name" autoComplete="nickname" required maxLength={80} className={field}/></label>}
-        <label className="block">אימייל<input name="email" type="email" autoComplete="email" dir="ltr" required defaultValue={new URLSearchParams(window.location.search).get('email') || ''} className={field}/></label>
-        {mode !== 'forgot-password' && <label className="block">סיסמה<input name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 12} className={field}/></label>}
-        {(mode === 'register' || mode === 'reset-password') && <label className="block">אימות סיסמה (לפחות 12 תווים)<input name="password_confirmation" type="password" autoComplete="new-password" required minLength={12} className={field}/></label>}
-        {error && <p role="alert" className="text-red-700">{error}</p>}
-        {notice && <p role="status" className="text-emerald-700">{notice}</p>}
-        <button disabled={busy} className="w-full bg-red-600 text-white rounded-xl p-3 font-bold disabled:opacity-50">{busy ? 'רגע…' : titles[mode]}</button>
-      </form>
-      <div className="flex gap-4 text-sm">
-        {(['login','register','forgot-password'] as const).filter(m => m !== mode).map(m => <button key={m} className="underline" onClick={() => { leaveResetRoute(window.location, window.history); setMode(m); setError(''); setNotice(''); }}>{titles[m]}</button>)}
-      </div>
-    </div>
-  </main>;
+  const params = new URLSearchParams();
+  const current = new URLSearchParams(window.location.search);
+  for (const key of ['invite', 'league']) {
+    const value = current.get(key);
+    if (value) params.set(key, value);
+  }
+  return <GoogleSignIn enabled={googleEnabled} error={error} href={'/auth/google' + (params.size ? '?' + params : '')}/>;
 }

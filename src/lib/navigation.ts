@@ -10,10 +10,6 @@ export async function initialLeagueId(
   return params.get('league') || leagues[0]?.id || null;
 }
 
-export function leaveResetRoute(location: Pick<Location, 'pathname'>, history: Pick<History, 'replaceState'>) {
-  if (location.pathname.startsWith('/reset-password/')) history.replaceState({}, '', '/');
-}
-
 export async function loadInitialLeague(
   id: string,
   leagues: LeagueSummary[],

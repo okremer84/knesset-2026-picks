@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { initialLeagueId, leaveResetRoute, loadInitialLeague } from '../../src/lib/navigation';
+import { initialLeagueId, loadInitialLeague } from '../../src/lib/navigation';
 import { surveySyncNotice } from '../../src/utils/surveys';
 
 test('failed invites recover existing membership while successful invites keep their selection', async () => {
@@ -18,15 +18,6 @@ test('seeded or unfinished data remains labelled until sync succeeds', () => {
   assert.notEqual(surveySyncNotice(6, { status: 'failed' }), '');
   assert.equal(surveySyncNotice(6, { status: 'succeeded' }), '');
   assert.notEqual(surveySyncNotice(0, { status: 'succeeded' }), '');
-});
-
-test('leaving reset flow removes the token route without clearing normal invitation URLs', () => {
-  const urls: unknown[] = [];
-  const history = { replaceState: (_state: unknown, _unused: string, url?: string | URL | null) => { urls.push(url); } };
-  leaveResetRoute({ pathname: '/reset-password/secret-token' }, history);
-  assert.deepEqual(urls, ['/']);
-  leaveResetRoute({ pathname: '/' }, history);
-  assert.deepEqual(urls, ['/']);
 });
 
 test('inaccessible league links recover a membership and preserve other errors', async () => {

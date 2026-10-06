@@ -3,16 +3,16 @@
 This change prepares the repository for Cloud. It does not create a Cloud application, attach paid resources or deploy production.
 
 1. Connect the GitHub repository to Laravel Cloud. Use a staging environment and this PR's branch initially. After review/merge, use `main` for production.
-2. Choose PHP 8.4 and Node 22. The project root is the repository root and the web document root is `public/`.
+2. Confirm Cloud identifies the application as Laravel/PHP, not Express. Choose PHP 8.5 and Node 22. The project root is the repository root and the web document root is `public/`.
 3. Attach a MySQL database and use Cloud's injected connection variables. Enable database backups appropriate to the game's needs. Do not use SQLite or local JSON files on Cloud's ephemeral filesystem.
 4. Set the build and deploy commands below.
-5. Configure the application and mail environment values below.
+5. Configure the application and Google sign-in environment values below.
 6. Enable the **Scheduler** toggle on the App compute cluster, save and deploy. Laravel Cloud then invokes `schedule:run` every minute. The application schedules its own nightly import; do not add another GitHub cron.
-7. After the first deployment, run `php artisan polls:sync` once through the environment's Commands console. Check its exit status and logs, then register an account, create a league and try an invitation in a second browser session.
+7. After the first deployment, run `php artisan polls:sync` once through the environment's Commands console. Check its exit status and logs, then sign in with Google, create a league and try an invitation in a second browser session.
 
 ## Build commands
 
-Use npm for frontend dependencies, matching CI and the committed `package-lock.json`. Keep this as the only JavaScript lockfile; an obsolete `bun.lock` caused Cloud's dependency installation to select Bun 1.2.23, which could not read its newer lockfile format. Upgrading Bun in custom build commands did not fix the stale dependency entries in that lockfile.
+Use npm for frontend dependencies, matching CI and the committed `package-lock.json`. Keep this as the only JavaScript lockfile; the obsolete `bun.lock` was incompatible with Bun 1.2.23 and contained stale dependencies. Cloud also retained the old application's Express runtime after the backend migration, requiring a new application detected as PHP. Removing the lockfile alone does not change an existing application's runtime.
 
 In Cloud's environment settings, replace the previous `npm install -g bun` / `bun install --frozen-lockfile` workaround with the complete build commands below, then deploy the commit containing the lockfile removal.
 
@@ -51,13 +51,13 @@ QUEUE_CONNECTION=database
 
 Keep a stable, secret `APP_KEY` using Cloud's environment settings. If a key is not generated during setup, generate one locally with `php artisan key:generate --show` and add it as a secret. Never regenerate the key on each deployment.
 
-Keep Cloud's database credentials in its environment settings. The sessions and cache tables live in the same shared SQL database, which also supports the scheduler's `onOneServer` and overlap locks. No separate Redis instance or queue worker is required for the initial app: the import runs directly and password reset mail is sent synchronously.
+Keep Cloud's database credentials in its environment settings. The sessions and cache tables live in the same shared SQL database, which also supports the scheduler's `onOneServer` and overlap locks. No separate Redis instance or queue worker is required for the initial app: the import runs directly and Google handles authentication; sign-in does not require an email provider.
 
-Configure `MAIL_MAILER=smtp` and your provider's `MAIL_HOST`, `MAIL_PORT`, `MAIL_SCHEME`, `MAIL_USERNAME`, `MAIL_PASSWORD` and verified `MAIL_FROM_ADDRESS`. The development log mailer does not deliver password resets to users. Set `WIKI_USER_AGENT` to an identifiable application/contact string.
+Set `WIKI_USER_AGENT` to an identifiable application/contact string. Mail delivery can be configured later if the app adds email notifications.
 
 ## Release checks and monitoring
 
-- Confirm registration, login, logout and a real delivered password-reset link.
+- Confirm Google sign-in creates an account, repeat sign-in returns to that account, logout works, and an invitation survives the Google redirect.
 - Create a short-lived test league, join with another account and verify that picks are hidden before the deadline and submissions fail afterwards.
 - Inspect `php artisan schedule:list`: `polls:sync` should run at 03:17 in Asia/Jerusalem.
 - Monitor `poll_imports` for failures or an absent successful run for more than a day. Logs include import errors and the frontend warns after a failed run.
@@ -67,3 +67,27 @@ Configure `MAIL_MAILER=smtp` and your provider's `MAIL_HOST`, `MAIL_PORT`, `MAIL
 The GitHub checks include MySQL integration tests. A successful local SQLite run is not a substitute for the MySQL CI result or a first staging deployment.
 
 Cloud reference: [environment build/deploy settings](https://laravel.com/cloud/docs/environments), [scheduled tasks](https://laravel.com/cloud/docs/scheduled-tasks).
+
+## Google sign-in
+
+Create an OAuth client of type **Web application** in Google Cloud / Google Auth Platform. Configure the consent screen for this app with the basic `openid`, `email`, and `profile` scopes. If the consent screen is in Testing, add the accounts that should be allowed to sign in as test users.
+
+Add this exact authorized redirect URI to the Google client (replace the domain):
+
+```text
+https://YOUR-APP-DOMAIN/auth/google/callback
+```
+
+Set these values in Laravel Cloud's environment settings; keep the secret out of Git:
+
+```dotenv
+GOOGLE_CLIENT_ID=YOUR-CLIENT-ID
+GOOGLE_CLIENT_SECRET=YOUR-CLIENT-SECRET
+GOOGLE_REDIRECT_URI=https://YOUR-APP-DOMAIN/auth/google/callback
+```
+
+Keep `APP_URL` on the same domain. Redeploy after saving these values because the build caches configuration. The normal deployment migration adds a unique Google account ID to users. Until all three values are configured, the sign-in button is disabled and the server refuses to start OAuth. No email/password registration, login, or reset endpoints remain.
+
+Google's stable account ID identifies returning users. The app requires a verified Google email and does not retain Google access or refresh tokens. Existing password accounts are not automatically linked by matching email; any legacy-account migration must explicitly verify ownership before linking the Google ID. League invitations are preserved across sign-in.
+
+References: [Laravel Socialite](https://laravel.com/docs/13.x/socialite), [Google OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect).
