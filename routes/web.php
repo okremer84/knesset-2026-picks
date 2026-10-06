@@ -10,12 +10,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('api')->group(function () {
     Route::get('csrf', fn () => ['token' => csrf_token()]);
     Route::get('surveys', fn () => ['surveys' => Survey::where('active', true)->get()->pluck('payload')->sortByDesc('date')->values(), 'sync' => DB::table('poll_imports')->latest('id')->first(['status', 'updated_at'])]);
-    Route::middleware('throttle:10,1')->group(function () {
-        Route::post('auth/register', [AuthController::class, 'register']);
-        Route::post('auth/login', [AuthController::class, 'login'])->name('login');
-        Route::post('auth/forgot-password', [AuthController::class, 'forgot']);
-        Route::post('auth/reset-password', [AuthController::class, 'reset']);
-    });
+    Route::get('auth/config', [AuthController::class, 'config']);
     Route::middleware('auth')->group(function () {
         Route::get('auth/user', fn (Request $r) => ['user' => $r->user()]);
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -27,5 +22,8 @@ Route::prefix('api')->group(function () {
         Route::post('leagues/{league}/stage', [LeagueController::class, 'stage']);
     });
 });
-Route::get('/reset-password/{token}', fn () => view('app'))->name('password.reset');
+Route::middleware('throttle:10,1')->group(function () {
+    Route::get('/auth/google', [AuthController::class, 'redirect'])->name('login');
+    Route::get('/auth/google/callback', [AuthController::class, 'callback']);
+});
 Route::get('/', fn () => view('app'));

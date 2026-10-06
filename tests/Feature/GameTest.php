@@ -7,12 +7,7 @@ use App\Models\Survey;
 use App\Models\User;
 use App\Services\PollStore;
 use App\Services\Scoring;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class GameTest extends TestCase
@@ -40,34 +35,6 @@ class GameTest extends TestCase
     private function picks(array $seats = ['likud' => 60, 'beyachad' => 60]): array
     {
         return ['seats' => $seats, 'turnoutPercentage' => 70.5, 'memberName' => 'Cannot impersonate another user'];
-    }
-
-    public function test_accounts_require_passwords_and_sessions(): void
-    {
-        $this->getJson('/api/leagues')->assertUnauthorized();
-        $this->postJson('/api/auth/register', ['name' => 'Maya', 'email' => 'MAYA@example.org', 'password' => 'short', 'password_confirmation' => 'short'])->assertUnprocessable();
-        $this->postJson('/api/auth/register', ['name' => 'Maya', 'email' => 'MAYA@example.org', 'password' => 'test-password-123', 'password_confirmation' => 'test-password-123'])
-            ->assertCreated()->assertJsonPath('user.email', 'maya@example.org')->assertJsonMissingPath('user.password');
-        $this->assertAuthenticated();
-        $this->getJson('/api/auth/user')->assertOk()->assertJsonPath('user.name', 'Maya');
-        $this->postJson('/api/auth/logout')->assertNoContent();
-        $this->assertGuest();
-        $this->postJson('/api/auth/login', ['email' => 'maya@example.org', 'password' => 'wrong'])->assertUnprocessable();
-        $this->postJson('/api/auth/login', ['email' => 'maya@example.org', 'password' => 'test-password-123'])->assertOk();
-    }
-
-    public function test_password_reset_revokes_sessions_and_changes_password(): void
-    {
-        Notification::fake();
-        $u = User::factory()->create(['email' => 'reset@example.org']);
-        $this->postJson('/api/auth/forgot-password', ['email' => $u->email])->assertOk();
-        Notification::assertSentTo($u, ResetPassword::class);
-        $token = Password::createToken($u);
-        DB::table('sessions')->insert(['id' => 'old-session', 'user_id' => $u->id, 'payload' => '', 'last_activity' => time()]);
-        $this->postJson('/api/auth/reset-password', ['email' => $u->email, 'token' => $token, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123'])->assertOk();
-        $this->assertTrue(Hash::check('new-password-123', $u->fresh()->password));
-        $this->assertDatabaseMissing('sessions', ['id' => 'old-session']);
-        $this->postJson('/api/auth/reset-password', ['email' => $u->email, 'token' => $token, 'password' => 'another-password', 'password_confirmation' => 'another-password'])->assertUnprocessable();
     }
 
     public function test_membership_and_owner_permissions(): void
@@ -179,22 +146,6 @@ class GameTest extends TestCase
         $this->postJson('/api/leagues/'.$league->id.'/stage', [
             'stage' => 'voting_open', 'targetSurveyId' => 'active-poll',
         ])->assertOk()->assertJsonPath('league.targetSurveyId', 'active-poll');
-    }
-
-    public function test_password_reset_invalidates_the_authenticated_request_session(): void
-    {
-        config(['session.driver' => 'database']);
-        $user = User::factory()->create(['password' => Hash::make('old-password-123')]);
-        $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'old-password-123'])->assertOk();
-        $this->assertAuthenticatedAs($user);
-        $payload = ['email' => $user->email, 'password' => 'new-password-123', 'password_confirmation' => 'new-password-123'];
-        $this->postJson('/api/auth/reset-password', [...$payload, 'token' => 'invalid'])->assertUnprocessable();
-        $this->assertAuthenticatedAs($user);
-        $this->postJson('/api/auth/reset-password', [...$payload, 'token' => Password::createToken($user)])->assertOk();
-        $this->assertGuest();
-        $this->getJson('/api/auth/user')->assertUnauthorized();
-        $this->assertDatabaseMissing('sessions', ['user_id' => $user->id]);
-        $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => 'new-password-123'])->assertOk();
     }
 
     public function test_league_index_returns_only_summaries_and_show_loads_details(): void

@@ -3,76 +3,111 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Auth\Events\PasswordReset;
+use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\Password as PasswordRule;
-use Illuminate\Validation\ValidationException;
+use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\InvalidStateException;
 
 class AuthController extends Controller
 {
-    public function register(Request $r)
+    public function config()
     {
-        $r->merge(['email' => Str::lower(trim((string) $r->input('email')))]);
-        $data = $r->validate(['name' => 'required|string|max:80', 'email' => 'required|email|max:254|unique:users', 'password' => ['required', 'confirmed', PasswordRule::min(12)]]);
-        $user = User::create($data);
-        Auth::login($user);
-        $r->session()->regenerate();
-
-        return response()->json(['user' => $user], 201);
+        return ['googleEnabled' => $this->configured()];
     }
 
-    public function login(Request $r)
+    private function configured(): bool
     {
-        $r->merge(['email' => Str::lower(trim((string) $r->input('email')))]);
-        $data = $r->validate(['email' => 'required|email', 'password' => 'required|string']);
-        if (! Auth::attempt($data)) {
-            throw ValidationException::withMessages(['email' => 'האימייל או הסיסמה שגויים']);
+        return filled(config('services.google.client_id'))
+            && filled(config('services.google.client_secret'))
+            && filled(config('services.google.redirect'));
+    }
+
+    public function redirect(Request $request)
+    {
+        // Carry only supported app parameters, never an arbitrary redirect URL.
+        $params = $request->validate([
+            'invite' => 'sometimes|string|max:255',
+            'league' => 'sometimes|string|max:255',
+        ]);
+        $request->session()->put('google.return_params', $params);
+        if (! $this->configured()) {
+            return $this->returnToApp($request, 'unavailable');
         }
-        $r->session()->regenerate();
 
-        return ['user' => $r->user()];
+        return Socialite::driver('google')->redirect();
     }
 
-    public function logout(Request $r)
+    public function callback(Request $request)
+    {
+        if (! $this->configured()) {
+            return $this->returnToApp($request, 'unavailable');
+        }
+        if ($request->has('error') || ! $request->filled('code')) {
+            $request->session()->forget('state');
+
+            return $this->returnToApp($request, 'failed');
+        }
+        try {
+            // Stateful Socialite validates the one-time OAuth state before exchanging the code.
+            $google = Socialite::driver('google')->user();
+        } catch (InvalidStateException|GuzzleException $e) {
+            return $this->returnToApp($request, 'failed');
+        }
+        $email = Str::lower(trim((string) $google->getEmail()));
+        if (! $google->getId() || ($google->user['email_verified'] ?? false) !== true
+            || ! filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
+            return $this->returnToApp($request, 'failed');
+        }
+
+        // Google's stable subject identifies the account. Email alone cannot link legacy accounts.
+        $user = User::where('google_id', $google->getId())->first();
+        if (! $user) {
+            if (User::where('email', $email)->exists()) {
+                return $this->returnToApp($request, 'account_exists');
+            }
+            try {
+                $user = new User;
+                $user->forceFill([
+                    'google_id' => $google->getId(),
+                    'name' => Str::limit($google->getName() ?: Str::before($email, '@'), 80, ''),
+                    'email' => $email,
+                    'email_verified_at' => now(),
+                    // Retain schema compatibility; no password authentication routes exist.
+                    'password' => Str::random(64),
+                ])->save();
+            } catch (UniqueConstraintViolationException $e) {
+                // Another callback may have created this same Google account concurrently.
+                $user = User::where('google_id', $google->getId())->first();
+                if (! $user) {
+                    return $this->returnToApp($request, 'account_exists');
+                }
+            }
+        }
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return $this->returnToApp($request);
+    }
+
+    private function returnToApp(Request $request, ?string $error = null)
+    {
+        $params = $request->session()->pull('google.return_params', []);
+        if ($error) {
+            $params['auth_error'] = $error;
+        }
+
+        return redirect('/'.($params ? '?'.http_build_query($params) : ''));
+    }
+
+    public function logout(Request $request)
     {
         Auth::logout();
-        $r->session()->invalidate();
-        $r->session()->regenerateToken();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->noContent();
-    }
-
-    public function forgot(Request $r)
-    {
-        $r->merge(['email' => Str::lower(trim((string) $r->input('email')))]);
-        $data = $r->validate(['email' => 'required|email']);
-        Password::sendResetLink($data);
-
-        return ['message' => 'אם החשבון קיים, נשלח קישור לאיפוס הסיסמה'];
-    }
-
-    public function reset(Request $r)
-    {
-        $r->merge(['email' => Str::lower(trim((string) $r->input('email')))]);
-        $data = $r->validate(['token' => 'required', 'email' => 'required|email', 'password' => ['required', 'confirmed', PasswordRule::min(12)]]);
-        $status = Password::reset($data, function (User $u, string $password) {
-            $u->forceFill(['password' => Hash::make($password), 'remember_token' => Str::random(60)])->save();
-            DB::table('sessions')->where('user_id', $u->id)->delete();
-            event(new PasswordReset($u));
-        });
-        if ($status !== Password::PasswordReset) {
-            throw ValidationException::withMessages(['email' => __($status)]);
-        }
-
-        Auth::logout();
-        $r->session()->invalidate();
-        $r->session()->regenerateToken();
-
-        return ['message' => 'הסיסמה עודכנה'];
     }
 }

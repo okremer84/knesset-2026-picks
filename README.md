@@ -18,9 +18,9 @@ npm run build
 php artisan serve
 ```
 
-Open http://localhost:8000 and register an account. For frontend development, also run `npm run dev` in a second terminal, while continuing to browse port 8000.
+Open http://localhost:8000 and sign in with Google. For frontend development, also run `npm run dev` in a second terminal, while continuing to browse port 8000.
 
-The seeder imports only the bundled, previously reviewed Wikipedia feed into an empty database. It never creates demo users and never overwrites live surveys. Local password-reset emails appear in `storage/logs/laravel.log`; configure a real mail provider on Cloud.
+The seeder imports only the bundled, previously reviewed Wikipedia feed into an empty database. It never creates demo users and never overwrites live surveys. Authentication uses Google only. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` before signing in; see [Google setup](docs/laravel-cloud.md#google-sign-in).
 
 ## Game rules
 
@@ -35,7 +35,7 @@ The seeder imports only the bundled, previously reviewed Wikipedia feed into an 
 - Each league saves its benchmark payload. Later source corrections do not silently rescore the league. Commissioner changes are recorded in the audit log.
 - Opinion-poll standings are provisional. Exit polls and official results must be published by an operator before a commissioner can select them. Stage changes cannot reopen voting or overwrite a finalized result.
 
-Authentication uses Laravel's hashed passwords, database sessions, HttpOnly cookies, CSRF checks and rate limits. All writes use same-origin requests. No public AI ingestion endpoint is exposed.
+Authentication uses Google OAuth through Laravel Socialite, database sessions, HttpOnly cookies, CSRF checks and rate limits. All writes use same-origin requests. No public AI ingestion endpoint is exposed.
 
 ## Poll imports
 
