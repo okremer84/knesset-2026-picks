@@ -1,106 +1,124 @@
-import React, { useState } from 'react';
+import { DeadlineInput } from './DeadlineInput';
+import React, { useEffect, useState } from 'react';
 import { Dialog } from './Dialog';
-import { Trophy, Lock, Users, Share2 } from 'lucide-react';
+import { Share2, Settings, ChevronDown, X, Plus } from 'lucide-react';
 import { League, Prediction, Survey, ElectionStage } from '../types';
 import { calculateScore } from '../utils/scoring';
+import { PARTIES_LIST } from '../data/parties';
+import { formatIsraelTime, israelInstant, israelLocalTime } from '../utils/israelTime';
 import { request } from '../lib/api';
 interface LeagueViewProps {
   league: League; allSurveys: Survey[]; selectedSurveyId: string;
   onSelectSurveyId: (id: string) => void; onOpenCreateLeague: () => void;
   onJoinExistingLeagueById: (code: string) => void; onNavigateToPicker: () => void;
-  userPrediction?: Prediction; currentUserName?: string;
+  userPrediction?: Prediction; currentUserName?: string; currentUserId?: number;
   onLeagueUpdate?: (league: League) => void;
 }
-export function LeagueView({ league, allSurveys, onOpenCreateLeague, onJoinExistingLeagueById, onNavigateToPicker, onLeagueUpdate, userPrediction }: LeagueViewProps) {
-  const [code, setCode] = useState('');
+
+export function PickDetails({ prediction, benchmark }: { prediction: Prediction; benchmark: Survey | null }) {
+  const scale = Math.max(1, ...Object.values(prediction.seats), ...Object.values(benchmark?.seats || {}));
+  return <div className="league-pick-details">
+    <p>הוגש: {formatIsraelTime(prediction.submittedAt)} · שעון ישראל</p>
+    <p className="pick-legend"><span>תחזית</span><span>מקור ההשוואה</span></p>
+    <table><caption className="sr-only">פירוט התחזית של {prediction.memberName}</caption><thead><tr><th>מפלגה</th><th>תחזית</th><th>מקור</th><th>הפרש</th><th>השוואה</th></tr></thead><tbody>
+      {PARTIES_LIST.map(party => {
+        const predicted = prediction.seats[party.id] || 0;
+        const actual = benchmark?.seats[party.id];
+        return <tr key={party.id}><th scope="row">{party.name}</th><td>{predicted}</td><td>{actual ?? 'לא דווח'}</td><td>{actual === undefined ? '—' : Math.abs(predicted - actual)}</td><td><div className="pick-bars" aria-hidden="true"><span style={{ width: `${predicted / scale * 100}%` }}/>{actual !== undefined && <span style={{ width: `${actual / scale * 100}%` }}/>}</div></td></tr>;
+      })}
+    </tbody></table>
+  </div>;
+}
+
+export function LeagueView({ league, allSurveys, onOpenCreateLeague, onNavigateToPicker, onLeagueUpdate, userPrediction, currentUserId }: LeagueViewProps) {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [stage, setStage] = useState<ElectionStage>(league.electionStage || 'voting_open');
-  const [surveyId, setSurveyId] = useState(league.targetSurveyId || '');
-  const [turnout, setTurnout] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+
+  const [deadline, setDeadline] = useState(israelLocalTime(league.locksAt));
   const [inspect, setInspect] = useState<string | null>(null);
-  const benchmark = league.benchmarkSurvey;
-  const kind = { voting_open: 'opinion_poll', exit_poll: 'exit_poll', final_results: 'official_results' }[stage];
-  const eligible = allSurveys.filter(s => s.kind === kind);
-  const member = league.members.find(m => m.id === inspect);
-  const detail = member && benchmark ? calculateScore(member.seats, benchmark.seats) : null;
-  const button = 'px-4 py-2 rounded-xl border border-slate-300 bg-white font-bold text-sm hover:bg-slate-50 disabled:opacity-50';
+  useEffect(() => { if (!settingsOpen) {
+    setDeadline(israelLocalTime(league.locksAt));
+  } }, [settingsOpen, league.locksAt, league.electionStage, league.targetSurveyId, league.benchmarkTurnoutPercentage]);
+  const benchmark = ['exit_poll', 'official_results'].includes(league.benchmarkSurvey?.kind || '') ? league.benchmarkSurvey : null;
+  const hidden = league.predictionsHidden;
+
+  // Compatibility for older cached league responses; the server supplies the complete roster.
+  const roster = league.participants ?? [
+    ...league.members.map(p => ({ userId: p.userId, name: p.memberName, submitted: true })),
+    ...(league.unsubmittedPlayers || []).map(p => ({ userId: Number(p.id), name: p.name, submitted: false })),
+  ];
+  const ranks = [...(benchmark ? league.rankings : [])].sort((a, b) => a.error - b.error || (a.turnoutDiff ?? 0) - (b.turnoutDiff ?? 0));
+  const rows = roster.map(person => {
+    const prediction = league.members.find(p => p.userId === person.userId);
+    const rank = ranks.find(r => r.predictionId === prediction?.id);
+    const position = rank ? ranks.findIndex(r => r.error === rank.error && r.turnoutDiff === rank.turnoutDiff) + 1 : null;
+    return { person, prediction, rank, position };
+  }).sort((a, b) => hidden ? a.person.name.localeCompare(b.person.name, 'he') : (a.position ?? Infinity) - (b.position ?? Infinity) || a.person.name.localeCompare(b.person.name, 'he'));
+  function highlight(prediction: Prediction | undefined, best: boolean) {
+    if (!prediction || !benchmark) return '—';
+    const picks = calculateScore(prediction.seats, benchmark.seats).partyBreakdown;
+    if (!picks.length) return '—';
+    const diff = (best ? Math.min : Math.max)(...picks.map(p => p.diff));
+    if (!best && diff === 0) return 'אין פערים';
+    const tied = picks.filter(p => p.diff === diff);
+    return <><span>{tied[0].partyName}{tied.length > 1 ? ` ועוד ${tied.length - 1}` : ''}</span><small>{diff === 0 ? 'בול' : `פער של ${diff}`}</small></>;
+  }
   async function share() {
-    try {
-      await navigator.clipboard.writeText(window.location.origin + '/?invite=' + league.inviteCode);
-      setNotice('קישור ההזמנה הועתק');
-    } catch { setError('לא ניתן להעתיק. אפשר לשתף את קוד ההזמנה המוצג.'); }
+    try { await navigator.clipboard.writeText(window.location.origin + '/?invite=' + league.inviteCode); setNotice('קישור ההזמנה הועתק'); }
+    catch { setError('לא ניתן להעתיק. קוד ההזמנה: ' + league.inviteCode); }
   }
   async function update(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true); setError(''); setNotice('');
+    e.preventDefault(); setBusy(true); setSettingsError(''); setNotice('');
     try {
-      const result = await request<{ league: League }>('/api/leagues/' + league.id + '/stage', {
-        stage, targetSurveyId: surveyId,
-        ...(stage === 'final_results' ? { benchmarkTurnoutPercentage: Number(turnout) } : {}),
-      });
-      onLeagueUpdate?.(result.league); setNotice('שלב הליגה וסקר ההשוואה עודכנו');
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+      const result = await request<{ league: League }>(`/api/leagues/${league.id}/deadline`, { locksAt: israelInstant(deadline.split('T')[0] + 'T20:00') });
+      onLeagueUpdate?.(result.league); setSettingsOpen(false); setNotice('מועד ההגשה עודכן');
+    } catch (e) { setSettingsError((e as Error).message); } finally { setBusy(false); }
   }
-  return <div dir="rtl" className="space-y-6">
-    <section className="league-heading space-y-5">
-      <div className="flex flex-wrap justify-between gap-4">
-        <div><p className="eyebrow flex gap-2"><Trophy size={18}/> ליגת הבחירות</p><h2 className="text-3xl font-black mt-2">{league.name}</h2><p className="text-slate-500 mt-2">{league.description}</p></div>
-        <div className="text-sm space-y-2"><p>מנהל הליגה: {league.creatorName}</p><p className="flex gap-2"><Users size={16}/>{league.totalPlayersCount} משתתפים · {league.submittedCount} תחזיות הוגשו</p></div>
-      </div>
-      <p className="flex gap-2 items-center"><Lock size={16}/>{league.isLocked ? 'התחזיות נעולות' : 'אפשר להגיש ולעדכן עד'} · {new Date(league.locksAt).toLocaleString('he-IL')}</p>
-      <div className="flex flex-wrap items-center gap-3"><button onClick={share} className="button-quiet border border-slate-300 flex gap-2"><Share2 size={18}/> הזמנת חברים</button><code dir="ltr" className="break-all text-xs text-slate-500">{league.inviteCode}</code></div>
-    </section>
-    {error && <p role="alert" className="p-4 bg-red-50 text-red-800 rounded-xl">{error}</p>}
-    {notice && <p role="status" className="p-4 bg-emerald-50 text-emerald-800 rounded-xl">{notice}</p>}
-    {league.predictionsHidden && <p className="bg-amber-50 border border-amber-200 p-4 rounded-xl">עד מועד הנעילה רק התחזית שלך מוצגת. גם מנהל הליגה אינו יכול לראות תחזיות של אחרים.</p>}
-    <section className="border border-slate-200 rounded-2xl overflow-hidden">
-      <div className="p-5 bg-slate-50">
-        <h3 className="text-xl font-black">{league.predictionsHidden ? 'התחזית שלך' : 'טבלת הליגה'}</h3>
-        <p className="text-sm text-slate-600 mt-2">פחות שגיאות מנצח: סכום ההפרשים המוחלטים במנדטים. בשוויון — יותר פגיעות מדויקות, ואז קרבה לשיעור ההצבעה הרשמי. שוויון מלא נשאר משותף.</p>
-        <p className="text-sm mt-2">ההשוואה השמורה לליגה: {benchmark?.title || 'טרם נבחרה'} {benchmark?.kind !== 'official_results' && '· דירוג זמני'}</p>
-        {benchmark?.notReportedPartyIds?.length ? <p className="text-xs text-slate-500 mt-1">מפלגות שלא דווחו בסקר אינן משתתפות בחישוב.</p> : null}
-        {benchmark?.sourceUrl && <a className="text-red-700 underline text-sm" href={benchmark.sourceUrl} target="_blank" rel="noreferrer">מקור הנתונים</a>}
-      </div>
-      <div className="overflow-x-auto"><table className="w-full text-sm text-right">
-        <thead className="border-y border-slate-200"><tr>{['מקום','משתתף','שגיאות','פגיעות מדויקות','הפרש בשיעור הצבעה','תחזית'].map(x => <th key={x} className="p-4 whitespace-nowrap">{x}</th>)}</tr></thead>
-        <tbody>{league.rankings.map((rank, index, ranks) => {
-          const prediction = league.members.find(m => m.id === rank.predictionId)!;
-          const position = ranks.findIndex(r => r.error === rank.error && r.exactHits === rank.exactHits && r.turnoutDiff === rank.turnoutDiff) + 1;
-          return <tr key={rank.predictionId} className="border-b border-slate-100">
-            <td className="p-4 font-black">{league.predictionsHidden ? '—' : position}</td><td className="p-4 font-bold">{prediction.memberName}{userPrediction?.id === prediction.id ? ' (אני)' : ''}</td>
-            <td className="p-4 text-xl font-black text-red-600">{rank.error}</td><td className="p-4">{rank.exactHits}</td><td className="p-4">{rank.turnoutDiff === null ? 'טרם פורסם' : rank.turnoutDiff.toFixed(1) + '%'}</td>
-            <td className="p-4"><button className="underline" onClick={() => setInspect(prediction.id)}>צפייה</button></td>
-          </tr>;
-        })}</tbody>
-      </table></div>
-      {!league.members.length && <p className="p-6 text-slate-500">עדיין אין תחזית להצגה.</p>}
-      {!league.isLocked && <button onClick={onNavigateToPicker} className="m-4 bg-[#a43128] text-white px-5 py-3 rounded-xl font-bold">{userPrediction ? 'עדכון התחזית שלי' : 'הגשת תחזית'}</button>}
-    </section>
-    {!!league.unsubmittedPlayers?.length && <p className="text-sm text-slate-500">טרם הגישו: {league.unsubmittedPlayers.map(p => p.name).join(', ')}</p>}
-    {league.isCommissioner && league.electionStage !== 'final_results' && <details className="league-settings"><summary>ניהול הליגה</summary><form onSubmit={update} className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-3">
-      <h3 className="font-black">ניהול שלב הליגה</h3>
-      <p className="text-sm text-slate-600">עדכוני סקרים אינם משנים אוטומטית את ההשוואה השמורה. מדגם ותוצאות רשמיות ניתנים לבחירה רק לאחר פרסומם ונעילת התחזיות.</p>
-      <div className="flex flex-wrap gap-3">
-        <select aria-label="שלב הליגה" className={button} value={stage} onChange={e => { setStage(e.target.value as ElectionStage); setSurveyId(''); }}>
-          {league.electionStage === 'voting_open' && <option value="voting_open">סקר — דירוג זמני</option>}
-          <option value="exit_poll" disabled={!league.isLocked}>מדגם</option><option value="final_results" disabled={!league.isLocked}>תוצאות רשמיות</option>
-        </select>
-        <select required aria-label="סקר להשוואה" className={button + ' max-w-full'} value={surveyId} onChange={e => setSurveyId(e.target.value)}>
-          <option value="">בחרו מקור להשוואה</option>{eligible.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-        </select>
-        {stage === 'final_results' && <label>שיעור הצבעה רשמי (%)<input className={button} type="number" required min={0} max={100} step={0.1} value={turnout} onChange={e => setTurnout(e.target.value)}/></label>}
-        <button className={button} disabled={busy || !surveyId}>{busy ? 'שומר…' : 'שמירת השלב וההשוואה'}</button>
-      </div>
-    </form></details>}
-    <details className="league-settings"><summary>יצירה או הצטרפות לליגה נוספת</summary><div className="flex flex-wrap gap-3"><button className={button} onClick={onOpenCreateLeague}>יצירת ליגה נוספת</button><form className="flex flex-wrap gap-2" onSubmit={e => { e.preventDefault(); onJoinExistingLeagueById(code.trim()); }}><input aria-label="קוד הזמנה" dir="ltr" placeholder="קוד הזמנה לליגה" value={code} onChange={e => setCode(e.target.value)} required className={button}/><button className={button}>הצטרפות לליגה</button></form></div></details>
-    {member && detail && <Dialog open={!!member} onClose={() => setInspect(null)} label="פירוט תחזית">
-      <section>
-        <div className="flex justify-between"><h3 className="text-xl font-black">{member.memberName} · {detail.totalSeatDiff} שגיאות</h3><button onClick={() => setInspect(null)} className="underline">סגירה</button></div>
-        <p className="my-3 text-sm">הוגש: {new Date(member.submittedAt).toLocaleString('he-IL')} · שיעור הצבעה: {member.turnoutPercentage}%</p>
-        <p className="my-3">{member.note}</p>
-        <table className="w-full text-sm text-right"><thead><tr>{['מפלגה','תחזית','מקור','הפרש'].map(t => <th className="p-2" key={t}>{t}</th>)}</tr></thead><tbody>{detail.partyBreakdown.map(p => <tr className="border-t border-slate-100" key={p.partyId}><td className="p-2">{p.partyName}</td><td className="p-2">{p.predicted}</td><td className="p-2">{p.actual}</td><td className="p-2">{p.diff}</td></tr>)}</tbody></table>
-      </section>
+  return <div dir="rtl" className="league-page">
+    <header className="league-header"><div><p className="eyebrow">הליגות שלי</p><h1>{league.name}</h1><p>{league.submittedCount} מתוך {league.totalPlayersCount} הגישו · {league.isLocked ? 'ההגשה נסגרה' : 'הגשה עד'} {formatIsraelTime(league.locksAt)} · שעון ישראל</p></div>
+    </header>
+    <div className="league-action-bar" role="group" aria-label="פעולות ליגה">
+      <button className="button-quiet" onClick={share}><Share2 size={16}/>שיתוף</button>
+      <button className="button-quiet" onClick={onOpenCreateLeague}><Plus size={16}/>יצירת ליגה חדשה</button>
+      {league.isCommissioner && <button className="button-quiet" onClick={() => { setSettingsError(''); setSettingsOpen(true); }}><Settings size={16}/>הגדרות</button>}
+    </div>
+    {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
+    <div className="league-table-caption">{hidden ? <p>התחזיות וההערות ייחשפו בתאריך האחרון להגשה, בשעה 20:00 בשעון ישראל.</p> : <><p>{benchmark?.kind === 'official_results' ? 'תוצאות סופיות' : benchmark ? 'מדגם · דירוג זמני' : 'ממתינים לפרסום המדגם · הניקוד יופיע לאחר הפרסום'}</p><details><summary>איך הניקוד עובד?</summary><p>פחות נקודות עדיף: סכום ההפרשים המוחלטים במנדטים. בשוויון, התחזית הקרובה יותר לאחוז ההצבעה הרשמי מנצחת. עד פרסום אחוז ההצבעה, או כשהפער זהה, המקום משותף. מפלגות שלא דווחו אינן נכללות בניקוד.</p>{benchmark?.sourceUrl && <a href={benchmark.sourceUrl} target="_blank" rel="noreferrer">מקור הנתונים</a>}</details></>}</div>
+    <div className="league-table-scroll"><table className={`league-table ${hidden ? 'before-reveal' : ''}`}>
+      <caption className="sr-only">משתתפי {league.name}</caption>
+      <thead><tr>{(hidden ? ['שם', 'תחזית'] : ['מקום', 'שם', 'נקודות ↓', 'אחוז הצבעה', 'הכי קרוב', 'הכי רחוק', 'הערה', '']).map((title, i) => <th key={i} scope="col">{title || <span className="sr-only">פעולות</span>}</th>)}</tr></thead>
+      <tbody>{rows.map(({ person, prediction, rank, position }) => {
+        const mine = (currentUserId ?? userPrediction?.userId) === person.userId;
+        const expanded = !!prediction && inspect === prediction.id;
+        return <React.Fragment key={person.userId}><tr className={mine ? 'my-league-row' : ''}>
+          {!hidden && <td>{position ?? '—'}</td>}
+          <th scope="row">{prediction?.pickName ? <><strong>{prediction.pickName}</strong><small>{person.name}</small></> : person.name}</th>
+          {hidden ? <td>{mine && !league.isLocked && !league.myPickLocked
+            ? <button className="text-action" onClick={onNavigateToPicker}>{person.submitted ? 'הוגשה · עדכון' : 'הגשת תחזית'}</button>
+            : <span className={`submission-state ${person.submitted ? 'submitted' : ''}`}>{person.submitted ? 'הוגשה' : 'טרם הוגשה'}</span>}
+          </td> : <>
+            <td className="league-score">{rank?.error ?? '—'}</td>
+            <td>{prediction?.turnoutPercentage == null ? '—' : `${prediction.turnoutPercentage}%`}{rank?.turnoutDiff != null && <small>פער {rank.turnoutDiff.toFixed(1)} נק׳ אחוז</small>}</td>
+            <td>{highlight(prediction, true)}</td><td>{highlight(prediction, false)}</td>
+            <td className="league-note">{prediction?.note || '—'}</td>
+            <td>{prediction ? <button className="text-action expand-pick" aria-label={`התחזית של ${person.name}`} aria-expanded={expanded} aria-controls={`picks-${prediction.id}`} onClick={() => setInspect(expanded ? null : prediction.id)}><span>{expanded ? 'סגירה' : 'תחזית'}</span><ChevronDown size={15}/></button> : <span className="submission-state">לא הוגשה</span>}</td>
+          </>}
+        </tr>{!hidden && expanded && prediction && <tr id={`picks-${prediction.id}`}><td colSpan={8}><PickDetails prediction={prediction} benchmark={benchmark}/></td></tr>}</React.Fragment>;
+      })}</tbody>
+    </table></div>
+    {!rows.length && <p>עדיין אין משתתפים בליגה.</p>}
+
+    {settingsOpen && league.isCommissioner && <Dialog open closeOnBackdrop onClose={() => { if (!busy) setSettingsOpen(false); }} label="הגדרות הליגה" className="league-settings-dialog">
+      <div className="profile-heading"><h2>הגדרות הליגה</h2><button aria-label="סגירה" disabled={busy} onClick={() => setSettingsOpen(false)}><X size={20}/></button></div>
+      <p>מנהל הליגה: {league.creatorName}</p>
+      {settingsError && <p role="alert">{settingsError}</p>}
+      <form onSubmit={update}><h3>מועד אחרון להגשה</h3><DeadlineInput value={deadline} onChange={setDeadline} disabled={busy || league.isLocked} max={league.deadlineLimit}/>
+        <p>{league.isLocked ? 'התחזיות נחשפו. לא ניתן לפתוח מחדש את ההגשה.' : league.deadlineLimit ? 'הבחירות יתגלו במועד נעילת התחזיות' : 'מועד הבחירות טרם הוגדר.'}</p>
+        {!league.isLocked && <button className="button-primary" disabled={busy || !league.deadlineLimit}>שמירת מועד ההגשה</button>}
+      </form>
     </Dialog>}
   </div>;
 }

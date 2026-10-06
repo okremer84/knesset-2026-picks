@@ -26,13 +26,14 @@ The seeder imports only the bundled, previously reviewed Wikipedia feed into an 
 
 - Each account owns one prediction per league. Display names are labels, never authentication.
 - The creator is the commissioner. Others join using the random invitation code.
-- The commissioner chooses a future submission deadline when creating a league. The server rejects edits and new members at or after that instant. Existing members can still open their league.
+- The election date defaults to 27/10/2026; override `ELECTION_DATE` (YYYY-MM-DD) if it changes. The commissioner chooses a submission date, no later than election day. Submissions always close at 20:00 Asia/Jerusalem on the selected date; the hour cannot be changed. The owner may shorten or extend it before the existing deadline, within that cap. Once revealed, submissions cannot be reopened. The server rejects edits and new members at or after that instant. Existing members can still open their league.
+- Each user has one personal prediction shared by all leagues, including leagues joined later. It locks at the earliest deadline of their leagues (or election-day cutoff with no leagues). Each league reveals it at its own deadline.
 - Every prediction must contain exactly 120 nonnegative integer seats using recognized party IDs, and a turnout prediction with at most one decimal place.
-- Other players' picks stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
-- Lower total absolute seat error wins. Exact hits among parties with seats break ties; closeness to official turnout is the next tiebreak. Complete ties share a position.
+- Other players' picks and notes stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
+- Lower total absolute seat error wins. Closeness to official turnout is the only tiebreak; until it is published, equal seat errors share a position. Complete ties share a position.
 - A poll's unreported parties are excluded from comparison rather than invented as zero.
-- New benchmarks must use active surveys; withdrawn surveys remain available only through existing league snapshots and revision history.
-- Each league saves its benchmark payload. Later source corrections do not silently rescore the league. Commissioner changes are recorded in the audit log.
+- League scoring uses active published election results only. Opinion polls remain available in the surveys tab.
+- Published election-result corrections update standings across leagues. Owner deadline changes are recorded in the audit log.
 - Opinion-poll standings are provisional. Exit polls and official results must be published by an operator before a commissioner can select them. Stage changes cannot reopen voting or overwrite a finalized result.
 
 Authentication uses Google OAuth through Laravel Socialite, database sessions, HttpOnly cookies, CSRF checks and rate limits. All writes use same-origin requests. No public AI ingestion endpoint is exposed.
@@ -59,7 +60,7 @@ Wikipedia is a secondary source that can be edited incorrectly. Seat-total valid
 
 Use `php artisan polls:publish /path/to/reviewed-survey.json` through an operator console. The JSON uses the same Survey shape as `data/wikipedia-surveys.json`, with a unique `id`, `title`, `date` (YYYY-MM-DD), `institute`, `channelOrMedia`, `sourceUrl` (HTTPS), and `seats`.
 
-Set `kind` to `opinion_poll`, `exit_poll`, or `official_results`. Election-result payloads must explicitly report every configured party (including zeros) and sum to 120. Publishing a survey does not change any league automatically. The commissioner selects the published result after the deadline and enters the official turnout to finalize the league. Review final results carefully: finalized leagues cannot be changed through the app.
+Set `kind` to `opinion_poll`, `exit_poll`, or `official_results`. Election-result payloads must explicitly report every configured party (including zeros) and sum to 120. Leagues automatically use published active `exit_poll` records from election day onward, then prefer `official_results`. Include `turnoutPercentage` in official results for tiebreaks. Within a kind, the latest dated record wins (then latest update and ID). Future-dated records and opinion polls never score leagues. Publishing or correcting results updates all league standings; league owners cannot choose a scoring source.
 
 ## Checks
 
@@ -78,3 +79,5 @@ CI runs the backend suite against SQLite and MySQL 8.4. Tests cover authenticati
 The old Express server and public Gemini scanner are retired. `data/leagues.json` is no longer read or written. Existing anonymous records cannot safely be assigned to accounts by matching a display name; importing any real old leagues needs an explicit, verified ownership mapping. The legacy Python/TypeScript poll scripts remain for reference, but do not run in production.
 
 See [Laravel Cloud setup](docs/laravel-cloud.md) for deployment.
+
+The personal-pick migration preserves legacy per-league submissions and revisions in their original tables. It carries forward the first closed league’s submission when present, otherwise the latest submission, into one unique personal prediction per user.

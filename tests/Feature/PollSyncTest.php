@@ -22,7 +22,7 @@ class PollSyncTest extends TestCase
     public function test_parser_matches_previously_reviewed_feed_and_retains_source_links(): void
     {
         $parsed = app(WikipediaPolls::class)->parse($this->html());
-        $expected = json_decode(file_get_contents(base_path('data/wikipedia-surveys.json')), true)['surveys'];
+        $expected = json_decode(file_get_contents(base_path('tests/Fixtures/wikipedia-september-surveys.json')), true)['surveys'];
         $this->assertCount(6, $parsed);
         foreach ($expected as $poll) {
             $actual = collect($parsed)->firstWhere('id', $poll['id']);
@@ -32,6 +32,26 @@ class PollSyncTest extends TestCase
             $this->assertSame(['balad'], $actual['notReportedPartyIds']);
             $this->assertArrayNotHasKey('balad', $actual['seats']);
         }
+    }
+
+    public function test_october_formats_preserve_missing_results_and_percentage_bounds(): void
+    {
+        $html = file_get_contents(base_path('tests/Fixtures/wikipedia-october.html'));
+        $polls = collect(app(WikipediaPolls::class)->parse($html));
+        $latest = $polls->first();
+        $this->assertSame('2026-10-05', $latest['date']);
+        $this->assertSame(23, $latest['seats']['yashar']);
+        $this->assertSame(120, array_sum($latest['seats']));
+        $this->assertStringContainsString('Haredi Public: (0.6%)', $latest['notes']);
+        $missing = $polls->firstWhere('channelOrMedia', 'i24 News');
+        $this->assertContains('kachol_lavan', $missing['notReportedPartyIds']);
+        $this->assertArrayNotHasKey('kachol_lavan', $missing['seats']);
+        $bounded = $polls->firstWhere('date', '2026-09-27');
+        $this->assertSame(0, $bounded['seats']['kachol_lavan']);
+        $this->assertArrayNotHasKey('kachol_lavan', (array) $bounded['votePercentages']);
+        $this->assertStringContainsString('(<3.25%)', $bounded['notes']);
+        $this->expectException(\RuntimeException::class);
+        app(WikipediaPolls::class)->parse(str_replace('(0.6%)', '4', $html));
     }
 
     public function test_sync_is_idempotent_and_failure_preserves_last_good_surveys(): void
@@ -66,7 +86,7 @@ class PollSyncTest extends TestCase
     public function test_seed_never_overwrites_existing_data_or_creates_demo_users(): void
     {
         $this->seed();
-        $this->assertDatabaseCount('surveys', 6);
+        $this->assertDatabaseCount('surveys', count(json_decode(file_get_contents(base_path('data/wikipedia-surveys.json')), true)['surveys']));
         $this->assertDatabaseCount('users', 0);
         $id = Survey::first()->id;
         Survey::whereKey($id)->update(['active' => false]);

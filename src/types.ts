@@ -13,6 +13,7 @@ export interface Prediction {
   userId: number;
   id: string;
   memberName: string;
+  pickName?: string | null;
   seats: Record<string, number>; // partyId -> seat count
   submittedAt: string;
   note?: string;
@@ -30,6 +31,9 @@ export interface UnsubmittedPlayer {
 export type LeagueSummary = Pick<League, 'id' | 'name'>;
 
 export interface League {
+  participants?: { userId: number; name: string; submitted: boolean }[];
+  deadlineLimit?: string | null;
+  myPickLocked?: boolean;
   isCommissioner: boolean;
   isLocked: boolean;
   locksAt: string;
@@ -124,4 +128,12 @@ export interface HistoricalElection {
     other: number;
   };
   pollVsRealityNotes: string;
+}
+
+export interface SavedPick {
+  pickName?: string | null;
+  id: string;
+  leagueId?: string;
+  leagueName?: string;
+  seats: Record<string, number>;
 }

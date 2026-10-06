@@ -11,7 +11,7 @@ import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
 import { DEFAULT_SURVEYS } from './data/surveys';
 import { PARTIES_LIST } from './data/parties';
-import { League, LeagueSummary, Prediction, Survey } from './types';
+import { League, LeagueSummary, Prediction, Survey, SavedPick } from './types';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -27,6 +27,33 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [loadingLeague, setLoadingLeague] = useState(true);
+
+  const [userPrediction, setUserPrediction] = useState<Prediction | undefined>();
+  const [pickLocked, setPickLocked] = useState(true);
+  const [savedPicks, setSavedPicks] = useState<SavedPick[]>([]);
+  const [picksStatus, setPicksStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [picksRetry, setPicksRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const response = await fetch('/api/my-picks', { signal: controller.signal });
+        if (!response.ok) throw new Error('Failed to load pick');
+        const data = await response.json();
+        if (!controller.signal.aborted) {
+          setSavedPicks(data.picks); setUserPrediction(data.pick ?? undefined);
+          setPickLocked(data.isLocked); setPicksStatus('ready');
+        }
+      } catch { if (!controller.signal.aborted) setPicksStatus('error'); }
+      finally { refreshing = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [currentLeague, picksRetry]);
 
   // Helper to sanitize any raw seats object to strictly PARTIES_LIST keys
   const sanitizeSeatsMap = (raw: any): Record<string, number> => {
@@ -142,11 +169,8 @@ export default function App() {
     }, 4500);
   };
 
-  // Submit user's prediction to the active league
-  const handleSubmitPrediction = async (memberName: string, note?: string, turnoutPercentage?: number) => {
-    if (!currentLeague) {
-      throw new Error('לא נמצאה ליגה פעילה. אנא צור ליגה תחילה.');
-    }
+  // Submit the personal prediction shared by every league.
+  const handleSubmitPrediction = async (pickName: string, note?: string, turnoutPercentage?: number) => {
 
     // Always sanitize to strictly PARTIES_LIST keys with integer values
     const cleanSeats: Record<string, number> = {};
@@ -170,11 +194,11 @@ export default function App() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/leagues/${currentLeague.id}/predict`, {
+      const res = await fetch('/api/my-pick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          memberName,
+          pickName,
           seats: cleanSeats,
           note,
           turnoutPercentage,
@@ -186,13 +210,16 @@ export default function App() {
         throw new Error(data.message || data.error || 'שגיאה בשמירת התחזית');
       }
 
-      setCurrentLeague(data.league);
-      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-      showToast('התחזית שלך נשמרה בהצלחה בליגה! 🎉', 'success');
-      setActiveTab('league');
+      setUserPrediction(data.pick); setSavedPicks(data.picks); setPickLocked(data.isLocked);
+      showToast('התחזית שלך נשמרה בהצלחה', 'success');
+      if (currentLeague) {
+        const response = await fetch('/api/leagues/' + currentLeague.id);
+        if (response.ok) setCurrentLeague((await response.json()).league);
+        setActiveTab('league');
+      }
     } catch (err: any) {
       console.error('Submit prediction error:', err);
-      showToast(err.message || 'שגיאה בשמירת התחזית לליגה', 'error');
+      showToast(err.message || 'שגיאה בשמירת התחזית', 'error');
       throw err;
     } finally {
       setIsSubmitting(false);
@@ -200,6 +227,23 @@ export default function App() {
   };
 
   // Create new league
+  const [switchingLeague, setSwitchingLeague] = useState(false);
+  const handleSwitchLeague = async (leagueId: string) => {
+    if (switchingLeague || leagueId === currentLeague?.id) return;
+    setSwitchingLeague(true);
+    try {
+      const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId));
+      const data = await response.json();
+      if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
+      setCurrentLeague(data.league);
+      window.history.replaceState({}, '', '/?league=' + encodeURIComponent(leagueId));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'לא ניתן לטעון את הליגה', 'error');
+    } finally {
+      setSwitchingLeague(false);
+    }
+  };
+
   const handleCreateLeague = async (
     name: string,
     creatorName: string,
@@ -221,6 +265,10 @@ export default function App() {
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
+    }
+
+    if (!data.league || typeof data.league.id !== 'string' || typeof data.league.name !== 'string' || !Array.isArray(data.league.members)) {
+      throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
     }
 
     setCurrentLeague(data.league);
@@ -263,10 +311,9 @@ export default function App() {
   };
 
   const username = user.name;
-  const userPrediction = currentLeague?.members.find(m => m.userId === user.id);
   useEffect(() => {
     if (userPrediction) setUserSeats(userPrediction.seats);
-  }, [currentLeague?.id, userPrediction?.submittedAt]);
+  }, [userPrediction?.id, userPrediction?.submittedAt]);
 
   // Refresh deadlines, standings and invitations without trusting the browser clock.
   useEffect(() => {
@@ -337,18 +384,19 @@ export default function App() {
 
       {/* Main Content Area */}
       {surveyNotice && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
-      {activeTab === 'league' && myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} onChange={e => { window.location.href = '/?league=' + e.target.value; }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
-      {currentLeague?.isLocked && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזיות בליגה נעולות. אפשר להמשיך להשוות סקרים, אך לא לשנות את התחזית שהוגשה.</p>}
+      {activeTab === 'league' && myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
+        {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => setPicksRetry(n => n + 1)}>ניסיון נוסף</button></p>}
         {activeTab === 'picker' && (
           <SeatPicker
             currentSeats={userSeats}
             onSeatsChange={setUserSeats}
             onSubmitPrediction={handleSubmitPrediction}
             isSubmitting={isSubmitting}
-            activeLeagueName={currentLeague?.name}
-            onChooseLeague={() => setActiveTab('league')}
-            isLocked={!!currentLeague?.isLocked}
+            prediction={userPrediction}
+            isLocked={pickLocked}
+            isLoading={picksStatus !== 'ready'}
           />
         )}
 
@@ -365,6 +413,7 @@ export default function App() {
               onNavigateToPicker={() => setActiveTab('picker')}
               userPrediction={userPrediction}
               currentUserName={username}
+              currentUserId={user.id}
               onLeagueUpdate={(updatedLeague) => setCurrentLeague(updatedLeague)}
             />
           ) : (
@@ -383,8 +432,9 @@ export default function App() {
         {activeTab === 'surveys' && (
           <SurveyComparator
             surveys={allSurveys}
-            userSeats={userSeats}
-            onNavigateToPicker={() => setActiveTab('picker')}
+            picks={picksStatus === 'ready' ? savedPicks : []}
+            picksStatus={picksStatus}
+            onRetryPicks={() => setPicksRetry(n => n + 1)}
           />
         )}
 
@@ -396,7 +446,6 @@ export default function App() {
         )}
       </main>
 
-      <footer className="site-footer"><span>120 · פנטזי בחירות</span><span>סקרי דעת קהל אינם תוצאות רשמיות</span></footer>
 
       {/* Create League Modal */}
       <CreateLeagueModal

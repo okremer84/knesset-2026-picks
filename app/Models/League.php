@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -26,13 +27,15 @@ class League extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
-    public function predictions()
+    public function effectiveDeadline(): CarbonImmutable
     {
-        return $this->hasMany(Prediction::class);
+        $cap = CarbonImmutable::parse(config('election.date').' 20:00', 'Asia/Jerusalem')->utc();
+
+        return $this->locks_at->min($cap);
     }
 
     public function isLocked(): bool
     {
-        return $this->stage !== 'voting_open' || now()->gte($this->locks_at);
+        return $this->stage !== 'voting_open' || now()->gte($this->effectiveDeadline());
     }
 }

@@ -157,6 +157,8 @@ class WikipediaPolls
                 $seen = [];
                 $seats = [];
                 $percent = [];
+                $unreported = [];
+                $additionalNotes = [];
                 foreach ($row as $i => $cell) {
                     $label = $headers[$i] ?? '';
                     if (in_array($label, ['Fieldwork date', 'Polling firm', 'Publisher', 'Sample size', 'Gov.', 'Others', 'Other'])) {
@@ -174,22 +176,42 @@ class WikipediaPolls
                         }
                     }
                     $label = implode(' / ', array_unique($labels));
+                    $raw = $this->clean($cell);
+                    // This list is not on the game's ballot. Preserve its reported
+                    // percentage without assigning it to a different party.
+                    if ($label === 'Haredi Public') {
+                        if (! preg_match('/^\(?<?([0-9]+(?:\.[0-9]+)?)%\)?$/', $raw, $extra) || (float) $extra[1] > 3.25 || ((float) $extra[1] === 3.25 && ! str_contains($raw, '<'))) {
+                            if (! in_array($raw, ['—', '—N/a', '— N/a'])) {
+                                throw new RuntimeException('Unmapped seat result for Haredi Public: '.$raw);
+                            }
+                        }
+                        $additionalNotes[] = 'Haredi Public: '.$raw;
+
+                        continue;
+                    }
                     $id = config('election.aliases')[$label] ?? null;
                     if (! $id || isset($seats[$id])) {
                         throw new RuntimeException('Unmapped or duplicate party: '.$label);
                     }
-                    $raw = $this->clean($cell);
+                    if (in_array($raw, ['—', '—N/a', '— N/a'])) {
+                        $unreported[] = $id;
+
+                        continue;
+                    }
                     if (preg_match('/^\d+$/', $raw)) {
                         $seats[$id] = (int) $raw;
                     } elseif (preg_match('/^\(?([0-9]+(?:\.[0-9]+)?)%\)?$/', $raw, $m) && (float) $m[1] < 3.25) {
                         $seats[$id] = 0;
                         $percent[$id] = (float) $m[1];
+                    } elseif (preg_match('/^\(?<([0-9]+(?:\.[0-9]+)?)%\)?$/', $raw, $m) && (float) $m[1] <= 3.25) {
+                        $seats[$id] = 0;
+                        $additionalNotes[] = $label.': '.$raw;
                     } else {
                         throw new RuntimeException('Unknown seat value for '.$label.': '.$raw);
                     }
                 }
                 $missing = array_values(array_diff(array_keys(config('election.parties')), array_keys($seats)));
-                if (array_sum($seats) !== 120 || array_diff($missing, ['balad'])) {
+                if (array_sum($seats) !== 120 || array_diff($missing, ['balad', ...$unreported])) {
                     throw new RuntimeException('Incomplete poll or invalid seat total');
                 }
                 // Match the Python importer's stable identity (JSON separators include spaces).
@@ -206,7 +228,7 @@ class WikipediaPolls
                 $polls[$id] = ['id' => $id, 'kind' => 'opinion_poll', 'title' => $publisher.' · '.$date, 'institute' => $firm, 'channelOrMedia' => $publisher, 'date' => $date,
                     'seats' => $seats, 'blocs' => $blocs, 'source' => 'wikipedia', 'sourceUrl' => config('election.source_url'), 'originalSourceUrls' => $sources,
                     'syncedAt' => now()->toIso8601String(), 'votePercentages' => $percent ?: new \stdClass, 'notReportedPartyIds' => $missing,
-                    'notes' => 'תאריכי הסקר במקור: '.$this->clean($row[0]).'. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק.'];
+                    'notes' => 'תאריכי הסקר במקור: '.$this->clean($row[0]).'. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק.'.($additionalNotes ? ' '.implode('; ', $additionalNotes).'.' : '')];
                 if (ctype_digit($sample)) {
                     $polls[$id]['sampleSize'] = (int) $sample;
                 }

@@ -77,8 +77,6 @@
 .picker-options { position: relative; align-self: flex-end; font-size: 13px; color: #6b7067; }
 .picker-options summary { display: flex; align-items: center; text-decoration: underline; text-underline-offset: 5px; }
 .picker-options button { white-space: nowrap; position: absolute; left: 0; background: white; border: 1px solid #deded5; z-index: 10; width: 160px; }
-.picker-caption { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #c8c9c0; padding-block: 16px; font-size: 13px; }
-.picker-caption span:last-child { color: #6b7067; font-size: 12px; }
 .party-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 16px; }
 .party-card { min-width: 0; background: white; border: 1px solid #deded5; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
 .party-card.has-seats { border-color: #8d998c; }
@@ -100,7 +98,7 @@
 .bloc-summary { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 20px; padding: 12px 0; font-size: 12px; color: #6b7067; }
 .bloc-summary > span { white-space: nowrap; }
 .bloc-summary strong { font-size: 16px; margin-right: 8px; color: #202821; }
-.prediction-dock { position: sticky; bottom: 0; z-index: 30; background: #f7f6f2; padding-bottom: env(safe-area-inset-bottom); }
+.prediction-dock { margin-top: 20px; position: sticky; bottom: 0; z-index: 30; background: #f7f6f2; padding-bottom: env(safe-area-inset-bottom); }
 .prediction-progress { height: 3px; background: #deded5; }
 .prediction-progress span { display: block; height: 100%; background: #a43128; transition: width .2s; }
 .prediction-dock-content { min-height: 90px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px; }
@@ -113,7 +111,6 @@
 .button-primary:hover:not(:disabled) { background: #87281f; }
 .button-primary:disabled { background: #e7e7df; color: #6b7067; }
 .button-quiet { padding: 10px 16px; color: #555b52; font-size: 13px; border-radius: 5px; }
-.site-footer { max-width: 1280px; width: 100%; margin: auto auto 0; padding: 24px 32px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7067; gap: 16px; }
 .empty-leagues { padding: 64px 24px; text-align: center; }
 .sign-in-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
 .sign-in-card { width: 100%; max-width: 430px; padding: 40px; background: white; border: 1px solid #deded5; border-radius: 8px; }
@@ -137,7 +134,6 @@
   .prediction-dock-content > .prediction-actions { grid-column: 2; grid-row: 1; }
   .bloc-summary strong { font-size: 14px; margin-right: 4px; }
   .prediction-total strong { font-size: 26px; }
-  .site-footer { padding-inline: 16px; }
 }
 @media (max-width: 480px) {
   .account-name { display: none; }
@@ -145,7 +141,6 @@
   .main-nav button { font-size: 12px; }
   .party-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page-heading h1 { font-size: 28px; }
-  .picker-caption span:last-child { max-width: 145px; text-align: left; }
   .bloc-summary { gap: 12px 20px; }
   .prediction-dock .button-primary { font-size: 12px; padding-inline: 14px; }
   .prediction-total > span { font-size: 11px; }
@@ -187,3 +182,99 @@
 .profile-logout { display: flex; align-items: center; justify-content: center; gap: 8px; border-top: 1px solid #deded5; margin-top: 24px; padding-top: 12px; width: 100%; color: #6b7067; font-size: 14px; }
 
 .profile-dialog { width: min(420px, calc(100% - 32px)); }
+
+.survey-selectors { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 20px; min-width: 0; }
+.survey-period-note { flex-basis: 100%; font-size: 12px; color: #6b7067; margin: 0; }
+@media (max-width: 600px) { .survey-selectors, .survey-selectors label { width: 100%; } }
+
+.poll-trends, .survey-results { background: #fff; border: 1px solid #deded5; border-radius: 8px; padding: 24px; }
+.poll-trends-heading { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 16px; }
+.poll-trends h2, .survey-results h2 { font-size: 20px; font-weight: 700; }
+.poll-trends-heading p, .survey-results > p { font-size: 13px; color: #6b7067; margin-top: 6px; }
+.poll-trends label, .survey-pick-selection label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.poll-trends select, .survey-pick-selection select { border: 1px solid #c8c9c0; border-radius: 5px; padding: 9px 12px; background: white; min-width: 170px; }
+.poll-chart-scroll { overflow-x: auto; margin-top: 22px; direction: ltr; }
+.poll-chart-scroll svg { display: block; width: 100%; min-width: 580px; }
+.poll-chart-scroll circle { cursor: pointer; }
+.poll-chart-scroll circle:focus { outline: 2px solid #202821; }
+.poll-chart-readout { min-height: 22px; font-size: 13px; color: #6b7067; }
+.poll-chart-legend { display: flex; flex-wrap: wrap; list-style: none; gap: 10px 20px; margin-top: 14px; padding: 0; font-size: 12px; }
+.poll-chart-legend li { display: flex; align-items: center; gap: 7px; }
+.poll-chart-legend li span { width: 18px; height: 3px; }
+.poll-chart-data { margin-top: 20px; font-size: 12px; }
+.poll-chart-data summary { cursor: pointer; color: #6b7067; }
+.poll-chart-data table, .survey-results table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.poll-chart-data th, .poll-chart-data td, .survey-results th, .survey-results td { padding: 10px; text-align: right; border-bottom: 1px solid #ededE7; }
+.survey-result-blocs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
+.survey-result-blocs div { display: flex; flex-direction: column; background: #f7f6f2; padding: 14px; }
+.survey-result-blocs span { font-size: 12px; color: #6b7067; }
+.survey-result-blocs strong { font-size: 28px; }
+@media(max-width: 600px) { .poll-trends, .survey-results { padding: 16px; } .survey-result-blocs { grid-template-columns: repeat(2, 1fr); } }
+
+.poll-party-checkboxes { border: 0; padding: 0; margin: 20px 0 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.poll-party-checkboxes legend { font-size: 13px; color: #6b7067; margin-bottom: 10px; }
+.poll-party-checkboxes label { display: flex; flex-direction: row; align-items: center; gap: 7px; padding-block: 5px; cursor: pointer; }
+.poll-party-checkboxes input { width: 16px; height: 16px; cursor: pointer; }
+.poll-party-color { width: 8px; height: 8px; border-radius: 50%; }
+
+/* League roster and progressive disclosure. */
+.league-page { display: grid; gap: 24px; }
+.league-header { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+.league-header h1 { font-size: 32px; font-weight: 700; margin: 8px 0 12px; }
+.league-header p:not(.eyebrow), .league-table-caption, .league-pick-details > p { font-size: 13px; color: #6b7067; }
+.league-table-caption { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+.league-table-caption details { max-width: 360px; }
+.league-table-caption details p { margin-top: 12px; line-height: 1.8; }
+.league-page summary { cursor: pointer; }
+.league-table-scroll { overflow-x: auto; }
+.league-table { width: 100%; text-align: right; border-collapse: collapse; font-size: 14px; }
+.league-table > thead { border-top: 1px solid #c8c9c0; border-bottom: 1px solid #c8c9c0; color: #6b7067; font-size: 12px; }
+.league-table th, .league-table td { padding: 18px 12px; }
+.league-table > tbody > tr { border-bottom: 1px solid #e6e6df; }
+.league-table th { font-weight: 500; }
+.league-table > tbody > tr > th { min-width: 110px; font-weight: 600; }
+.league-table small { display: block; font-size: 11px; color: #6b7067; font-weight: 400; margin-top: 4px; }
+.league-table .league-score { font-size: 22px; font-weight: 700; }
+.league-note { max-width: 200px; min-width: 100px; overflow-wrap: anywhere; }
+.my-league-row { background: #f7f6f1; }
+.submission-state { color: #777c72; white-space: nowrap; font-size: 12px; }
+.submission-state.submitted { color: #366348; }
+.text-action { color: #a43128; font-size: 12px; white-space: nowrap; }
+.expand-pick[aria-expanded="true"] svg { transform: rotate(180deg); }
+.before-reveal th:first-child { width: 55%; }
+.league-pick-details { padding: 8px 12px 20px; max-width: 800px; margin: auto; }
+.league-pick-details table { width: 100%; margin-top: 12px; font-size: 12px; }
+.league-pick-details th, .league-pick-details td { padding: 9px 8px; border-bottom: 1px solid #eeeee8; }
+.league-pick-details td:last-child { width: 35%; }
+.pick-bars { display: grid; gap: 3px; min-width: 70px; }
+.pick-bars span { height: 5px; background: #a43128; border-radius: 2px; }
+.pick-bars span + span { background: #a8b4a0; }
+.pick-legend { display: flex; gap: 16px; margin-top: 16px; }
+.pick-legend span::before { content: ''; display: inline-block; width: 10px; height: 5px; background: #a43128; margin-left: 5px; }
+.pick-legend span + span::before { background: #a8b4a0; }
+.league-settings-dialog { max-width: 500px; }
+.league-settings-dialog form { display: grid; gap: 14px; padding-top: 20px; margin-top: 20px; border-top: 1px solid #e6e6df; }
+.league-settings-dialog h3 { font-weight: 600; }
+.league-settings-dialog p { font-size: 12px; color: #6b7067; line-height: 1.7; }
+.league-settings-dialog label { display: grid; gap: 6px; font-size: 13px; }
+.league-settings-dialog input, .league-settings-dialog select { width: 100%; min-width: 0; padding: 10px; border: 1px solid #c8c9c0; border-radius: 4px; }
+.league-settings-dialog [role="alert"], .league-page > [role="alert"] { color: #a43128; }
+@media (max-width: 640px) {
+  .league-header { align-items: start; flex-direction: column; }
+  .league-header h1 { font-size: 26px; }
+  .league-table-caption { flex-direction: column; }
+  .league-table th, .league-table td { padding: 14px 8px; }
+  .league-table:not(.before-reveal) { min-width: 780px; }
+}
+.league-page > .button-primary { justify-self: start; }
+.deadline-input { display: grid; gap: 12px; }
+.deadline-input label { display: grid; gap: 6px; font-size: 12px; }
+.deadline-input input { width: 100%; min-width: 0; padding: 10px; border: 1px solid #c8c9c0; border-radius: 4px; }
+
+.league-action-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-block: 12px; border-block: 1px solid #deded5; }
+.league-action-bar button, .expand-pick { display: inline-flex; gap: 8px; align-items: center; }
+.league-action-bar button { padding: 10px 14px; }
+
+.deadline-calendar-trigger { position: relative; }
+.deadline-calendar-trigger button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #c8c9c0; border-radius: 4px; background: #f7f6f2; }
+.deadline-calendar-trigger input.deadline-native-calendar { position: absolute; inset: 0; width: 100%; height: 44px; opacity: 0; pointer-events: none; padding: 0; }

@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'date' => env('ELECTION_DATE') ?: '2026-10-27',
     'parties' => json_decode(file_get_contents(__DIR__.'/parties.json'), true, flags: JSON_THROW_ON_ERROR),
     'aliases' => json_decode(file_get_contents(__DIR__.'/poll-aliases.json'), true, flags: JSON_THROW_ON_ERROR),
     'mapping_from' => '2026-09-08',

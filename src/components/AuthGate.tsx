@@ -10,7 +10,7 @@ export function GoogleSignIn({ enabled, error, href }: { enabled: boolean; error
   return <main dir="rtl" className="sign-in-page">
     <div className="sign-in-card space-y-5">
       <div className="brand-number">120</div>
-      <h1 className="text-2xl font-black">כניסה לפנטזי בחירות</h1>
+      <h1 className="text-2xl font-black">כניסה להימורי בחירות</h1>
       <p className="text-slate-600 text-sm">מתחברים עם Google ומתחילים לשחק. התחזיות שלך נשמרות בחשבון האישי.</p>
       {error && <p role="alert" className="text-red-700">{error}</p>}
       {enabled

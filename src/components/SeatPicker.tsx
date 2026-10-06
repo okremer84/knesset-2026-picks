@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Prediction } from '../types';
 import { Dialog } from './Dialog';
 import { AlertCircle, Send, Award, Plus, Minus, X } from 'lucide-react';
 
-import { useUser } from './AuthGate';
+
 import { PARTIES_LIST } from '../data/parties';
 import { LeaderPortrait } from './LeaderPortrait';
 
 interface SeatPickerProps {
   currentSeats: Record<string, number>;
   onSeatsChange: (seats: Record<string, number>) => void;
-  onSubmitPrediction: (memberName: string, note?: string, turnoutPercentage?: number) => Promise<void>;
+  onSubmitPrediction: (pickName: string, note?: string, turnoutPercentage?: number) => Promise<void>;
   isSubmitting: boolean;
-  activeLeagueName?: string;
-  onChooseLeague: () => void;
+  prediction?: Prediction;
+  isLoading?: boolean;
   isLocked: boolean;
 }
 
@@ -21,16 +22,16 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
   onSeatsChange,
   onSubmitPrediction,
   isSubmitting,
-  activeLeagueName,
-  onChooseLeague,
+  prediction,
+  isLoading = false,
   isLocked,
 }) => {
-  const user = useUser();
-  const memberName = user.name;
-  const [turnoutPercentage, setTurnoutPercentage] = useState(() => {
-    return localStorage.getItem('knesset_fantasy_turnout_' + user.id) || '71.5';
-  });
+  const [pickName, setPickName] = useState('');
+  const [turnoutPercentage, setTurnoutPercentage] = useState('');
   const [note, setNote] = useState('');
+  useEffect(() => {
+    if (prediction) { setPickName(prediction.pickName || ''); setTurnoutPercentage(String(prediction.turnoutPercentage ?? '')); setNote(prediction.note || ''); }
+  }, [prediction?.id, prediction?.submittedAt]);
   const [errorMessage, setErrorMessage] = useState('');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
@@ -97,8 +98,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!memberName.trim()) {
-      setErrorMessage('נא להזין את שמך עבור טבלת הליגה');
+    if (!pickName.trim()) {
+      setErrorMessage('נא להזין שם לתחזית');
       return;
     }
 
@@ -117,10 +118,9 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       return;
     }
 
-    localStorage.setItem('knesset_fantasy_turnout_' + user.id, turnoutPercentage.trim());
 
     try {
-      await onSubmitPrediction(memberName.trim(), note.trim() || undefined, Math.round(turnoutNum * 10) / 10);
+      await onSubmitPrediction(pickName.trim(), note.trim() || undefined, Math.round(turnoutNum * 10) / 10);
     } catch (e) {
       setErrorMessage((e as Error).message || 'התחזית לא נשמרה');
       return;
@@ -143,12 +143,11 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
         <div>
           <p className="eyebrow">הכנסת ה־26 / התחזית שלך</p>
           <h1>איך תיראה הכנסת הבאה?</h1>
-          <p>120 מנדטים. הבחירה שלך. חלקו את המושבים בין המפלגות והשוו עם החברים.</p>
+          <p>בחרו את מספר המנדטים שכל מפלגה תקבל לדעתכם</p>
         </div>
 
       </div>
 
-      <div className="picker-caption"><span>המפלגות והרשימות</span><span>{PARTIES_LIST.length} מפלגות · הזינו מספר מנדטים</span></div>
       <div className="party-grid">
         {PARTIES_LIST.map(party => {
           const seats = Number(currentSeats[party.id]) || 0;
@@ -166,7 +165,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       <div className="prediction-dock">
         <div className="prediction-progress" role="progressbar" aria-label="מנדטים שחולקו" aria-valuemin={0} aria-valuemax={120} aria-valuenow={Math.min(120, totalAllocated)} aria-valuetext={`${totalAllocated} מתוך 120 מנדטים`}><span style={{ width: `${Math.min(100, totalAllocated / 120 * 100)}%` }}/></div>
         <div className="prediction-dock-content">
-          <div className="prediction-total"><strong dir="ltr">{totalAllocated}<small> / 120</small></strong><span role="status">{isLocked ? 'התחזית נעולה' : isExact120 ? 'התחזית מוכנה' : diffFrom120 > 0 ? `יש להפחית ${diffFrom120} מנדטים` : `עוד ${Math.abs(diffFrom120)} מנדטים לחלוקה`}</span></div>
+          <div className="prediction-total"><strong dir="ltr">{totalAllocated}<small> / 120</small></strong><span role="status">{isLocked ? 'התחזית נעולה' : isExact120 ? 'התחזית מוכנה' : diffFrom120 === 1 ? 'מנדט אחד יותר מדי' : diffFrom120 > 0 ? `יש לך ${diffFrom120} מנדטים יותר מדי` : diffFrom120 === -1 ? 'חסר מנדט אחד' : `עוד ${Math.abs(diffFrom120)} מנדטים לחלוקה`}</span></div>
           <div className="bloc-summary" aria-label="חלוקת המנדטים לפי גושים">
             <span>קואליציה <strong>{userBlocCounts.coalition}</strong></span>
             <span>אופוזיציה <strong>{userBlocCounts.opposition}</strong></span>
@@ -174,9 +173,9 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
             <span>עצמאיות <strong>{userBlocCounts.other}</strong></span>
           </div>
           <div className="prediction-actions">
-          {activeLeagueName ? <button className="button-primary" disabled={!isExact120 || isSubmitting || isLocked} onClick={handleBottomSubmit}>{isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : 'הגשת התחזית'}</button> : <button className="button-primary" onClick={onChooseLeague}>בחירת ליגה להגשה</button>}
+          <button className="button-primary" disabled={!isExact120 || isSubmitting || isLocked || isLoading} onClick={handleBottomSubmit}>{isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
             <button className="reset-draft" disabled={isLocked || totalAllocated === 0} onClick={() => {
-              if (window.confirm('לאפס את כל המנדטים בטיוטה? התחזית שכבר הוגשה לליגה לא תימחק.')) handleResetToBlank();
+              if (window.confirm('לאפס את כל המנדטים בטיוטה? התחזית שכבר הוגשה לא תימחק.')) handleResetToBlank();
             }}>איפוס הטיוטה</button>
           </div>
         </div>
@@ -184,7 +183,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
       {/* Submit Prediction Modal Dialog */}
       {showSubmitModal && (
-        <Dialog open={showSubmitModal} onClose={() => setShowSubmitModal(false)} label="הגשת התחזית לליגה">
+        <Dialog open={showSubmitModal} onClose={() => setShowSubmitModal(false)} label="הגשת התחזית">
           <div className="space-y-4">
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -193,13 +192,9 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900">
-                    הגשת התחזית לליגה
+                    הגשת התחזית
                   </h3>
-                  {activeLeagueName && (
-                    <p className="text-xs font-semibold text-slate-500">
-                      ליגת "{activeLeagueName}"
-                    </p>
-                  )}
+
                 </div>
               </div>
               <button
@@ -215,15 +210,16 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5 text-right">
-                  שם השחקן / הניחוש שלך *
+                  שם התחזית
                 </label>
                 <input
                   type="text"
                   required
-                  aria-label="שם השחקן"
-                  value={memberName}
-                  readOnly
-                  placeholder="למשל: דני לוי, נבחרת המשרד..."
+                  aria-label="שם התחזית"
+                  value={pickName}
+                  onChange={e => setPickName(e.target.value)}
+                  maxLength={100}
+                  placeholder="למשל: Best pickssss i ruleeee"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm shadow-xs"
                 />
               </div>
@@ -232,11 +228,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-black text-slate-900 text-right">
-                    תחזית אחוז הצבעה ארצי (שובר שוויון בליגה) *
+                    תחזית אחוז הצבעה ארצי (שובר שוויון)
                   </label>
-                  <span className="text-xs font-black text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md border border-amber-300/70">
-                    {turnoutPercentage ? `${turnoutPercentage}%` : '—'}
-                  </span>
                 </div>
 
                 <div className="relative">
@@ -250,7 +243,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                     autoFocus
                     value={turnoutPercentage}
                     onChange={(e) => setTurnoutPercentage(e.target.value)}
-                    placeholder="71.5"
+                    placeholder=""
                     className="w-full px-3.5 py-2.5 pl-9 bg-white border border-slate-300 rounded-xl text-slate-900 font-black placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm shadow-xs"
                   />
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm pointer-events-none">
@@ -259,20 +252,20 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                 </div>
 
                 <p className="text-[11px] text-slate-600 leading-relaxed text-right">
-                  <strong>איך עובד שובר השוויון?</strong> אם שני משתתפים יסיימו בתיקו בנקודות הפנטזי, מי שניחש את שיעור ההצבעה הארצי הקרוב ביותר לתוצאה בפועל ינצח בדירוג.
+                  <strong>איך עובד שובר השוויון?</strong> אם שני משתתפים יסיימו בתיקו בניקוד, מי שניחש את שיעור ההצבעה הארצי הקרוב ביותר לתוצאה בפועל ינצח בדירוג.
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5 text-right">
-                  הערה / מוטו לתחזית (אופציונלי)
+                  הערה (אופציונלי)
                 </label>
                 <input
                   type="text"
                   aria-label="הערה לתחזית"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="למשל: בונה על הפתעה של הרגע האחרון"
+                  placeholder="למשל: זליכה יביא אוטובוסים לקלפיות"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm shadow-xs"
                 />
               </div>
@@ -287,15 +280,15 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
               <div className="flex items-center gap-2 pt-2">
                 <button
                   type="submit"
-                  disabled={isSubmitting || !memberName.trim()}
+                  disabled={isSubmitting || !pickName.trim()}
                   className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
-                    !isSubmitting && memberName.trim()
+                    !isSubmitting && pickName.trim()
                       ? 'bg-[#a43128] hover:bg-[#87281f] text-white shadow-red-500/25'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                   }`}
                 >
                   <Send className="w-4 h-4" />
-                  <span>{isSubmitting ? 'שומר תחזית...' : 'אישור והגשת התחזית'}</span>
+                  <span>{isSubmitting ? 'שומר תחזית...' : 'שלח תחזית'}</span>
                 </button>
                 <button
                   type="button"

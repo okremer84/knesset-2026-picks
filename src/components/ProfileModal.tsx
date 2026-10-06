@@ -67,7 +67,7 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
-  return <Dialog open className="profile-dialog" onClose={() => { if (!busy && !processing) onClose(); }} label="הפרופיל שלי">
+  return <Dialog open closeOnBackdrop className="profile-dialog" onClose={() => { if (!busy && !processing) onClose(); }} label="הפרופיל שלי">
     <div className="profile-heading"><h2>הפרופיל שלי</h2><button aria-label="סגירה" disabled={busy || processing} onClick={onClose}><X size={20}/></button></div>
     <form onSubmit={save} className="profile-form">
       <div className="profile-photo-field">

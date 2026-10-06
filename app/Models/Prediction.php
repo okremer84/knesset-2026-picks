@@ -11,6 +11,8 @@ class Prediction extends Model
 
     protected $guarded = [];
 
+    protected $table = 'personal_predictions';
+
     protected function casts(): array
     {
         return ['seats' => 'array', 'turnout' => 'float'];

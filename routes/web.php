@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('api')->group(function () {
+    Route::get('election', fn () => ['deadlineLimit' => LeagueController::deadlineLimit()]);
     Route::get('csrf', fn () => ['token' => csrf_token()]);
     Route::get('surveys', fn () => ['surveys' => Survey::where('active', true)->get()->pluck('payload')->sortByDesc('date')->values(), 'sync' => DB::table('poll_imports')->latest('id')->first(['status', 'updated_at'])]);
     Route::get('auth/config', [AuthController::class, 'config']);
@@ -16,12 +17,14 @@ Route::prefix('api')->group(function () {
         Route::get('auth/user', fn (Request $r) => ['user' => $r->user()]);
         Route::post('auth/profile', [ProfileController::class, 'update'])->middleware('throttle:10,1');
         Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::get('my-picks', [LeagueController::class, 'myPicks']);
+        Route::post('my-pick', [LeagueController::class, 'savePick'])->middleware('throttle:30,1');
         Route::get('leagues', [LeagueController::class, 'index']);
         Route::post('leagues', [LeagueController::class, 'create'])->middleware('throttle:10,1');
         Route::post('leagues/join', [LeagueController::class, 'join'])->middleware('throttle:10,1');
         Route::get('leagues/{league}', [LeagueController::class, 'show']);
         Route::post('leagues/{league}/predict', [LeagueController::class, 'predict'])->middleware('throttle:30,1');
-        Route::post('leagues/{league}/stage', [LeagueController::class, 'stage']);
+        Route::post('leagues/{league}/deadline', [LeagueController::class, 'deadline']);
     });
 });
 Route::middleware('throttle:10,1')->group(function () {

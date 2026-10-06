@@ -17,7 +17,7 @@ test('bloc totals derive from reported seats, including an omitted blocs payload
     institute: 'Test', channelOrMedia: 'Test', date: '2026-09-09',
     seats: { likud: 50, beyachad: 40, raam: 20, hendel: 10 },
   };
-  const props = { userSeats: survey.seats, onNavigateToPicker: () => {} };
+  const props = { picks: [{ id: 'pick', leagueId: 'league', leagueName: 'League', seats: survey.seats }] };
   assert.equal(
     renderToStaticMarkup(<SurveyComparator {...props} surveys={[survey]}/>),
     renderToStaticMarkup(<SurveyComparator {...props} surveys={[{...survey, blocs: calculateBlocs(survey.seats)}]}/>),
@@ -46,11 +46,12 @@ test('omitted party allocations do not change displayed user bloc totals', () =>
     institute: 'Test', channelOrMedia: 'Test', date: '2026-09-09',
     seats: { likud: 100, raam: 20 }, notReportedPartyIds: ['balad'],
   };
-  const html = renderToStaticMarkup(<SurveyComparator surveys={[survey]} userSeats={{ likud: 100, raam: 10, balad: 10 }} onNavigateToPicker={() => {}}/>);
+  const html = renderToStaticMarkup(<SurveyComparator surveys={[survey]} picks={[{id:'pick', leagueId:'league', leagueName:'League', seats:{ likud: 100, raam: 10, balad: 10 }}]}/>);
   // The Arab bloc compares the 10 reported-party seats, excluding 10 Balad seats.
   const arabCard = html.slice(html.indexOf('מפלגות ערביות'), html.indexOf('הנדל וזליכה / אחרות')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(arabCard, /מפלגות ערביות 10 \/ בסקר: 20/);
-  assert.match(arabCard, /-10 מתחת לסקר/);
+  assert.match(arabCard, /10 מתחת לסקר/);
+  assert.doesNotMatch(arabCard, /[+-]10/);
 });
 
 test('average error uses scored parties, including reported zeroes, and handles no reported parties', () => {
@@ -58,9 +59,26 @@ test('average error uses scored parties, including reported zeroes, and handles 
     <SurveyComparator surveys={[{
       id: 'average', title: 'Partial poll', kind: 'opinion_poll',
       institute: 'Test', channelOrMedia: 'Test', date: '2026-09-09', seats,
-    }]} userSeats={{ likud: 90, raam: 20, balad: 10 }} onNavigateToPicker={() => {}}/>
+    }]} picks={[{id:'pick', leagueId:'league', leagueName:'League', seats:{ likud: 90, raam: 20, balad: 10 }}]}/>
   ).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
   assert.match(render({ likud: 100, raam: 20 }), /ממוצע של 5\.0 למפלגה/);
   assert.match(render({ likud: 100, raam: 20, balad: 0 }), /ממוצע של 6\.7 למפלגה/);
   assert.match(render({}), /ממוצע של — למפלגה/);
+});
+
+
+test('without a submitted pick only survey results and trends are rendered', () => {
+  const survey: Survey = { id: 'poll', title: 'Poll', institute: 'Test', channelOrMedia: 'Channel', date: '2026-10-05', seats: { likud: 21 } };
+  const html = renderToStaticMarkup(<SurveyComparator surveys={[survey]} picks={[]}/>);
+  assert.ok(html.includes('תוצאות הסקר'));
+  assert.ok(html.includes('המגמה לאורך זמן'));
+  assert.ok(!html.includes('מדדי דיוק'));
+  assert.ok(!html.includes('מילאת עד כה'));
+  assert.ok(!html.includes('מפלגות שלא דווחו'));
+  const pick = { id: 'pick', leagueId: 'league', leagueName: 'My League', seats: { likud: 120 } };
+  const single = renderToStaticMarkup(<SurveyComparator surveys={[survey]} picks={[pick]}/>);
+  assert.ok(single.includes('מדדי דיוק'));
+  assert.ok(!single.includes('<option value="pick"'));
+  const multiple = renderToStaticMarkup(<SurveyComparator surveys={[survey]} picks={[pick, {...pick, id:'second'}]}/>);
+  assert.equal(multiple, single);
 });
