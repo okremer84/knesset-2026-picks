@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
 import { useUser } from './components/AuthGate';
 import { surveySyncNotice } from './utils/surveys';
-import { initialLeagueId, loadInitialLeague } from './lib/navigation';
+import { initialLeagueId, loadInitialLeague, initialTab } from './lib/navigation';
+import { readPreference, writePreference } from './lib/preferences';
+import { createPredictionSync } from './lib/predictionSync';
+import { reconcileDraft } from './utils/predictionDraft';
 import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
@@ -19,7 +22,7 @@ export default function App() {
   const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הסקרים עד לקבלת עדכון מהשרת');
   const [joinCode, setJoinCode] = useState('');
   const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
-  const [activeTab, setActiveTab] = useState<'picker' | 'league' | 'surveys' | 'historical'>('picker');
+  const [activeTab, setActiveTab] = useState(() => initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)));
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
@@ -33,22 +36,24 @@ export default function App() {
   const [savedPicks, setSavedPicks] = useState<SavedPick[]>([]);
   const [picksStatus, setPicksStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [picksRetry, setPicksRetry] = useState(0);
+  const predictionSync = useRef(createPredictionSync());
   useEffect(() => {
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
       if (refreshing) return;
       refreshing = true;
-      try {
+      await predictionSync.current.refresh(async () => {
         const response = await fetch('/api/my-picks', { signal: controller.signal });
         if (!response.ok) throw new Error('Failed to load pick');
-        const data = await response.json();
+        return response.json();
+      }, data => {
         if (!controller.signal.aborted) {
           setSavedPicks(data.picks); setUserPrediction(data.pick ?? undefined);
           setPickLocked(data.isLocked); setPicksStatus('ready');
         }
-      } catch { if (!controller.signal.aborted) setPicksStatus('error'); }
-      finally { refreshing = false; }
+      }, () => { if (!controller.signal.aborted) setPicksStatus('error'); });
+      refreshing = false;
     };
     void refresh();
     const timer = window.setInterval(refresh, 30000);
@@ -70,12 +75,17 @@ export default function App() {
     return clean;
   };
 
+  const hasStoredDraft = useRef(false);
+  const previousSubmittedSeats = useRef<Record<string, number> | undefined>(undefined);
+
   // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem('knesset_fantasy_user_seats_' + user.id);
       if (saved) {
-        return sanitizeSeatsMap(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        hasStoredDraft.current = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
+        return sanitizeSeatsMap(parsed);
       }
     } catch {
       // Fallback
@@ -138,7 +148,6 @@ export default function App() {
         const detail: { league: League } = await response.json();
         if (cancelled) return;
         setCurrentLeague(detail.league);
-        window.history.replaceState({}, '', '/?league=' + detail.league.id);
         if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
       } catch (e) {
         if (!cancelled) showToast((e as Error).message, 'error');
@@ -192,6 +201,7 @@ export default function App() {
     // Update local state to clean representation
     setUserSeats(cleanSeats);
 
+    predictionSync.current.beginSubmission();
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/my-pick', {
@@ -210,7 +220,7 @@ export default function App() {
         throw new Error(data.message || data.error || 'שגיאה בשמירת התחזית');
       }
 
-      setUserPrediction(data.pick); setSavedPicks(data.picks); setPickLocked(data.isLocked);
+      setUserPrediction(data.pick); setSavedPicks(data.picks); setPickLocked(data.isLocked); setPicksStatus('ready');
       showToast('התחזית שלך נשמרה בהצלחה', 'success');
       if (currentLeague) {
         const response = await fetch('/api/leagues/' + currentLeague.id);
@@ -222,6 +232,7 @@ export default function App() {
       showToast(err.message || 'שגיאה בשמירת התחזית', 'error');
       throw err;
     } finally {
+      predictionSync.current.endSubmission();
       setIsSubmitting(false);
     }
   };
@@ -236,7 +247,6 @@ export default function App() {
       const data = await response.json();
       if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
       setCurrentLeague(data.league);
-      window.history.replaceState({}, '', '/?league=' + encodeURIComponent(leagueId));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'לא ניתן לטעון את הליגה', 'error');
     } finally {
@@ -277,10 +287,6 @@ export default function App() {
       setSelectedSurveyId(data.league.targetSurveyId);
     }
 
-    // Update URL query parameter without full reload
-    const newUrl = `/?league=${data.league.id}`;
-    window.history.pushState({ path: newUrl }, '', newUrl);
-
     showToast(`ליגת "${data.league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
     setActiveTab('league');
   };
@@ -298,8 +304,6 @@ export default function App() {
 
       setCurrentLeague(data.league);
       setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-      const newUrl = `/?league=${data.league.id}`;
-      window.history.pushState({ path: newUrl }, '', newUrl);
 
       showToast(`עברת בהצלחה לליגת "${data.league.name}"!`);
       setActiveTab('league');
@@ -312,8 +316,23 @@ export default function App() {
 
   const username = user.name;
   useEffect(() => {
-    if (userPrediction) setUserSeats(userPrediction.seats);
+    if (!userPrediction) return;
+    const previous = previousSubmittedSeats.current;
+    const stored = hasStoredDraft.current;
+    setUserSeats(draft => reconcileDraft(draft, previous, userPrediction.seats, stored));
+    previousSubmittedSeats.current = userPrediction.seats;
   }, [userPrediction?.id, userPrediction?.submittedAt]);
+
+  useEffect(() => {
+    writePreference('knesset_fantasy_tab_' + user.id, activeTab);
+    if (loadingLeague) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('invite');
+    url.searchParams.set('tab', activeTab);
+    if (currentLeague) url.searchParams.set('league', currentLeague.id);
+    else url.searchParams.delete('league');
+    window.history.replaceState({}, '', url);
+  }, [activeTab, currentLeague?.id, loadingLeague, user.id]);
 
   // Refresh deadlines, standings and invitations without trusting the browser clock.
   useEffect(() => {
@@ -387,16 +406,17 @@ export default function App() {
       {activeTab === 'league' && myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
-        {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => setPicksRetry(n => n + 1)}>ניסיון נוסף</button></p>}
+        {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
         {activeTab === 'picker' && (
           <SeatPicker
             currentSeats={userSeats}
-            onSeatsChange={setUserSeats}
+            onSeatsChange={seats => { hasStoredDraft.current = true; setUserSeats(seats); }}
             onSubmitPrediction={handleSubmitPrediction}
             isSubmitting={isSubmitting}
             prediction={userPrediction}
             isLocked={pickLocked}
-            isLoading={picksStatus !== 'ready'}
+            isLoading={picksStatus === 'loading'}
+            hasLoadError={picksStatus === 'error'}
           />
         )}
 
