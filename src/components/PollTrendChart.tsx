@@ -43,7 +43,6 @@ export function PollTrendChart({ surveys, selectedChannel }: { surveys: Survey[]
   const x = (date: string) => end === start ? 440 : 55 + (day(date) - start) / (end - start) * 790;
   const y = (seats: number) => 270 - seats / max * 230;
   const focused = reported.find(s => s.key === hovered);
-  const ticks = [...new Set([dates[0], dates[Math.floor((dates.length - 1) / 2)], dates[dates.length - 1]])];
   return <section className="poll-trends">
     <div className="poll-trends-heading"><div><h2>המגמה לאורך זמן</h2><p>{channel} · כל הסקרים הזמינים · {shortDate(dates[0])}–{shortDate(dates[dates.length - 1])}</p></div>
     </div>
@@ -54,7 +53,7 @@ export function PollTrendChart({ surveys, selectedChannel }: { surveys: Survey[]
       <div className="poll-chart-scroll"><svg viewBox="0 0 890 315" role="img" aria-label={`מגמת המנדטים של ${selectedParties.map(p => p.name).join(', ')} — ${channel}`}>
         <text x="55" y="18" fontSize="12" fill="#6b7067">מנדטים</text>
         {Array.from({ length: 6 }, (_, i) => max * i / 5).map(value => <g key={value}><line x1="55" x2="845" y1={y(value)} y2={y(value)} stroke="#e4e4dc"/><text x="42" y={y(value) + 4} textAnchor="end" fontSize="12" fill="#6b7067">{Number(value.toFixed(1))}</text></g>)}
-        {ticks.map(date => <text key={date} x={x(date)} y="302" textAnchor="middle" fontSize="12" fill="#6b7067">{shortDate(date)}</text>)}
+        {dates.map(date => <text key={date} x={x(date)} y="302" textAnchor="middle" fontSize="12" fill="#6b7067">{shortDate(date)}</text>)}
         {selectedParties.map(party => {
           const polls = [...channelPolls].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
           let gap = true;
