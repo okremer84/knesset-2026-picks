@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { Survey } from '../types';
 import { PARTIES_LIST } from '../data/parties';
 
@@ -7,9 +7,30 @@ const CHART_COLORS = ['#0072b2', '#d55e00', '#009e73', '#a23b9c', '#8c6510', '#3
 const chartColor = (id: string) => CHART_COLORS[PARTIES_LIST.findIndex(p => p.id === id) % CHART_COLORS.length];
 const day = (date: string) => Date.parse(`${date}T12:00:00Z`);
 const shortDate = (date: string) => new Date(day(date)).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+const PARTY_SELECTION_KEY = 'knesset_fantasy_poll_trend_parties';
+const DEFAULT_PARTY_IDS = ['yashar', 'likud', 'beyachad', 'democrats', 'utj', 'shas', 'israel_beitenu', 'otzma_yehudit'];
+
+function readPartySelection(): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(PARTY_SELECTION_KEY) ?? 'null');
+    if (Array.isArray(saved) && saved.every(id => typeof id === 'string')) {
+      return PARTIES_LIST.filter(p => saved.includes(p.id)).map(p => p.id);
+    }
+  } catch {
+    // Storage may be unavailable or contain an invalid value.
+  }
+  return DEFAULT_PARTY_IDS;
+}
 
 export function PollTrendChart({ surveys, selectedChannel }: { surveys: Survey[]; selectedChannel?: string }) {
-  const [partyIds, setPartyIds] = useState<string[]>(['likud']);
+  const [partyIds, setPartyIds] = useState<string[]>(readPartySelection);
+  useEffect(() => {
+    try {
+      localStorage.setItem(PARTY_SELECTION_KEY, JSON.stringify(partyIds));
+    } catch {
+      // Keep the chart usable when browser storage is blocked or full.
+    }
+  }, [partyIds]);
   const selectedParties = PARTIES_LIST.filter(p => partyIds.includes(p.id));
   const [hovered, setHovered] = useState<string | null>(null);
   const channel = selectedChannel ?? surveys[0]?.channelOrMedia;
