@@ -30,3 +30,10 @@ test('picker distinguishes unsubmitted, submitted, changed and loading states', 
   assert.match(render({ likud: 119 }, submitted), /חזרה לתחזית שהוגשה/);
   assert.match(render({}, undefined, true), /טוענים את מצב ההגשה/);
 });
+
+test('failed prediction loading is unavailable rather than loading or ready to submit', () => {
+  const html = renderToStaticMarkup(<SeatPicker currentSeats={submitted.seats} prediction={submitted} hasLoadError isSubmitting={false} isLocked={false} onSeatsChange={() => {}} onSubmitPrediction={async () => {}}/>);
+  assert.match(html, /מצב ההגשה אינו זמין — לא ניתן לטעון את התחזית/);
+  assert.doesNotMatch(html, /טוענים את מצב ההגשה/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>מצב ההגשה אינו זמין<\/button>/);
+});

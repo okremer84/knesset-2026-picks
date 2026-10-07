@@ -7,6 +7,7 @@ import { useUser } from './components/AuthGate';
 import { surveySyncNotice } from './utils/surveys';
 import { initialLeagueId, loadInitialLeague, initialTab } from './lib/navigation';
 import { readPreference, writePreference } from './lib/preferences';
+import { createPredictionSync } from './lib/predictionSync';
 import { reconcileDraft } from './utils/predictionDraft';
 import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
@@ -35,22 +36,24 @@ export default function App() {
   const [savedPicks, setSavedPicks] = useState<SavedPick[]>([]);
   const [picksStatus, setPicksStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [picksRetry, setPicksRetry] = useState(0);
+  const predictionSync = useRef(createPredictionSync());
   useEffect(() => {
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
       if (refreshing) return;
       refreshing = true;
-      try {
+      await predictionSync.current.refresh(async () => {
         const response = await fetch('/api/my-picks', { signal: controller.signal });
         if (!response.ok) throw new Error('Failed to load pick');
-        const data = await response.json();
+        return response.json();
+      }, data => {
         if (!controller.signal.aborted) {
           setSavedPicks(data.picks); setUserPrediction(data.pick ?? undefined);
           setPickLocked(data.isLocked); setPicksStatus('ready');
         }
-      } catch { if (!controller.signal.aborted) setPicksStatus('error'); }
-      finally { refreshing = false; }
+      }, () => { if (!controller.signal.aborted) setPicksStatus('error'); });
+      refreshing = false;
     };
     void refresh();
     const timer = window.setInterval(refresh, 30000);
@@ -198,6 +201,7 @@ export default function App() {
     // Update local state to clean representation
     setUserSeats(cleanSeats);
 
+    predictionSync.current.beginSubmission();
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/my-pick', {
@@ -216,7 +220,7 @@ export default function App() {
         throw new Error(data.message || data.error || 'שגיאה בשמירת התחזית');
       }
 
-      setUserPrediction(data.pick); setSavedPicks(data.picks); setPickLocked(data.isLocked);
+      setUserPrediction(data.pick); setSavedPicks(data.picks); setPickLocked(data.isLocked); setPicksStatus('ready');
       showToast('התחזית שלך נשמרה בהצלחה', 'success');
       if (currentLeague) {
         const response = await fetch('/api/leagues/' + currentLeague.id);
@@ -228,6 +232,7 @@ export default function App() {
       showToast(err.message || 'שגיאה בשמירת התחזית', 'error');
       throw err;
     } finally {
+      predictionSync.current.endSubmission();
       setIsSubmitting(false);
     }
   };
@@ -401,7 +406,7 @@ export default function App() {
       {activeTab === 'league' && myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
-        {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => setPicksRetry(n => n + 1)}>ניסיון נוסף</button></p>}
+        {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
         {activeTab === 'picker' && (
           <SeatPicker
             currentSeats={userSeats}
@@ -410,7 +415,8 @@ export default function App() {
             isSubmitting={isSubmitting}
             prediction={userPrediction}
             isLocked={pickLocked}
-            isLoading={picksStatus !== 'ready'}
+            isLoading={picksStatus === 'loading'}
+            hasLoadError={picksStatus === 'error'}
           />
         )}
 

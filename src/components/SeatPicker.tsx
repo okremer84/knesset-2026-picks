@@ -15,6 +15,7 @@ interface SeatPickerProps {
   isSubmitting: boolean;
   prediction?: Prediction;
   isLoading?: boolean;
+  hasLoadError?: boolean;
   isLocked: boolean;
 }
 
@@ -25,6 +26,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
   isSubmitting,
   prediction,
   isLoading = false,
+  hasLoadError = false,
   isLocked,
 }) => {
   const [pickName, setPickName] = useState(prediction?.pickName || '');
@@ -46,7 +48,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
     || pickName.trim() !== (prediction.pickName || '')
     || note.trim() !== (prediction.note || '')
     || turnoutPercentage !== String(prediction.turnoutPercentage ?? ''));
-  const submissionStatus = isLoading ? 'טוענים את מצב ההגשה…' : isSubmitting ? 'שומרים את התחזית…'
+  const submissionStatus = hasLoadError ? 'מצב ההגשה אינו זמין — לא ניתן לטעון את התחזית' : isLoading ? 'טוענים את מצב ההגשה…' : isSubmitting ? 'שומרים את התחזית…'
     : !prediction ? 'טיוטה — התחזית עדיין לא הוגשה'
     : hasChanges ? 'יש שינויים שלא הוגשו — התחזית הקודמת עדיין בתוקף'
     : 'התחזית הוגשה — אין שינויים שלא הוגשו';
@@ -158,9 +160,9 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
       </div>
 
-      <div className={`prediction-submission-status ${prediction && !hasChanges ? 'is-submitted' : ''}`}>
+      <div className={`prediction-submission-status ${!hasLoadError && !isLoading && prediction && !hasChanges ? 'is-submitted' : ''}`}>
         <p role="status">{submissionStatus}</p>
-        {!isLoading && !isSubmitting && !isLocked && prediction && hasChanges && <button type="button" className="button-quiet" onClick={() => {
+        {!isLoading && !hasLoadError && !isSubmitting && !isLocked && prediction && hasChanges && <button type="button" className="button-quiet" onClick={() => {
           onSeatsChange(prediction.seats);
           setPickName(prediction.pickName || '');
           setNote(prediction.note || '');
@@ -185,7 +187,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       <div className="prediction-dock">
         <div className="prediction-progress" role="progressbar" aria-label="מנדטים שחולקו" aria-valuemin={0} aria-valuemax={120} aria-valuenow={Math.min(120, totalAllocated)} aria-valuetext={`${totalAllocated} מתוך 120 מנדטים`}><span style={{ width: `${Math.min(100, totalAllocated / 120 * 100)}%` }}/></div>
         <div className="prediction-dock-content">
-          <div className="prediction-total"><strong dir="ltr">{totalAllocated}<small> / 120</small></strong><span role="status">{isLocked ? 'התחזית נעולה' : isExact120 ? (prediction && !hasChanges ? 'התחזית הוגשה' : 'מוכנה להגשה — טרם נשלחה') : diffFrom120 === 1 ? 'מנדט אחד יותר מדי' : diffFrom120 > 0 ? `יש לך ${diffFrom120} מנדטים יותר מדי` : diffFrom120 === -1 ? 'חסר מנדט אחד' : `עוד ${Math.abs(diffFrom120)} מנדטים לחלוקה`}</span></div>
+          <div className="prediction-total"><strong dir="ltr">{totalAllocated}<small> / 120</small></strong><span role="status">{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'התחזית נעולה' : isExact120 ? (prediction && !hasChanges ? 'התחזית הוגשה' : 'מוכנה להגשה — טרם נשלחה') : diffFrom120 === 1 ? 'מנדט אחד יותר מדי' : diffFrom120 > 0 ? `יש לך ${diffFrom120} מנדטים יותר מדי` : diffFrom120 === -1 ? 'חסר מנדט אחד' : `עוד ${Math.abs(diffFrom120)} מנדטים לחלוקה`}</span></div>
           <div className="bloc-summary" aria-label="חלוקת המנדטים לפי גושים">
             <span>קואליציה <strong>{userBlocCounts.coalition}</strong></span>
             <span>אופוזיציה <strong>{userBlocCounts.opposition}</strong></span>
@@ -193,7 +195,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
             <span>עצמאיות <strong>{userBlocCounts.other}</strong></span>
           </div>
           <div className="prediction-actions">
-          <button className="button-primary" disabled={!isExact120 || isSubmitting || isLocked || isLoading} onClick={handleBottomSubmit}>{isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
+          <button className="button-primary" disabled={!isExact120 || isSubmitting || isLocked || isLoading || hasLoadError} onClick={handleBottomSubmit}>{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
             <button className="reset-draft" disabled={isLocked || totalAllocated === 0} onClick={() => {
               if (window.confirm('לאפס את כל המנדטים בטיוטה? התחזית שכבר הוגשה לא תימחק.')) handleResetToBlank();
             }}>איפוס הטיוטה</button>
