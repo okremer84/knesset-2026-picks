@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
 import { useUser } from './components/AuthGate';
 import { surveySyncNotice } from './utils/surveys';
-import { initialLeagueId, loadInitialLeague } from './lib/navigation';
+import { initialLeagueId, loadInitialLeague, initialTab } from './lib/navigation';
+import { readPreference, writePreference } from './lib/preferences';
+import { reconcileDraft } from './utils/predictionDraft';
 import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
@@ -19,7 +21,7 @@ export default function App() {
   const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הסקרים עד לקבלת עדכון מהשרת');
   const [joinCode, setJoinCode] = useState('');
   const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
-  const [activeTab, setActiveTab] = useState<'picker' | 'league' | 'surveys' | 'historical'>('picker');
+  const [activeTab, setActiveTab] = useState(() => initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)));
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
@@ -70,12 +72,17 @@ export default function App() {
     return clean;
   };
 
+  const hasStoredDraft = useRef(false);
+  const previousSubmittedSeats = useRef<Record<string, number> | undefined>(undefined);
+
   // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem('knesset_fantasy_user_seats_' + user.id);
       if (saved) {
-        return sanitizeSeatsMap(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        hasStoredDraft.current = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
+        return sanitizeSeatsMap(parsed);
       }
     } catch {
       // Fallback
@@ -138,7 +145,6 @@ export default function App() {
         const detail: { league: League } = await response.json();
         if (cancelled) return;
         setCurrentLeague(detail.league);
-        window.history.replaceState({}, '', '/?league=' + detail.league.id);
         if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
       } catch (e) {
         if (!cancelled) showToast((e as Error).message, 'error');
@@ -236,7 +242,6 @@ export default function App() {
       const data = await response.json();
       if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
       setCurrentLeague(data.league);
-      window.history.replaceState({}, '', '/?league=' + encodeURIComponent(leagueId));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'לא ניתן לטעון את הליגה', 'error');
     } finally {
@@ -277,10 +282,6 @@ export default function App() {
       setSelectedSurveyId(data.league.targetSurveyId);
     }
 
-    // Update URL query parameter without full reload
-    const newUrl = `/?league=${data.league.id}`;
-    window.history.pushState({ path: newUrl }, '', newUrl);
-
     showToast(`ליגת "${data.league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
     setActiveTab('league');
   };
@@ -298,8 +299,6 @@ export default function App() {
 
       setCurrentLeague(data.league);
       setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-      const newUrl = `/?league=${data.league.id}`;
-      window.history.pushState({ path: newUrl }, '', newUrl);
 
       showToast(`עברת בהצלחה לליגת "${data.league.name}"!`);
       setActiveTab('league');
@@ -312,8 +311,23 @@ export default function App() {
 
   const username = user.name;
   useEffect(() => {
-    if (userPrediction) setUserSeats(userPrediction.seats);
+    if (!userPrediction) return;
+    const previous = previousSubmittedSeats.current;
+    const stored = hasStoredDraft.current;
+    setUserSeats(draft => reconcileDraft(draft, previous, userPrediction.seats, stored));
+    previousSubmittedSeats.current = userPrediction.seats;
   }, [userPrediction?.id, userPrediction?.submittedAt]);
+
+  useEffect(() => {
+    writePreference('knesset_fantasy_tab_' + user.id, activeTab);
+    if (loadingLeague) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('invite');
+    url.searchParams.set('tab', activeTab);
+    if (currentLeague) url.searchParams.set('league', currentLeague.id);
+    else url.searchParams.delete('league');
+    window.history.replaceState({}, '', url);
+  }, [activeTab, currentLeague?.id, loadingLeague, user.id]);
 
   // Refresh deadlines, standings and invitations without trusting the browser clock.
   useEffect(() => {
@@ -391,7 +405,7 @@ export default function App() {
         {activeTab === 'picker' && (
           <SeatPicker
             currentSeats={userSeats}
-            onSeatsChange={setUserSeats}
+            onSeatsChange={seats => { hasStoredDraft.current = true; setUserSeats(seats); }}
             onSubmitPrediction={handleSubmitPrediction}
             isSubmitting={isSubmitting}
             prediction={userPrediction}

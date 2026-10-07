@@ -44,3 +44,12 @@ test('league recovery never loops or retries the same membership', async () => {
     assert.deepEqual(calls, leagues[0]?.id === 'other' ? ['stale', 'other'] : ['stale']);
   }
 });
+
+test('explicit links override remembered tabs and tab URLs preserve league context', async () => {
+  const { initialTab } = await import('../../src/lib/navigation');
+  assert.equal(initialTab(new URLSearchParams('league=abc'), 'surveys'), 'league');
+  assert.equal(initialTab(new URLSearchParams('invite=abc&tab=picker'), 'historical'), 'league');
+  assert.equal(initialTab(new URLSearchParams('league=abc&tab=surveys'), 'picker'), 'surveys');
+  assert.equal(initialTab(new URLSearchParams(), 'historical'), 'historical');
+  assert.equal(initialTab(new URLSearchParams('tab=invalid'), { tab: 'league' }), 'picker');
+});

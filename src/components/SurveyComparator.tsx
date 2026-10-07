@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { TrendingUp, Target } from 'lucide-react';
 import { Survey, SavedPick } from '../types';
 import { calculateScore, calculateBlocs } from '../utils/scoring';
 import { localizeSurvey, latestPollsByChannel } from '../utils/surveys';
+import { readPreference, writePreference } from '../lib/preferences';
 import { PollTrendChart } from './PollTrendChart';
 import { PARTIES_LIST } from '../data/parties';
 
@@ -23,9 +24,21 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
   const userSeats = selectedPick?.seats ?? {};
   const surveys = useMemo(() => sourceSurveys.map(localizeSurvey), [sourceSurveys]);
 
-  const [weeksAgo, setWeeksAgo] = useState(0);
-  const [selectedChannel, setSelectedChannel] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'exact' | 'diff'>('all');
+  const [weeksAgo, setWeeksAgo] = useState(() => {
+    const saved = readPreference('knesset_fantasy_poll_weeks');
+    return typeof saved === 'number' && Number.isInteger(saved) && saved >= 0 && saved <= 520 ? saved : 0;
+  });
+  const [selectedChannel, setSelectedChannel] = useState(() => {
+    const saved = readPreference('knesset_fantasy_poll_channel');
+    return typeof saved === 'string' ? saved : '';
+  });
+  const [filterMode, setFilterMode] = useState<'all' | 'exact' | 'diff'>(() => {
+    const saved = readPreference('knesset_fantasy_poll_comparison');
+    return saved === 'exact' || saved === 'diff' ? saved : 'all';
+  });
+  useEffect(() => { writePreference('knesset_fantasy_poll_weeks', weeksAgo); }, [weeksAgo]);
+  useEffect(() => { writePreference('knesset_fantasy_poll_channel', selectedChannel); }, [selectedChannel]);
+  useEffect(() => { writePreference('knesset_fantasy_poll_comparison', filterMode); }, [filterMode]);
   const periods = useMemo(() => {
     const today = new Date();
     const oldest = surveys.map(s => s.date).sort()[0];
