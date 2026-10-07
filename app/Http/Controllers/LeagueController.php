@@ -105,15 +105,21 @@ class LeagueController extends Controller
             return $l;
         });
 
-        return response()->json(['league' => $this->payload($l, $r)], 201);
+        // Hydrate database defaults (including stage) before computing visibility and locks.
+        return response()->json(['league' => $this->payload($l->fresh(), $r)], 201);
     }
 
     public function join(Request $r)
     {
-        $data = $r->validate(['code' => 'required|string|size:40']);
+        $data = $r->validate(['code' => 'bail|required|string|size:40'], [
+            'code.required' => 'יש להזין קוד הזמנה תקין באורך 40 תווים.',
+            'code.string' => 'יש להזין קוד הזמנה תקין באורך 40 תווים.',
+            'code.size' => 'יש להזין קוד הזמנה תקין באורך 40 תווים.',
+        ]);
         $l = DB::transaction(function () use ($data, $r) {
             User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
-            $l = League::where('invite_code', $data['code'])->lockForUpdate()->firstOrFail();
+            $l = League::where('invite_code', $data['code'])->lockForUpdate()->first();
+            abort_unless($l, 404, 'קוד ההזמנה לא נמצא. בדקו את הקישור או בקשו הזמנה חדשה.');
             if (! $l->users()->whereKey($r->user()->id)->exists()) {
                 abort_if($l->isLocked(), 409, 'הליגה נעולה להצטרפות');
                 $l->users()->attach($r->user()->id);

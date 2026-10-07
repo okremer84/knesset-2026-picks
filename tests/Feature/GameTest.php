@@ -147,9 +147,27 @@ class GameTest extends TestCase
 
     public function test_league_creation_needs_no_poll_and_ignores_legacy_poll_selections(): void
     {
-        $this->actingAs(User::factory()->create())->postJson('/api/leagues', [
+        $response = $this->actingAs(User::factory()->create())->postJson('/api/leagues', [
             'name' => 'No polls', 'locksAt' => now('Asia/Jerusalem')->addDay()->setTime(20, 0)->toIso8601String(), 'targetSurveyId' => 'nonexistent',
-        ])->assertCreated()->assertJsonPath('league.benchmarkSurvey', null);
+        ])->assertCreated();
+        $reloaded = $this->getJson('/api/leagues/'.$response->json('league.id'))->assertOk();
+        $reloaded->assertJsonPath('league.isLocked', false)->assertJsonPath('league.predictionsHidden', true);
+        $response->assertJsonPath('league.benchmarkSurvey', null)
+            ->assertJsonPath('league.isLocked', false)
+            ->assertJsonPath('league.predictionsHidden', true)
+            ->assertJsonPath('league.myPickLocked', false);
+        $this->assertSame($reloaded->json('league'), $response->json('league'));
+    }
+
+    public function test_invalid_invitation_errors_are_in_hebrew(): void
+    {
+        $this->actingAs(User::factory()->create());
+        foreach ([[], ['code' => ''], ['code' => ['invalid']], ['code' => 'short']] as $payload) {
+            $this->postJson('/api/leagues/join', $payload)->assertUnprocessable()
+                ->assertJsonPath('errors.code.0', 'יש להזין קוד הזמנה תקין באורך 40 תווים.');
+        }
+        $this->postJson('/api/leagues/join', ['code' => str_repeat('x', 40)])
+            ->assertNotFound()->assertJsonPath('message', 'קוד ההזמנה לא נמצא. בדקו את הקישור או בקשו הזמנה חדשה.');
     }
 
     public function test_league_index_returns_only_summaries_and_show_loads_details(): void
