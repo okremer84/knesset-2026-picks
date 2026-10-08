@@ -84,7 +84,7 @@ class GameTest extends TestCase
         $this->postJson('/api/leagues/join', ['code' => $league->invite_code])->assertOk();
         $this->postJson('/api/leagues/join', ['code' => $league->invite_code])->assertOk();
         $this->assertSame(2, $league->users()->count());
-        $this->postJson('/api/leagues/'.$league->id.'/deadline', ['locksAt' => now()->addDays(2)->toIso8601String()])->assertForbidden();
+        $this->postJson('/api/leagues/'.$league->id.'/deadline', ['locksAt' => now()->addDays(2)->toIso8601String()])->assertNotFound();
         $this->getJson('/api/leagues')->assertJsonCount(1, 'leagues');
     }
 
@@ -198,22 +198,43 @@ class GameTest extends TestCase
         $this->getJson('/api/leagues/'.$league->id)->assertJsonPath('league.members.0.note', 'private note');
     }
 
-    public function test_deadlines_are_owner_only_capped_at_israel_election_evening_and_cannot_reopen(): void
+    public function test_deadlines_are_fixed_at_creation_and_capped_at_israel_election_evening(): void
     {
         $owner = User::factory()->create();
         $league = $this->league($owner);
         $endpoint = '/api/leagues/'.$league->id.'/deadline';
         $this->getJson('/api/election')->assertJsonPath('deadlineLimit', '2026-10-27T18:00:00+00:00');
-        $this->actingAs(User::factory()->create())->postJson($endpoint, ['locksAt' => '2026-10-27T18:00:00Z'])->assertForbidden();
-        $this->actingAs($owner)->postJson($endpoint, ['locksAt' => '2026-10-27T18:00:01Z'])->assertUnprocessable();
-        $this->postJson($endpoint, ['locksAt' => now()->subMinute()->toIso8601String()])->assertUnprocessable();
-        $this->postJson($endpoint, ['locksAt' => '2026-10-20T16:00:00Z'])->assertUnprocessable();
-        $this->postJson($endpoint, ['locksAt' => '2026-10-27T18:00:00Z'])->assertOk();
-        $this->postJson($endpoint, ['locksAt' => now('Asia/Jerusalem')->setTime(20, 0)->toIso8601String()])->assertOk();
-        $this->travelTo($league->fresh()->locks_at);
-        $this->postJson($endpoint, ['locksAt' => '2026-10-27T18:00:00Z'])->assertConflict();
-        $this->assertDatabaseCount('league_events', 2);
-        $this->postJson('/api/leagues', ['name' => 'Too late', 'locksAt' => '2026-10-27T18:01:00Z'])->assertUnprocessable();
+        $this->postJson($endpoint, ['locksAt' => '2026-10-27T18:00:00Z'])->assertNotFound();
+        $this->assertEquals($league->locks_at, $league->fresh()->locks_at);
+        $this->travelTo($league->locks_at);
+        $this->postJson($endpoint, ['locksAt' => '2026-10-27T18:00:00Z'])->assertNotFound();
+        $this->assertDatabaseCount('league_events', 0);
+        foreach (['2026-10-27T18:00:01Z', '2026-10-20T16:00:00Z', now()->subMinute()->toIso8601String()] as $deadline) {
+            $this->postJson('/api/leagues', ['name' => 'Invalid deadline', 'locksAt' => $deadline])->assertUnprocessable();
+        }
+        $this->postJson('/api/leagues', ['name' => 'Election night', 'locksAt' => '2026-10-27T20:00:00+02:00'])
+            ->assertCreated()->assertJsonPath('league.locksAt', '2026-10-27T18:00:00+00:00');
+    }
+
+    public function test_creation_normalizes_offsets_and_preserves_privacy_until_the_real_cutoff(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        foreach (['2026-10-06T20:00:00+03:00', '2026-10-06T05:00:00-12:00', '2026-10-07T07:00:00+14:00', '2026-10-06T17:00:00Z'] as $deadline) {
+            $response = $this->actingAs($owner)->postJson('/api/leagues', ['name' => 'Offset test', 'locksAt' => $deadline])
+                ->assertCreated()->assertJsonPath('league.locksAt', '2026-10-06T17:00:00+00:00')
+                ->assertJsonPath('league.isLocked', false);
+            $id = $response->json('league.id');
+            $this->postJson('/api/my-pick', [...$this->picks(), 'note' => 'Private until 20:00'])->assertOk();
+            $this->actingAs($other)->postJson('/api/leagues/join', ['code' => $response->json('league.inviteCode')])
+                ->assertOk()->assertJsonCount(0, 'league.members');
+            $this->travelTo(CarbonImmutable::parse('2026-10-06T16:59:59Z'));
+            $this->getJson('/api/leagues/'.$id)->assertJsonPath('league.predictionsHidden', true)->assertJsonCount(0, 'league.members');
+            $this->travelTo(CarbonImmutable::parse('2026-10-06T17:00:00Z'));
+            $this->getJson('/api/leagues/'.$id)->assertJsonPath('league.members.0.note', 'Private until 20:00');
+            $this->actingAs($owner)->postJson('/api/my-pick', $this->picks())->assertConflict();
+            $this->travelTo(CarbonImmutable::parse('2026-10-06T12:00:00Z'));
+        }
     }
 
     public function test_turnout_overrides_exact_hit_count_on_equal_points(): void

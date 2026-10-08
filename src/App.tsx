@@ -8,7 +8,7 @@ import { surveySyncNotice } from './utils/surveys';
 import { initialLeagueId, loadInitialLeague, initialTab } from './lib/navigation';
 import { readPreference, writePreference } from './lib/preferences';
 import { createPredictionSync } from './lib/predictionSync';
-import { reconcileDraft } from './utils/predictionDraft';
+import { reconcileDraft, reconcileDetails, predictionDetails, storedPredictionDetails, type PredictionDetails } from './utils/predictionDraft';
 import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
@@ -77,6 +77,11 @@ export default function App() {
 
   const hasStoredDraft = useRef(false);
   const previousSubmittedSeats = useRef<Record<string, number> | undefined>(undefined);
+  const previousSubmittedDetails = useRef<PredictionDetails | undefined>(undefined);
+  const [draftDetails, setDraftDetails] = useState(() => storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + user.id)));
+  useEffect(() => {
+    if (draftDetails) writePreference('knesset_fantasy_draft_details_' + user.id, draftDetails);
+  }, [draftDetails, user.id]);
 
   // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
@@ -93,12 +98,6 @@ export default function App() {
     // Start empty by default as requested
     return {};
   });
-
-  // Calculate total seats allocated by user (only valid parties)
-  const totalUserSeats = PARTIES_LIST.reduce(
-    (sum, p) => sum + (Number(userSeats[p.id]) || 0),
-    0
-  );
 
   // Persist draft seats to localStorage
   useEffect(() => {
@@ -178,6 +177,20 @@ export default function App() {
     }, 4500);
   };
 
+  // A failed league refresh must not change the outcome of an already saved pick.
+  const refreshLeagueAfterSave = async (leagueId: string) => {
+    try {
+      const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId));
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.league?.id === leagueId) {
+        setCurrentLeague(selected => selected?.id === leagueId ? data.league : selected);
+      }
+    } catch {
+      // Keep the last successful league state; the regular refresh will retry.
+    }
+  };
+
   // Submit the personal prediction shared by every league.
   const handleSubmitPrediction = async (pickName: string, note?: string, turnoutPercentage?: number) => {
 
@@ -221,11 +234,11 @@ export default function App() {
       }
 
       setUserPrediction(data.pick); setSavedPicks(data.picks); setPickLocked(data.isLocked); setPicksStatus('ready');
+      setDraftDetails(predictionDetails(data.pick));
       showToast('התחזית שלך נשמרה בהצלחה', 'success');
       if (currentLeague) {
-        const response = await fetch('/api/leagues/' + currentLeague.id);
-        if (response.ok) setCurrentLeague((await response.json()).league);
         setActiveTab('league');
+        void refreshLeagueAfterSave(currentLeague.id);
       }
     } catch (err: any) {
       console.error('Submit prediction error:', err);
@@ -321,6 +334,10 @@ export default function App() {
     const stored = hasStoredDraft.current;
     setUserSeats(draft => reconcileDraft(draft, previous, userPrediction.seats, stored));
     previousSubmittedSeats.current = userPrediction.seats;
+    const details = predictionDetails(userPrediction);
+    const previousDetails = previousSubmittedDetails.current;
+    setDraftDetails(draft => reconcileDetails(draft, previousDetails, details));
+    previousSubmittedDetails.current = details;
   }, [userPrediction?.id, userPrediction?.submittedAt]);
 
   useEffect(() => {
@@ -410,6 +427,8 @@ export default function App() {
         {activeTab === 'picker' && (
           <SeatPicker
             currentSeats={userSeats}
+            details={draftDetails ?? predictionDetails(userPrediction)}
+            onDetailsChange={setDraftDetails}
             onSeatsChange={seats => { hasStoredDraft.current = true; setUserSeats(seats); }}
             onSubmitPrediction={handleSubmitPrediction}
             isSubmitting={isSubmitting}
@@ -434,7 +453,6 @@ export default function App() {
               userPrediction={userPrediction}
               currentUserName={username}
               currentUserId={user.id}
-              onLeagueUpdate={(updatedLeague) => setCurrentLeague(updatedLeague)}
             />
           ) : (
             <div className="empty-leagues">
@@ -459,10 +477,7 @@ export default function App() {
         )}
 
         {activeTab === 'historical' && (
-          <HistoricalAnalysis
-            userSeats={userSeats}
-            onNavigateToPicker={() => setActiveTab('picker')}
-          />
+          <HistoricalAnalysis/>
         )}
       </main>
 

@@ -24,6 +24,12 @@ test('pre-reveal roster contains every member but no notes, scores, or turnout',
   for (const privateText of ['Hidden note', '70%', '80%', 'נקודות ↓', 'secret-invite']) assert.ok(!html.includes(privateText));
   assert.ok(html.includes('טרם הוגשה'));
 });
+test('commissioners see the fixed deadline without deadline editing controls', () => {
+  const html = render({ ...league, isCommissioner: true });
+  assert.ok(html.includes('27/10/2026 20:00'));
+  assert.ok(!html.includes('הגדרות'));
+  assert.ok(!html.includes('שמירת מועד ההגשה'));
+});
 test('reveal includes notes and turnout; equal points share rank despite different exact hits', () => {
   const html = render({ ...league, predictionsHidden: false, isLocked: true });
   assert.ok(html.includes('Hidden note'));

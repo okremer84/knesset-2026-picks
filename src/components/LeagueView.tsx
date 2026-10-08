@@ -1,18 +1,14 @@
-import { DeadlineInput } from './DeadlineInput';
-import React, { useEffect, useState } from 'react';
-import { Dialog } from './Dialog';
-import { Share2, Settings, ChevronDown, X, Plus } from 'lucide-react';
-import { League, Prediction, Survey, ElectionStage } from '../types';
+import React, { useState } from 'react';
+import { Share2, ChevronDown, Plus } from 'lucide-react';
+import { League, Prediction, Survey } from '../types';
 import { calculateScore } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
-import { formatIsraelTime, israelInstant, israelLocalTime } from '../utils/israelTime';
-import { request } from '../lib/api';
+import { formatIsraelTime } from '../utils/israelTime';
 interface LeagueViewProps {
   league: League; allSurveys: Survey[]; selectedSurveyId: string;
   onSelectSurveyId: (id: string) => void; onOpenCreateLeague: () => void;
   onJoinExistingLeagueById: (code: string) => void; onNavigateToPicker: () => void;
   userPrediction?: Prediction; currentUserName?: string; currentUserId?: number;
-  onLeagueUpdate?: (league: League) => void;
 }
 
 export function PickDetails({ prediction, benchmark }: { prediction: Prediction; benchmark: Survey | null }) {
@@ -30,18 +26,10 @@ export function PickDetails({ prediction, benchmark }: { prediction: Prediction;
   </div>;
 }
 
-export function LeagueView({ league, allSurveys, onOpenCreateLeague, onNavigateToPicker, onLeagueUpdate, userPrediction, currentUserId }: LeagueViewProps) {
+export function LeagueView({ league, allSurveys, onOpenCreateLeague, onNavigateToPicker, userPrediction, currentUserId }: LeagueViewProps) {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsError, setSettingsError] = useState('');
-
-  const [deadline, setDeadline] = useState(israelLocalTime(league.locksAt));
   const [inspect, setInspect] = useState<string | null>(null);
-  useEffect(() => { if (!settingsOpen) {
-    setDeadline(israelLocalTime(league.locksAt));
-  } }, [settingsOpen, league.locksAt, league.electionStage, league.targetSurveyId, league.benchmarkTurnoutPercentage]);
   const benchmark = ['exit_poll', 'official_results'].includes(league.benchmarkSurvey?.kind || '') ? league.benchmarkSurvey : null;
   const hidden = league.predictionsHidden;
 
@@ -70,20 +58,12 @@ export function LeagueView({ league, allSurveys, onOpenCreateLeague, onNavigateT
     try { await navigator.clipboard.writeText(window.location.origin + '/?invite=' + league.inviteCode); setNotice('קישור ההזמנה הועתק'); }
     catch { setError('לא ניתן להעתיק. קוד ההזמנה: ' + league.inviteCode); }
   }
-  async function update(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true); setSettingsError(''); setNotice('');
-    try {
-      const result = await request<{ league: League }>(`/api/leagues/${league.id}/deadline`, { locksAt: israelInstant(deadline.split('T')[0] + 'T20:00') });
-      onLeagueUpdate?.(result.league); setSettingsOpen(false); setNotice('מועד ההגשה עודכן');
-    } catch (e) { setSettingsError((e as Error).message); } finally { setBusy(false); }
-  }
   return <div dir="rtl" className="league-page">
     <header className="league-header"><div><p className="eyebrow">הליגות שלי</p><h1>{league.name}</h1><p>{league.submittedCount} מתוך {league.totalPlayersCount} הגישו · {league.isLocked ? 'ההגשה נסגרה' : 'הגשה עד'} {formatIsraelTime(league.locksAt)} · שעון ישראל</p></div>
     </header>
     <div className="league-action-bar" role="group" aria-label="פעולות ליגה">
       <button className="button-quiet" onClick={share}><Share2 size={16}/>שיתוף</button>
       <button className="button-quiet" onClick={onOpenCreateLeague}><Plus size={16}/>יצירת ליגה חדשה</button>
-      {league.isCommissioner && <button className="button-quiet" onClick={() => { setSettingsError(''); setSettingsOpen(true); }}><Settings size={16}/>הגדרות</button>}
     </div>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     <div className="league-table-caption">{hidden ? <p>התחזיות וההערות ייחשפו בתאריך האחרון להגשה, בשעה 20:00 בשעון ישראל.</p> : <><p>{benchmark?.kind === 'official_results' ? 'תוצאות סופיות' : benchmark ? 'מדגם · דירוג זמני' : 'ממתינים לפרסום המדגם · הניקוד יופיע לאחר הפרסום'}</p><details><summary>איך הניקוד עובד?</summary><p>פחות נקודות עדיף: סכום ההפרשים המוחלטים במנדטים. בשוויון, התחזית הקרובה יותר לאחוז ההצבעה הרשמי מנצחת. עד פרסום אחוז ההצבעה, או כשהפער זהה, המקום משותף. מפלגות שלא דווחו אינן נכללות בניקוד.</p>{benchmark?.sourceUrl && <a href={benchmark.sourceUrl} target="_blank" rel="noreferrer">מקור הנתונים</a>}</details></>}</div>
@@ -111,14 +91,6 @@ export function LeagueView({ league, allSurveys, onOpenCreateLeague, onNavigateT
     </table></div>
     {!rows.length && <p>עדיין אין משתתפים בליגה.</p>}
 
-    {settingsOpen && league.isCommissioner && <Dialog open closeOnBackdrop onClose={() => { if (!busy) setSettingsOpen(false); }} label="הגדרות הליגה" className="league-settings-dialog">
-      <div className="profile-heading"><h2>הגדרות הליגה</h2><button aria-label="סגירה" disabled={busy} onClick={() => setSettingsOpen(false)}><X size={20}/></button></div>
-      <p>מנהל הליגה: {league.creatorName}</p>
-      {settingsError && <p role="alert">{settingsError}</p>}
-      <form onSubmit={update}><h3>מועד אחרון להגשה</h3><DeadlineInput value={deadline} onChange={setDeadline} disabled={busy || league.isLocked} max={league.deadlineLimit}/>
-        <p>{league.isLocked ? 'התחזיות נחשפו. לא ניתן לפתוח מחדש את ההגשה.' : league.deadlineLimit ? 'הבחירות יתגלו במועד נעילת התחזיות' : 'מועד הבחירות טרם הוגדר.'}</p>
-        {!league.isLocked && <button className="button-primary" disabled={busy || !league.deadlineLimit}>שמירת מועד ההגשה</button>}
-      </form>
-    </Dialog>}
+
   </div>;
 }

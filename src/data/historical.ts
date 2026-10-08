@@ -96,7 +96,8 @@ export const HISTORICAL_ELECTIONS: HistoricalElection[] = [
       { partyName: 'הרשימה המשותפת', seats: 13, leader: 'איימן עודה', color: '#dc2626', bloc: 'arab' },
       { partyName: 'ש"ס', seats: 9, leader: 'אריה דרעי', color: '#334155', bloc: 'coalition' },
       { partyName: 'ישראל ביתנו', seats: 8, leader: 'אביגדור ליברמן', color: '#2563eb', bloc: 'opposition' },
-      { partyName: 'יהדות התורה', seats: 8, leader: 'יעקב ליצמן', color: '#475569', bloc: 'coalition' },
+      // Final results: https://votes22.bechirot.gov.il/
+      { partyName: 'יהדות התורה', seats: 7, leader: 'יעקב ליצמן', color: '#475569', bloc: 'coalition' },
       { partyName: 'ימינה', seats: 7, leader: 'איילת שקד', color: '#059669', bloc: 'coalition' },
       { partyName: 'העבודה-גשר', seats: 6, leader: 'עמיר פרץ', color: '#16a34a', bloc: 'opposition' },
       { partyName: 'המחנה הדמוקרטי (מרצ)', seats: 5, leader: 'ניצן הורוביץ', color: '#22c55e', bloc: 'opposition' },

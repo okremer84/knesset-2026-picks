@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { calculateBlocs, calculateScore } from '../../src/utils/scoring';
 import { PARTIES_LIST } from '../../src/data/parties';
 import { HistoricalAnalysis } from '../../src/components/HistoricalAnalysis';
+import { HISTORICAL_ELECTIONS } from '../../src/data/historical';
 import { SurveyComparator } from '../../src/components/SurveyComparator';
 import type { Survey } from '../../src/types';
 
@@ -31,13 +32,22 @@ test('unreported live polls and explicit historical zeroes have different semant
   assert.equal(calculateScore(picks, historical).totalSeatDiff, 60);
 });
 
-test('historical UI counts allocations to parties absent from its historical mapping as error', () => {
-  const html = renderToStaticMarkup(<HistoricalAnalysis userSeats={{ amcha: 120 }} onNavigateToPicker={() => {}}/>);
-  const result = html.match(/>(\d+) מנדטים<\/strong>/);
-  assert.ok(result, 'renders the absolute-error label');
-  assert.ok(Number(result[1]) >= 120, 'includes all 120 seats allocated to an unmapped party');
-  assert.ok(html.includes('פחות עדיף'));
-  assert.ok(!html.includes('נקודות</strong>'));
+test('historical results stay independent of current prediction allocations', () => {
+  const html = renderToStaticMarkup(<HistoricalAnalysis/>);
+  assert.ok(html.includes('תוצאות הבחירות לפי מפלגות'));
+  assert.ok(html.includes('יש עתיד'));
+  assert.ok(!html.includes('סך ההפרשים בהשוואה ההיסטורית'));
+  assert.ok(!html.includes('מיפוי מפלגות המשחק'));
+});
+
+test('historical results and bloc totals each account for all 120 seats', () => {
+  for (const election of HISTORICAL_ELECTIONS) {
+    assert.equal(election.results.reduce((sum, party) => sum + party.seats, 0), 120, `Knesset ${election.knessetNumber} party total`);
+    assert.equal(Object.values(election.blocTotals).reduce((sum, seats) => sum + seats, 0), 120, `Knesset ${election.knessetNumber} bloc total`);
+  }
+  // Central Elections Committee final results: https://votes22.bechirot.gov.il/
+  const election = HISTORICAL_ELECTIONS.find(e => e.knessetNumber === 22)!;
+  assert.equal(election.results.find(p => p.partyName === 'יהדות התורה')!.seats, 7);
 });
 
 test('omitted party allocations do not change displayed user bloc totals', () => {

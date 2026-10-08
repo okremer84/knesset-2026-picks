@@ -24,7 +24,6 @@ Route::prefix('api')->group(function () {
         Route::post('leagues/join', [LeagueController::class, 'join'])->middleware('throttle:10,1');
         Route::get('leagues/{league}', [LeagueController::class, 'show']);
         Route::post('leagues/{league}/predict', [LeagueController::class, 'predict'])->middleware('throttle:30,1');
-        Route::post('leagues/{league}/deadline', [LeagueController::class, 'deadline']);
     });
 });
 Route::middleware('throttle:10,1')->group(function () {
