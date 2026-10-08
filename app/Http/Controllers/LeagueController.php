@@ -19,11 +19,6 @@ class LeagueController extends Controller
         abort_unless($l->users()->whereKey($r->user()->id)->exists(), 403);
     }
 
-    private function owner(League $l, Request $r): void
-    {
-        abort_unless($l->owner_id === $r->user()->id, 403);
-    }
-
     public static function deadlineLimit(): ?string
     {
         $date = config('election.date');
@@ -43,21 +38,6 @@ class LeagueController extends Controller
                 }
             },
         ];
-    }
-
-    public function deadline(League $league, Request $r)
-    {
-        $this->owner($league, $r);
-        $data = $r->validate(['locksAt' => $this->deadlineRules()]);
-        DB::transaction(function () use ($league, $data, $r) {
-            $l = League::whereKey($league->id)->lockForUpdate()->firstOrFail();
-            abort_if($l->isLocked(), 409, 'לא ניתן לשנות מועד לאחר חשיפת התחזיות');
-            $previous = $l->locks_at->toIso8601String();
-            $l->update(['locks_at' => $data['locksAt']]);
-            DB::table('league_events')->insert(['league_id' => $l->id, 'actor_id' => $r->user()->id, 'type' => 'deadline_changed', 'payload' => json_encode(['previous' => $previous, 'locksAt' => $data['locksAt']]), 'created_at' => now()]);
-        });
-
-        return ['league' => $this->payload($league->fresh(), $r)];
     }
 
     public function index(Request $r)
@@ -99,7 +79,7 @@ class LeagueController extends Controller
         $l = DB::transaction(function () use ($data, $r) {
             User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
             $l = League::create(['name' => $data['name'], 'description' => $data['description'] ?? null, 'owner_id' => $r->user()->id, 'invite_code' => Str::random(40),
-                'locks_at' => $data['locksAt'], 'benchmark' => null]);
+                'locks_at' => CarbonImmutable::parse($data['locksAt'])->utc(), 'benchmark' => null]);
             $l->users()->attach($r->user()->id);
 
             return $l;
@@ -154,7 +134,7 @@ class LeagueController extends Controller
         abort_unless(array_sum($data['seats']) === 120, 422, 'סך המנדטים חייב להיות 120');
         $seats = array_replace(array_fill_keys($ids, 0), array_map('intval', $data['seats']));
         DB::transaction(function () use ($r, $data, $seats) {
-            // Membership changes take the same user lock. League locks serialize deadline edits.
+            // Membership changes take the same user lock; check deadlines after acquiring it.
             User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
             $leagues = League::whereHas('users', fn ($q) => $q->where('users.id', $r->user()->id))->orderBy('id')->lockForUpdate()->get();
             abort_if(now()->gte(CarbonImmutable::parse(self::deadlineLimit())) || $leagues->contains(fn ($l) => $l->isLocked()), 409, 'מועד ההגשה הסתיים');

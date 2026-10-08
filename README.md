@@ -24,17 +24,19 @@ The seeder imports only the bundled, previously reviewed Wikipedia feed into an 
 
 ## Game rules
 
-- Each account owns one prediction per league. Display names are labels, never authentication.
+- Each account owns one personal prediction. Display names are labels, never authentication.
 - The creator is the commissioner. Others join using the random invitation code.
-- The election date defaults to 27/10/2026; override `ELECTION_DATE` (YYYY-MM-DD) if it changes. The commissioner chooses a submission date, no later than election day. Submissions always close at 20:00 Asia/Jerusalem on the selected date; the hour cannot be changed. The owner may shorten or extend it before the existing deadline, within that cap. Once revealed, submissions cannot be reopened. The server rejects edits and new members at or after that instant. Existing members can still open their league.
+- The election date defaults to 27/10/2026; override `ELECTION_DATE` (YYYY-MM-DD) if it changes. The commissioner chooses a submission date when creating the league, no later than election day. Submissions always close at 20:00 Asia/Jerusalem on that date. The deadline cannot be edited after creation. Accepted timestamps are normalized to UTC before storage. The server rejects prediction edits and new members at or after that instant. Existing members can still open their league.
 - Each user has one personal prediction shared by all leagues, including leagues joined later. It locks at the earliest deadline of their leagues (or election-day cutoff with no leagues). Each league reveals it at its own deadline.
 - Every prediction must contain exactly 120 nonnegative integer seats using recognized party IDs, and a turnout prediction with at most one decimal place.
 - Other players' picks and notes stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
 - Lower total absolute seat error wins. Closeness to official turnout is the only tiebreak; until it is published, equal seat errors share a position. Complete ties share a position.
 - A poll's unreported parties are excluded from comparison rather than invented as zero.
 - League scoring uses active published election results only. Opinion polls remain available in the surveys tab.
-- Published election-result corrections update standings across leagues. Owner deadline changes are recorded in the audit log.
-- Opinion-poll standings are provisional. Exit polls and official results must be published by an operator before a commissioner can select them. Stage changes cannot reopen voting or overwrite a finalized result.
+- Published election-result corrections update standings across leagues. Historical deadline-change audit records are retained.
+- Exit polls and official results must be published by an operator; leagues automatically select the latest eligible result, preferring official results. Publishing results does not reopen submissions.
+
+Draft seats, prediction name, turnout and note are stored per account in the browser and survive tab navigation and reloads. Background refreshes preserve unsaved edits. The historical tab presents past election results without scoring today's party lists against different historical alliances.
 
 Authentication uses Google OAuth through Laravel Socialite, database sessions, HttpOnly cookies, CSRF checks and rate limits. All writes use same-origin requests. No public AI ingestion endpoint is exposed.
 

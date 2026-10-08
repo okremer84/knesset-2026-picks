@@ -97,7 +97,7 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
 
           <div className="space-y-2">
             <DeadlineInput value={locksAt} onChange={setLocksAt} disabled={isSubmitting} max={deadlineLimit}/>
-            <p>הבחירות יתגלו במועד נעילת התחזיות</p>
+            <p>התחזיות ייחשפו במועד ההגשה. לא ניתן לשנות את המועד לאחר יצירת הליגה.</p>
           </div>
           {error && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">

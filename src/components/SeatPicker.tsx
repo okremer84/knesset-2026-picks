@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Prediction } from '../types';
-import { sameSeats } from '../utils/predictionDraft';
+import { sameSeats, predictionDetails, type PredictionDetails } from '../utils/predictionDraft';
 import { Dialog } from './Dialog';
 import { AlertCircle, Send, Award, Plus, Minus, X } from 'lucide-react';
 
@@ -10,6 +10,8 @@ import { LeaderPortrait } from './LeaderPortrait';
 
 interface SeatPickerProps {
   currentSeats: Record<string, number>;
+  details: PredictionDetails;
+  onDetailsChange: (details: PredictionDetails) => void;
   onSeatsChange: (seats: Record<string, number>) => void;
   onSubmitPrediction: (pickName: string, note?: string, turnoutPercentage?: number) => Promise<void>;
   isSubmitting: boolean;
@@ -21,6 +23,8 @@ interface SeatPickerProps {
 
 export const SeatPicker: React.FC<SeatPickerProps> = ({
   currentSeats,
+  details,
+  onDetailsChange,
   onSeatsChange,
   onSubmitPrediction,
   isSubmitting,
@@ -29,12 +33,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
   hasLoadError = false,
   isLocked,
 }) => {
-  const [pickName, setPickName] = useState(prediction?.pickName || '');
-  const [turnoutPercentage, setTurnoutPercentage] = useState(String(prediction?.turnoutPercentage ?? ''));
-  const [note, setNote] = useState(prediction?.note || '');
-  useEffect(() => {
-    if (prediction) { setPickName(prediction.pickName || ''); setTurnoutPercentage(String(prediction.turnoutPercentage ?? '')); setNote(prediction.note || ''); }
-  }, [prediction?.id, prediction?.submittedAt]);
+  const { pickName, turnoutPercentage, note } = details;
   const [errorMessage, setErrorMessage] = useState('');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
@@ -98,13 +97,10 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
     handleSeatChange(partyId, current + delta);
   };
 
-  // Blank all fields
-  const handleResetToBlank = () => {
-    const empty: Record<string, number> = {};
-    PARTIES_LIST.forEach((p) => {
-      empty[p.id] = 0;
-    });
-    onSeatsChange(empty);
+  // Discard draft edits, restoring the submitted pick when available.
+  const handleResetDraft = () => {
+    onSeatsChange(prediction ? { ...prediction.seats } : {});
+    onDetailsChange(predictionDetails(prediction));
     setErrorMessage('');
   };
 
@@ -162,12 +158,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
       <div className={`prediction-submission-status ${!hasLoadError && !isLoading && prediction && !hasChanges ? 'is-submitted' : ''}`}>
         <p role="status">{submissionStatus}</p>
-        {!isLoading && !hasLoadError && !isSubmitting && !isLocked && prediction && hasChanges && <button type="button" className="button-quiet" onClick={() => {
-          onSeatsChange(prediction.seats);
-          setPickName(prediction.pickName || '');
-          setNote(prediction.note || '');
-          setTurnoutPercentage(String(prediction.turnoutPercentage ?? ''));
-        }}>חזרה לתחזית שהוגשה</button>}
+        {!isLoading && !hasLoadError && !isSubmitting && !isLocked && prediction && hasChanges && <button type="button" className="button-quiet" onClick={handleResetDraft}>חזרה לתחזית שהוגשה</button>}
       </div>
 
       <div className="party-grid">
@@ -196,8 +187,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
           </div>
           <div className="prediction-actions">
           <button className="button-primary" disabled={!isExact120 || isSubmitting || isLocked || isLoading || hasLoadError} onClick={handleBottomSubmit}>{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
-            <button className="reset-draft" disabled={isLocked || totalAllocated === 0} onClick={() => {
-              if (window.confirm('לאפס את כל המנדטים בטיוטה? התחזית שכבר הוגשה לא תימחק.')) handleResetToBlank();
+            <button className="reset-draft" disabled={isLocked || isLoading || hasLoadError || isSubmitting || (prediction ? !hasChanges : totalAllocated === 0 && !pickName && !note && !turnoutPercentage)} onClick={() => {
+              if (window.confirm(prediction ? 'לבטל את השינויים בטיוטה ולחזור לתחזית שהוגשה?' : 'לנקות את הטיוטה ולהתחיל מחדש?')) handleResetDraft();
             }}>איפוס הטיוטה</button>
           </div>
         </div>
@@ -239,7 +230,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                   required
                   aria-label="שם התחזית"
                   value={pickName}
-                  onChange={e => setPickName(e.target.value)}
+                  disabled={isSubmitting}
+                  onChange={e => onDetailsChange({ ...details, pickName: e.target.value })}
                   maxLength={100}
                   placeholder="למשל: Best pickssss i ruleeee"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm shadow-xs"
@@ -264,7 +256,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                     aria-label="תחזית אחוז הצבעה ארצי"
                     autoFocus
                     value={turnoutPercentage}
-                    onChange={(e) => setTurnoutPercentage(e.target.value)}
+                    disabled={isSubmitting}
+                    onChange={e => onDetailsChange({ ...details, turnoutPercentage: e.target.value })}
                     placeholder=""
                     className="w-full px-3.5 py-2.5 pl-9 bg-white border border-slate-300 rounded-xl text-slate-900 font-black placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm shadow-xs"
                   />
@@ -286,7 +279,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
                   type="text"
                   aria-label="הערה לתחזית"
                   value={note}
-                  onChange={(e) => setNote(e.target.value)}
+                  disabled={isSubmitting}
+                  onChange={e => onDetailsChange({ ...details, note: e.target.value })}
                   placeholder="למשל: זליכה יביא אוטובוסים לקלפיות"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm shadow-xs"
                 />

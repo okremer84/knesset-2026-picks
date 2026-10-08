@@ -3,7 +3,7 @@ import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SeatPicker } from '../../src/components/SeatPicker';
-import { reconcileDraft, sameSeats } from '../../src/utils/predictionDraft';
+import { reconcileDraft, sameSeats, predictionDetails } from '../../src/utils/predictionDraft';
 import type { Prediction } from '../../src/types';
 
 const submitted: Prediction = { id: 'pick', userId: 1, memberName: 'Tester', pickName: 'My pick', seats: { likud: 120 }, submittedAt: '2026-10-06T12:00:00Z', turnoutPercentage: 70 };
@@ -22,7 +22,7 @@ test('server refresh initializes empty drafts and updates clean drafts without d
 
 test('picker distinguishes unsubmitted, submitted, changed and loading states', () => {
   const render = (currentSeats: Record<string, number>, prediction?: Prediction, isLoading = false) => renderToStaticMarkup(
-    <SeatPicker currentSeats={currentSeats} prediction={prediction} isLoading={isLoading} isSubmitting={false} isLocked={false} onSeatsChange={() => {}} onSubmitPrediction={async () => {}}/>,
+    <SeatPicker details={predictionDetails(prediction)} onDetailsChange={() => {}} currentSeats={currentSeats} prediction={prediction} isLoading={isLoading} isSubmitting={false} isLocked={false} onSeatsChange={() => {}} onSubmitPrediction={async () => {}}/>,
   );
   assert.match(render(submitted.seats), /טיוטה — התחזית עדיין לא הוגשה/);
   assert.match(render(submitted.seats, submitted), /התחזית הוגשה — אין שינויים שלא הוגשו/);
@@ -32,7 +32,7 @@ test('picker distinguishes unsubmitted, submitted, changed and loading states', 
 });
 
 test('failed prediction loading is unavailable rather than loading or ready to submit', () => {
-  const html = renderToStaticMarkup(<SeatPicker currentSeats={submitted.seats} prediction={submitted} hasLoadError isSubmitting={false} isLocked={false} onSeatsChange={() => {}} onSubmitPrediction={async () => {}}/>);
+  const html = renderToStaticMarkup(<SeatPicker details={predictionDetails(submitted)} onDetailsChange={() => {}} currentSeats={submitted.seats} prediction={submitted} hasLoadError isSubmitting={false} isLocked={false} onSeatsChange={() => {}} onSubmitPrediction={async () => {}}/>);
   assert.match(html, /מצב ההגשה אינו זמין — לא ניתן לטעון את התחזית/);
   assert.doesNotMatch(html, /טוענים את מצב ההגשה/);
   assert.match(html, /<button[^>]*disabled=""[^>]*>מצב ההגשה אינו זמין<\/button>/);

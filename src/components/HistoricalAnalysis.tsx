@@ -1,53 +1,13 @@
 import React, { useState } from 'react';
-import { TrendingUp, BookOpen, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, BookOpen } from 'lucide-react';
 import { HISTORICAL_ELECTIONS, HISTORICAL_INSIGHTS } from '../data/historical';
-import { calculateScore } from '../utils/scoring';
-import { PARTIES_LIST } from '../data/parties';
 
-interface HistoricalAnalysisProps {
-  userSeats: Record<string, number>;
-  onNavigateToPicker: () => void;
-}
-
-export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
-  userSeats,
-}) => {
+export const HistoricalAnalysis: React.FC = () => {
   const [selectedKnessetNumber, setSelectedKnessetNumber] = useState<number>(25);
 
   const selectedElection =
     HISTORICAL_ELECTIONS.find((e) => e.knessetNumber === selectedKnessetNumber) ||
     HISTORICAL_ELECTIONS[0];
-
-  const totalUserSeats = PARTIES_LIST.reduce(
-    (sum, p) => sum + (Number(userSeats[p.id]) || 0),
-    0
-  );
-  const isPredictionComplete = totalUserSeats === 120;
-
-  // Convert election results to Record<partyId, seats> for comparison
-  const historicalBenchmarkSeats: Record<string, number> = Object.fromEntries(PARTIES_LIST.map(p => [p.id, 0]));
-  selectedElection.results.forEach((r) => {
-    if (r.partyName.includes('הליכוד')) historicalBenchmarkSeats['likud'] = r.seats;
-    else if (r.partyName.includes('סמוטריץ') || r.partyName.includes('הציונות הדתית')) {
-      historicalBenchmarkSeats['religious_zionism'] = r.seats;
-    } else if (r.partyName.includes('כחול לבן')) historicalBenchmarkSeats['kachol_lavan'] = r.seats;
-    else if (r.partyName.includes('המחנה הממלכתי')) historicalBenchmarkSeats['yashar'] = r.seats;
-    else if (r.partyName.includes('ש"ס')) historicalBenchmarkSeats['shas'] = r.seats;
-    else if (r.partyName.includes('יהדות התורה')) historicalBenchmarkSeats['utj'] = r.seats;
-    else if (r.partyName.includes('ישראל ביתנו')) historicalBenchmarkSeats['israel_beitenu'] = r.seats;
-    else if (r.partyName.includes('רע"ם')) historicalBenchmarkSeats['raam'] = r.seats;
-    else if (r.partyName.includes('חד"ש') || r.partyName.includes('המשותפת')) {
-      historicalBenchmarkSeats['joint_list'] = r.seats;
-    } else if (r.partyName.includes('העבודה') || r.partyName.includes('מרצ')) {
-      historicalBenchmarkSeats['democrats'] = (historicalBenchmarkSeats['democrats'] || 0) + r.seats;
-    } else if (r.partyName.includes('ימינה')) {
-      historicalBenchmarkSeats['beyachad'] = r.seats;
-    }
-  });
-
-  const historicalScore = isPredictionComplete
-    ? calculateScore(userSeats, historicalBenchmarkSeats)
-    : null;
 
   return (
     <div className="space-y-6 text-slate-900 pb-8">
@@ -159,27 +119,7 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({
           </div>
         </div>
 
-        {/* Test your prediction against this historical election */}
-        {isPredictionComplete && historicalScore && (
-          <div className="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div>
-              <div className="font-bold text-emerald-900 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                השוואה משוערת לפי מיפוי מפלגות המשחק לכנסת ה-{selectedElection.knessetNumber}:
-              </div>
-              <p className="text-emerald-800 mt-1">הרשימות והבריתות השתנו בין הבחירות; זהו מיפוי משוער, לא דירוג רשמי.</p>
-              <div className="text-emerald-800 mt-0.5">
-                סך ההפרשים בהשוואה ההיסטורית:{' '}
-                <strong className="text-emerald-950 text-sm">{historicalScore.totalSeatDiff} מנדטים</strong>{' '}
-                — פחות עדיף, אפס פירושו התאמה מלאה למיפוי.
-              </div>
-            </div>
 
-            <div className="px-3 py-1.5 rounded-lg bg-white text-emerald-800 font-bold shrink-0 border border-emerald-300 ">
-              {historicalScore.rankTitle}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Historical Insights */}
