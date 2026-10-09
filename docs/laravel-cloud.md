@@ -34,6 +34,22 @@ php artisan db:seed --force
 
 The seeder only initializes an empty surveys table. Do not make external Wikipedia availability a deployment requirement; the importer runs separately and preserves the last good data on failure.
 
+## Refresh production polls
+
+Deploy the latest code first, including any importer fixes. In Laravel Cloud, open the application's **production environment → Commands** and run:
+
+```sh
+php artisan polls:sync
+```
+
+Check that it exits successfully and prints `Imported N polls`. This updates the production poll tables and retains revision history. It does not change player predictions or league memberships. Re-running `db:seed` will not update an existing surveys table, and these picker/importer fixes need no new database migration.
+
+The command fetches live Wikipedia data and applies reviewed metadata corrections from `config/poll-metadata-corrections.json` before saving. This includes Channel 14's October 7 sample size (1,100) and Israel Hayom's October 8 source link. Deploying this configuration and running `polls:sync` updates existing production rows and preserves the corrections on nightly imports; no manual SQL or separate bundle import is needed. The standard build's `php artisan config:cache` includes the correction configuration.
+
+Each correction records its evidence, review date, known source value, and replacement. If Wikipedia already has the reviewed replacement, the import accepts it without creating another revision. If the affected field contains an unexpected third value, the entire import fails for review and keeps the previous polls. Confirm the new value against the publisher, update or retire the correction, deploy, and run `polls:sync` again.
+
+With the App compute cluster's **Scheduler** enabled and deployed, future imports run nightly at **03:17 Asia/Jerusalem**. Run `php artisan schedule:list` in Commands to inspect the configured schedule.
+
 ## Environment
 
 ```dotenv

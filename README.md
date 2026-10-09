@@ -28,7 +28,7 @@ The seeder imports only the bundled, previously reviewed Wikipedia feed into an 
 - The creator is the commissioner. Others join using the random invitation code.
 - The election date defaults to 27/10/2026; override `ELECTION_DATE` (YYYY-MM-DD) if it changes. The commissioner chooses a submission date when creating the league, no later than election day. Submissions always close at 20:00 Asia/Jerusalem on that date. The deadline cannot be edited after creation. Accepted timestamps are normalized to UTC before storage. The server rejects prediction edits and new members at or after that instant. Existing members can still open their league.
 - Each user has one personal prediction shared by all leagues, including leagues joined later. It locks at the earliest deadline of their leagues (or election-day cutoff with no leagues). Each league reveals it at its own deadline.
-- Every prediction must contain exactly 120 nonnegative integer seats using recognized party IDs, and a turnout prediction with at most one decimal place.
+- Every prediction must contain exactly 120 integer seats using recognized party IDs. Each party must receive either 0 or at least 4 seats. A turnout prediction with at most one decimal place is also required.
 - Other players' picks and notes stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
 - Lower total absolute seat error wins. Closeness to official turnout is the only tiebreak; until it is published, equal seat errors share a position. Complete ties share a position.
 - A poll's unreported parties are excluded from comparison rather than invented as zero.
@@ -57,6 +57,8 @@ A successful batch is committed atomically. Unknown labels, ambiguous identities
 The API reports the latest import status. The frontend shows a notice after a failed import or when it must display its bundled fallback. Operators should monitor failed runs and the last successful timestamp, and arrange database backups. Source HTML is gzip-compressed and deduplicated by SHA-256 in `poll_snapshots`. A daily 03:05 Asia/Jerusalem cleanup removes bodies not observed for 30 days; import hashes/statuses and survey revisions remain. Run `php artisan polls:prune-snapshots` to clean up manually. Long-term raw-source archival is not configured.
 
 Wikipedia is a secondary source that can be edited incorrectly. Seat-total validation does not establish factual accuracy. Each poll includes its source links. Party labels and alliance mappings need human review when the ballot changes.
+
+Reviewed sample-size and source-link corrections live in `config/poll-metadata-corrections.json`, keyed by the exact poll ID with evidence and review notes. The importer applies them on every sync, accepts an upstream fix to the reviewed value, and fails for review on any unexpected value. Corrected metadata and notes are recorded in the normal survey revisions; raw Wikipedia snapshots remain unchanged. Deploy changes to this configuration before running `polls:sync` in production.
 
 ### Publishing reviewed election results
 

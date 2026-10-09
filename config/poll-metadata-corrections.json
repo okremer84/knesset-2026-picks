@@ -1,0 +1,28 @@
+{
+  "wiki-75e877286f04aa687bfad80da02fbc41ca1c359bc923a81bae75731b3e07a527": [
+    {
+      "poll": "Channel 14 · 2026-10-07",
+      "field": "sampleSize",
+      "from": 2175,
+      "to": 1100,
+      "evidenceUrl": "https://www.c14.co.il/article/1728516",
+      "reviewedOn": "2026-10-08",
+      "note": "גודל המדגם תוקן לפי הפרסום המקורי של ערוץ 14 (1,100), במקום 2,175 בטבלת ויקיפדיה."
+    }
+  ],
+  "wiki-d31457f73421643ed6b5d15a580363c8bc0fcb2c66c52d55ae29a821c09a87b8": [
+    {
+      "poll": "Israel Hayom · 2026-10-08",
+      "field": "originalSourceUrls",
+      "from": [
+        "https://www.israelhayom.co.il/news/politics/article/21444759"
+      ],
+      "to": [
+        "https://www.israelhayom.co.il/news/politics/article/21582636"
+      ],
+      "evidenceUrl": "https://www.skarim.org/channels/israel-hayom",
+      "reviewedOn": "2026-10-08",
+      "note": "קישור המקור תוקן לפי אתר סקרים (https://www.skarim.org/channels/israel-hayom); הקישור בוויקיפדיה הפנה לסקר מ-17 בספטמבר. נתוני המנדטים הוצלבו עם אתר סקרים; הכתבה המקורית לא הייתה נגישה לבדיקה."
+    }
+  ]
+}
