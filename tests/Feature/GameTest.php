@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\League;
-use App\Models\Prediction;
 use App\Models\Survey;
 use App\Models\User;
 use App\Services\PollStore;
@@ -117,37 +116,6 @@ class GameTest extends TestCase
         }
         $this->postJson('/api/leagues/'.$league->id.'/predict', ['seats' => ['likud' => 120], 'turnoutPercentage' => 101])->assertUnprocessable();
         $this->assertDatabaseCount('personal_predictions', 0);
-    }
-
-    public function test_new_balad_allocations_are_rejected_including_from_stale_clients(): void
-    {
-        $league = $this->league(User::factory()->create());
-        foreach (['/api/my-pick', '/api/leagues/'.$league->id.'/predict'] as $endpoint) {
-            $this->postJson($endpoint, $this->picks(['likud' => 112, 'balad' => 8]))->assertUnprocessable();
-        }
-        $this->assertDatabaseCount('personal_predictions', 0);
-        $this->assertDatabaseCount('personal_prediction_revisions', 0);
-        $this->postJson('/api/my-pick', $this->picks(['likud' => 112, 'joint_list' => 8, 'balad' => 0]))->assertOk();
-    }
-
-    public function test_existing_balad_allocations_are_preserved_but_cannot_be_increased(): void
-    {
-        $user = User::factory()->create();
-        $seats = ['likud' => 104, 'joint_list' => 8, 'balad' => 8];
-        $prediction = Prediction::create(['user_id' => $user->id, 'seats' => $seats, 'turnout' => 70.5]);
-        $this->actingAs($user)->getJson('/api/my-picks')->assertOk()
-            ->assertJsonPath('pick.seats.balad', 8)->assertJsonPath('pick.seats.joint_list', 8);
-        $this->assertSame($seats, $prediction->fresh()->seats);
-        $this->postJson('/api/my-pick', $this->picks(['likud' => 100, 'joint_list' => 12, 'balad' => 8]))->assertOk()
-            ->assertJsonPath('pick.seats.balad', 8)->assertJsonPath('pick.seats.joint_list', 12);
-        $this->postJson('/api/my-pick', $this->picks(['likud' => 100, 'joint_list' => 8, 'balad' => 12]))->assertUnprocessable();
-        $this->assertSame(8, $prediction->fresh()->seats['balad']);
-        $this->assertDatabaseCount('personal_prediction_revisions', 1);
-        $this->postJson('/api/my-pick', $this->picks(['likud' => 112, 'joint_list' => 8]))->assertOk()
-            ->assertJsonPath('pick.seats.balad', 0)->assertJsonPath('pick.seats.joint_list', 8);
-        $this->postJson('/api/my-pick', $this->picks($seats))->assertUnprocessable();
-        $this->assertSame(0, $prediction->fresh()->seats['balad']);
-        $this->assertDatabaseCount('personal_prediction_revisions', 2);
     }
 
     public function test_predictions_require_zero_or_at_least_four_seats_per_party(): void

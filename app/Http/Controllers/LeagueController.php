@@ -139,12 +139,6 @@ class LeagueController extends Controller
             User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
             $leagues = League::whereHas('users', fn ($q) => $q->where('users.id', $r->user()->id))->orderBy('id')->lockForUpdate()->get();
             abort_if(now()->gte(CarbonImmutable::parse(self::deadlineLimit())) || $leagues->contains(fn ($l) => $l->isLocked()), 409, 'מועד ההגשה הסתיים');
-            $previousSeats = Prediction::where('user_id', $r->user()->id)->first()?->seats ?? [];
-            foreach (config('election.parties') as $id => $party) {
-                if (($party['selectable'] ?? true) === false) {
-                    abort_if($seats[$id] > ($previousSeats[$id] ?? 0), 422, $party['name'].' אינה מתמודדת בנפרד. ניתן לשמור הקצאה קיימת או להפחית אותה.');
-                }
-            }
             $p = Prediction::updateOrCreate(['user_id' => $r->user()->id], ['seats' => $seats, 'turnout' => $data['turnoutPercentage'], 'note' => $data['note'] ?? null, ...(array_key_exists('pickName', $data) ? ['pick_name' => $data['pickName']] : [])]);
             DB::table('personal_prediction_revisions')->insert(['prediction_id' => $p->id, 'payload' => json_encode(['seats' => $seats, 'turnout' => $p->turnout, 'note' => $p->note, 'pickName' => $p->pick_name]), 'created_at' => now()]);
         }, 3);
