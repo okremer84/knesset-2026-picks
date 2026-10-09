@@ -8,6 +8,9 @@ import { AlertCircle, Send, Award, Plus, Minus, X } from 'lucide-react';
 import { PARTIES_LIST } from '../data/parties';
 import { LeaderPortrait } from './LeaderPortrait';
 
+const MINIMUM_PARTY_SEATS = 4;
+const belowMinimum = (seats: number) => seats > 0 && seats < MINIMUM_PARTY_SEATS;
+
 interface SeatPickerProps {
   currentSeats: Record<string, number>;
   details: PredictionDetails;
@@ -54,6 +57,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
   const diffFrom120 = totalAllocated - 120;
   const isExact120 = totalAllocated === 120;
+  const hasBelowMinimum = PARTIES_LIST.some(party => belowMinimum(Number(currentSeats[party.id]) || 0));
 
   // Calculate user bloc counts based purely on their own picks
   const userBlocCounts = PARTIES_LIST.reduce(
@@ -94,7 +98,9 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
   const handleAdjust = (partyId: string, delta: number) => {
     const current = Number(currentSeats[partyId]) || 0;
-    handleSeatChange(partyId, current + delta);
+    const next = delta > 0 ? Math.max(MINIMUM_PARTY_SEATS, current + delta)
+      : current <= MINIMUM_PARTY_SEATS ? 0 : current + delta;
+    handleSeatChange(partyId, next);
   };
 
   // Discard draft edits, restoring the submitted pick when available.
@@ -108,6 +114,11 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
     e.preventDefault();
     if (!pickName.trim()) {
       setErrorMessage('נא להזין שם לתחזית');
+      return;
+    }
+
+    if (hasBelowMinimum) {
+      setErrorMessage('כל מפלגה יכולה לקבל 0 מנדטים או לפחות 4 מנדטים');
       return;
     }
 
@@ -140,7 +151,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
   const handleBottomSubmit = (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
-    if (!isExact120) return;
+    if (!isExact120 || hasBelowMinimum) return;
     setErrorMessage('');
     setShowSubmitModal(true);
   };
@@ -151,7 +162,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
         <div>
           <p className="eyebrow">הכנסת ה־26 / התחזית שלך</p>
           <h1>איך תיראה הכנסת הבאה?</h1>
-          <p>בחרו את מספר המנדטים שכל מפלגה תקבל לדעתכם</p>
+          <p>בחרו את מספר המנדטים שכל מפלגה תקבל לדעתכם — 0 או לפחות 4 מנדטים</p>
         </div>
 
       </div>
@@ -168,7 +179,10 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
             <LeaderPortrait party={party}/>
             <div className="seat-control">
               <button type="button" disabled={isLocked || seats >= 120} onClick={() => handleAdjust(party.id, 1)} aria-label={`הוספת מנדט ל${party.name}`}><Plus size={16}/></button>
-              <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked} aria-label={`מנדטים ל${party.name}`} value={seats || ''} placeholder="0" onChange={e => handleSeatChange(party.id, e.target.value.replace(/[^0-9]/g, ''))}/>
+              <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked} aria-label={`מנדטים ל${party.name}`} aria-invalid={belowMinimum(seats)} value={seats || ''} placeholder="0" onChange={e => handleSeatChange(party.id, e.target.value.replace(/[^0-9]/g, ''))} onBlur={() => {
+                // Let users finish typing values such as 12 before enforcing the minimum.
+                if (belowMinimum(seats)) handleSeatChange(party.id, MINIMUM_PARTY_SEATS);
+              }}/>
               <button type="button" disabled={isLocked || seats === 0} onClick={() => handleAdjust(party.id, -1)} aria-label={`הפחתת מנדט ל${party.name}`}><Minus size={16}/></button>
             </div>
           </article>;
@@ -178,7 +192,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       <div className="prediction-dock">
         <div className="prediction-progress" role="progressbar" aria-label="מנדטים שחולקו" aria-valuemin={0} aria-valuemax={120} aria-valuenow={Math.min(120, totalAllocated)} aria-valuetext={`${totalAllocated} מתוך 120 מנדטים`}><span style={{ width: `${Math.min(100, totalAllocated / 120 * 100)}%` }}/></div>
         <div className="prediction-dock-content">
-          <div className="prediction-total"><strong dir="ltr">{totalAllocated}<small> / 120</small></strong><span role="status">{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'התחזית נעולה' : isExact120 ? (prediction && !hasChanges ? 'התחזית הוגשה' : 'מוכנה להגשה — טרם נשלחה') : diffFrom120 === 1 ? 'מנדט אחד יותר מדי' : diffFrom120 > 0 ? `יש לך ${diffFrom120} מנדטים יותר מדי` : diffFrom120 === -1 ? 'חסר מנדט אחד' : `עוד ${Math.abs(diffFrom120)} מנדטים לחלוקה`}</span></div>
+          <div className="prediction-total"><strong dir="ltr">{totalAllocated}<small> / 120</small></strong><span role="status">{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'התחזית נעולה' : hasBelowMinimum ? 'לכל מפלגה יש לבחור 0 או לפחות 4 מנדטים' : isExact120 ? (prediction && !hasChanges ? 'התחזית הוגשה' : 'מוכנה להגשה — טרם נשלחה') : diffFrom120 === 1 ? 'מנדט אחד יותר מדי' : diffFrom120 > 0 ? `יש לך ${diffFrom120} מנדטים יותר מדי` : diffFrom120 === -1 ? 'חסר מנדט אחד' : `עוד ${Math.abs(diffFrom120)} מנדטים לחלוקה`}</span></div>
           <div className="bloc-summary" aria-label="חלוקת המנדטים לפי גושים">
             <span>קואליציה <strong>{userBlocCounts.coalition}</strong></span>
             <span>אופוזיציה <strong>{userBlocCounts.opposition}</strong></span>
@@ -186,7 +200,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
             <span>עצמאיות <strong>{userBlocCounts.other}</strong></span>
           </div>
           <div className="prediction-actions">
-          <button className="button-primary" disabled={!isExact120 || isSubmitting || isLocked || isLoading || hasLoadError} onClick={handleBottomSubmit}>{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
+          <button className="button-primary" disabled={!isExact120 || hasBelowMinimum || isSubmitting || isLocked || isLoading || hasLoadError} onClick={handleBottomSubmit}>{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
             <button className="reset-draft" disabled={isLocked || isLoading || hasLoadError || isSubmitting || (prediction ? !hasChanges : totalAllocated === 0 && !pickName && !note && !turnoutPercentage)} onClick={() => {
               if (window.confirm(prediction ? 'לבטל את השינויים בטיוטה ולחזור לתחזית שהוגשה?' : 'לנקות את הטיוטה ולהתחיל מחדש?')) handleResetDraft();
             }}>איפוס הטיוטה</button>

@@ -1,7 +1,143 @@
 {
-    "syncedAt": "2026-10-06T15:04:56+00:00",
-    "sourceSnapshot": "c71641b9f103b02209ee5e9559c21b2509f32e44ff46081726a5c1dc7bc2c210",
+    "syncedAt": "2026-10-09T04:01:09+00:00",
+    "sourceSnapshot": "ad0562230bd67a50a720dba27a14eda676305c5b48b545a746d52d6d1e7993f9",
     "surveys": [
+        {
+            "id": "wiki-d31457f73421643ed6b5d15a580363c8bc0fcb2c66c52d55ae29a821c09a87b8",
+            "kind": "opinion_poll",
+            "title": "Israel Hayom · 2026-10-08",
+            "institute": "Kantar",
+            "channelOrMedia": "Israel Hayom",
+            "date": "2026-10-08",
+            "seats": {
+                "likud": 21,
+                "beyachad": 13,
+                "religious_zionism": 6,
+                "otzma_yehudit": 9,
+                "kachol_lavan": 0,
+                "shas": 7,
+                "utj": 8,
+                "israel_beitenu": 8,
+                "raam": 5,
+                "joint_list": 8,
+                "democrats": 8,
+                "yashar": 22,
+                "hendel": 5,
+                "amcha": 0
+            },
+            "blocs": {
+                "coalition": 51,
+                "opposition": 51,
+                "arab": 13,
+                "other": 5
+            },
+            "source": "wikipedia",
+            "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+            "originalSourceUrls": [
+                "https://www.israelhayom.co.il/news/politics/article/21582636"
+            ],
+            "syncedAt": "2026-10-09T04:01:08+00:00",
+            "votePercentages": {
+                "kachol_lavan": 1.2,
+                "amcha": 2.9
+            },
+            "notReportedPartyIds": [
+                "balad"
+            ],
+            "notes": "תאריכי הסקר במקור: 7–8 Oct. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק. Haredi Public: — N/a. קישור המקור תוקן לפי אתר סקרים (https://www.skarim.org/channels/israel-hayom); הקישור בוויקיפדיה הפנה לסקר מ-17 בספטמבר. נתוני המנדטים הוצלבו עם אתר סקרים; הכתבה המקורית לא הייתה נגישה לבדיקה.",
+            "sampleSize": 555
+        },
+        {
+            "id": "wiki-4ff11eb149f8ee18cb5c73bdb61d844b48f2cc17ad5e21dd9dcb9ccad2519771",
+            "kind": "opinion_poll",
+            "title": "Channel 13 · 2026-10-07",
+            "institute": "MP+TM+SN+A",
+            "channelOrMedia": "Channel 13",
+            "date": "2026-10-07",
+            "seats": {
+                "likud": 20,
+                "beyachad": 12,
+                "religious_zionism": 7,
+                "otzma_yehudit": 8,
+                "kachol_lavan": 0,
+                "shas": 7,
+                "utj": 8,
+                "israel_beitenu": 8,
+                "raam": 6,
+                "joint_list": 9,
+                "democrats": 10,
+                "yashar": 20,
+                "hendel": 0,
+                "amcha": 5
+            },
+            "blocs": {
+                "coalition": 55,
+                "opposition": 50,
+                "arab": 15,
+                "other": 0
+            },
+            "source": "wikipedia",
+            "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+            "originalSourceUrls": [
+                "https://13tv.co.il/item/news/politics/politics/survey-905386103/?pid=985778"
+            ],
+            "syncedAt": "2026-10-09T04:01:08+00:00",
+            "votePercentages": {
+                "kachol_lavan": 0.8,
+                "hendel": 2.9
+            },
+            "notReportedPartyIds": [
+                "balad"
+            ],
+            "notes": "תאריכי הסקר במקור: 7 Oct. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק. Haredi Public: (1.1%).",
+            "sampleSize": 1013
+        },
+        {
+            "id": "wiki-75e877286f04aa687bfad80da02fbc41ca1c359bc923a81bae75731b3e07a527",
+            "kind": "opinion_poll",
+            "title": "Channel 14 · 2026-10-07",
+            "institute": "SF+ND",
+            "channelOrMedia": "Channel 14",
+            "date": "2026-10-07",
+            "seats": {
+                "likud": 31,
+                "beyachad": 8,
+                "religious_zionism": 6,
+                "otzma_yehudit": 8,
+                "kachol_lavan": 0,
+                "shas": 10,
+                "utj": 8,
+                "israel_beitenu": 5,
+                "raam": 5,
+                "joint_list": 7,
+                "democrats": 9,
+                "yashar": 23,
+                "hendel": 0,
+                "amcha": 0
+            },
+            "blocs": {
+                "coalition": 63,
+                "opposition": 45,
+                "arab": 12,
+                "other": 0
+            },
+            "source": "wikipedia",
+            "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
+            "originalSourceUrls": [
+                "https://www.c14.co.il/article/1728516"
+            ],
+            "syncedAt": "2026-10-09T04:01:08+00:00",
+            "votePercentages": {
+                "kachol_lavan": 1.3,
+                "hendel": 1.8,
+                "amcha": 2.2
+            },
+            "notReportedPartyIds": [
+                "balad"
+            ],
+            "notes": "תאריכי הסקר במקור: 7 Oct. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק. Haredi Public: (0.4%). גודל המדגם תוקן לפי הפרסום המקורי של ערוץ 14 (1,100), במקום 2,175 בטבלת ויקיפדיה.",
+            "sampleSize": 1100
+        },
         {
             "id": "wiki-3147468a4e566427a58297a79cc542be71a71c6fdcd15ae22fb7d4cc357b5909",
             "kind": "opinion_poll",
@@ -124,9 +260,9 @@
             "source": "wikipedia",
             "sourceUrl": "https://en.wikipedia.org/wiki/Opinion_polling_for_the_2026_Israeli_legislative_election",
             "originalSourceUrls": [
-                "https://www.c14.co.il/article/1716250"
+                "https://www.c14.co.il/article/1720749"
             ],
-            "syncedAt": "2026-10-06T15:04:56+00:00",
+            "syncedAt": "2026-10-09T04:01:08+00:00",
             "votePercentages": {
                 "kachol_lavan": 0.4,
                 "hendel": 1.2,
@@ -417,7 +553,6 @@
                 "beyachad": 11,
                 "religious_zionism": 6,
                 "otzma_yehudit": 7,
-                "kachol_lavan": 0,
                 "shas": 7,
                 "utj": 7,
                 "israel_beitenu": 9,
@@ -439,12 +574,13 @@
             "originalSourceUrls": [
                 "https://www.kan.org.il/content/kan-news/politic/1103667/"
             ],
-            "syncedAt": "2026-10-06T15:04:56+00:00",
+            "syncedAt": "2026-10-09T04:01:08+00:00",
             "votePercentages": {},
             "notReportedPartyIds": [
+                "kachol_lavan",
                 "balad"
             ],
-            "notes": "תאריכי הסקר במקור: 27 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק. Blue & White: (<3.25%); Haredi Public: (<3.25%).",
+            "notes": "תאריכי הסקר במקור: 27 Sep. נתוני הסקר נאספו מוויקיפדיה; חלוקת הגושים מחושבת לפי הגדרות המשחק. Haredi Public: — N/a.",
             "sampleSize": 552
         },
         {

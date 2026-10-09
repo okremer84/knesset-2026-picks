@@ -19,6 +19,70 @@ class PollSyncTest extends TestCase
         return file_get_contents(base_path('tests/Fixtures/wikipedia-current.html'));
     }
 
+    private function metadataHtml(): string
+    {
+        return file_get_contents(base_path('tests/Fixtures/wikipedia-october-metadata.html'));
+    }
+
+    public function test_live_metadata_matches_the_reviewed_bundle(): void
+    {
+        $expected = collect(json_decode(file_get_contents(base_path('data/wikipedia-surveys.json')), true)['surveys'])->keyBy('id');
+        $polls = app(WikipediaPolls::class)->parse($this->metadataHtml());
+        $this->assertCount(3, $polls);
+        foreach ($polls as $poll) {
+            $reviewed = $expected[$poll['id']];
+            unset($reviewed['syncedAt'], $poll['syncedAt']);
+            $this->assertEquals($reviewed, $poll);
+        }
+    }
+
+    public function test_sync_corrects_existing_metadata_once_and_preserves_it_on_repeat(): void
+    {
+        // Simulate production having already imported the two known source errors.
+        $corrections = config('election.metadata_corrections');
+        config(['election.metadata_corrections' => []]);
+        $rawPolls = app(WikipediaPolls::class)->parse($this->metadataHtml());
+        config(['election.metadata_corrections' => $corrections]);
+        foreach ($rawPolls as $poll) {
+            app(PollStore::class)->store($poll);
+        }
+        Http::fake(['*' => Http::response($this->metadataHtml())]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $this->artisan('polls:sync')->assertSuccessful();
+
+        $polls = Survey::all()->mapWithKeys(fn ($survey) => [$survey->payload['channelOrMedia'] => $survey->payload]);
+        $this->assertSame(1100, $polls['Channel 14']['sampleSize']);
+        $this->assertSame(['https://www.israelhayom.co.il/news/politics/article/21582636'], $polls['Israel Hayom']['originalSourceUrls']);
+        $this->assertSame(1013, $polls['Channel 13']['sampleSize']);
+        $this->assertDatabaseCount('surveys', 3);
+        $this->assertDatabaseCount('survey_revisions', 5);
+    }
+
+    public function test_upstream_metadata_fixes_are_accepted_without_extra_revisions(): void
+    {
+        $fixed = str_replace(['>2175<', 'article/21444759'], ['>1100<', 'article/21582636'], $this->metadataHtml());
+        Http::fake(['*' => Http::sequence()->push($this->metadataHtml())->push($fixed)]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $this->artisan('polls:sync')->assertSuccessful();
+        $this->assertDatabaseCount('surveys', 3);
+        $this->assertDatabaseCount('survey_revisions', 3);
+    }
+
+    public function test_unexpected_metadata_changes_fail_sync_without_overwriting_reviewed_polls(): void
+    {
+        $changedSample = str_replace('>2175<', '>1200<', $this->metadataHtml());
+        $changedSource = str_replace('article/21444759', 'article/99999999', $this->metadataHtml());
+        Http::fake(['*' => Http::sequence()->push($this->metadataHtml())->push($changedSample)->push($changedSource)]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $before = Survey::all()->toArray();
+        $this->artisan('polls:sync')->assertFailed();
+        $this->assertEquals($before, Survey::all()->toArray());
+        $this->artisan('polls:sync')->assertFailed();
+        $this->assertEquals($before, Survey::all()->toArray());
+        $this->assertDatabaseCount('survey_revisions', 3);
+        $this->assertDatabaseHas('poll_imports', ['status' => 'failed']);
+    }
+
     public function test_parser_matches_previously_reviewed_feed_and_retains_source_links(): void
     {
         $parsed = app(WikipediaPolls::class)->parse($this->html());
@@ -43,6 +107,8 @@ class PollSyncTest extends TestCase
         $this->assertSame(23, $latest['seats']['yashar']);
         $this->assertSame(120, array_sum($latest['seats']));
         $this->assertStringContainsString('Haredi Public: (0.6%)', $latest['notes']);
+        // The October 7 correction must not change the October 1 poll's sample.
+        $this->assertSame(2175, $polls->firstWhere('channelOrMedia', 'Channel 14')['sampleSize']);
         $missing = $polls->firstWhere('channelOrMedia', 'i24 News');
         $this->assertContains('kachol_lavan', $missing['notReportedPartyIds']);
         $this->assertArrayNotHasKey('kachol_lavan', $missing['seats']);
@@ -52,6 +118,26 @@ class PollSyncTest extends TestCase
         $this->assertStringContainsString('(<3.25%)', $bounded['notes']);
         $this->expectException(\RuntimeException::class);
         app(WikipediaPolls::class)->parse(str_replace('(0.6%)', '4', $html));
+    }
+
+    public function test_inline_styles_do_not_turn_missing_poll_results_into_data(): void
+    {
+        $html = file_get_contents(base_path('tests/Fixtures/wikipedia-october.html'));
+        // Wikipedia emits TemplateStyles at the first occurrence of its N/a template.
+        $html = str_replace(
+            '<span id="mwAXc">(0.6%)</span>',
+            '<span>—</span><style>.mw-parser-output .sr-only{position:absolute;width:1px}</style><span class="sr-only">N/a</span>',
+            $html,
+            $replacements,
+        );
+        $this->assertSame(1, $replacements);
+
+        $poll = app(WikipediaPolls::class)->parse($html)[0];
+
+        $this->assertSame('2026-10-05', $poll['date']);
+        $this->assertSame(120, array_sum($poll['seats']));
+        $this->assertStringContainsString('Haredi Public: — N/a.', $poll['notes']);
+        $this->assertStringNotContainsString('mw-parser-output', $poll['notes']);
     }
 
     public function test_sync_is_idempotent_and_failure_preserves_last_good_surveys(): void

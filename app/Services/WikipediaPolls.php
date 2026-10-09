@@ -15,7 +15,8 @@ class WikipediaPolls
         $copy = $doc->importNode($cell, true);
         $doc->appendChild($copy);
         $xp = new DOMXPath($doc);
-        foreach ($xp->query('//sup | //*[contains(concat(" ",normalize-space(@class)," ")," sortkey ")]') as $node) {
+        // TemplateStyles can appear inside the first N/a cell in a table.
+        foreach ($xp->query('//style | //sup | //*[contains(concat(" ",normalize-space(@class)," ")," sortkey ")]') as $node) {
             $node->parentNode->removeChild($node);
         }
         // textContent joins adjacent elements; inserting spaces matches rendered table labels.
@@ -63,6 +64,27 @@ class WikipediaPolls
             ksort($row);
             yield $row;
         }
+    }
+
+    private function correctMetadata(array $poll): array
+    {
+        foreach (config('election.metadata_corrections', [])[$poll['id']] ?? [] as $correction) {
+            $field = $correction['field'];
+            if (! in_array($field, ['sampleSize', 'originalSourceUrls'], true)) {
+                throw new RuntimeException('Unsupported metadata correction field: '.$field);
+            }
+            $actual = $poll[$field] ?? null;
+            // Accept the known source error or its reviewed correction. Any third
+            // value needs review rather than being silently overwritten.
+            if ($actual !== $correction['from'] && $actual !== $correction['to']) {
+                throw new RuntimeException('Poll metadata correction requires review: '.$poll['title'].' / '.$field);
+            }
+            $poll[$field] = $correction['to'];
+            // Keep the review history stable even after Wikipedia fixes the value.
+            $poll['notes'] .= ' '.$correction['note'];
+        }
+
+        return $poll;
     }
 
     public function parse(string $html): array
@@ -232,6 +254,7 @@ class WikipediaPolls
                 if (ctype_digit($sample)) {
                     $polls[$id]['sampleSize'] = (int) $sample;
                 }
+                $polls[$id] = $this->correctMetadata($polls[$id]);
             }
         }
         if (! $polls) {

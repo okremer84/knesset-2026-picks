@@ -118,6 +118,18 @@ class GameTest extends TestCase
         $this->assertDatabaseCount('personal_predictions', 0);
     }
 
+    public function test_predictions_require_zero_or_at_least_four_seats_per_party(): void
+    {
+        $league = $this->league(User::factory()->create());
+        foreach (['/api/my-pick', '/api/leagues/'.$league->id.'/predict'] as $endpoint) {
+            $this->postJson($endpoint, $this->picks(['likud' => 116, 'beyachad' => 4, 'shas' => 0]))->assertOk();
+            foreach ([1, 2, 3] as $belowMinimum) {
+                $this->postJson($endpoint, $this->picks(['likud' => 120 - $belowMinimum, 'beyachad' => $belowMinimum]))->assertUnprocessable();
+            }
+            $this->getJson('/api/my-picks')->assertJsonPath('pick.seats.beyachad', 4);
+        }
+    }
+
     public function test_leagues_wait_for_published_exit_poll_then_automatically_use_final_results(): void
     {
         $league = $this->league(User::factory()->create());
