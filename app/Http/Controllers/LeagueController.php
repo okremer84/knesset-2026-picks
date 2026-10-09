@@ -129,8 +129,9 @@ class LeagueController extends Controller
     private function savePersonalPick(Request $r): void
     {
         $ids = array_keys(config('election.parties'));
-        $data = $r->validate(['seats' => ['required', 'array:'.implode(',', $ids)], 'seats.*' => ['required', 'integer', 'min:0', 'max:120'],
-            'pickName' => 'sometimes|nullable|string|max:100', 'note' => 'nullable|string|max:500', 'turnoutPercentage' => 'required|numeric|between:0,100|decimal:0,1']);
+        $data = $r->validate(['seats' => ['required', 'array:'.implode(',', $ids)], 'seats.*' => ['required', 'integer', 'min:0', 'max:120', 'not_in:1,2,3'],
+            'pickName' => 'sometimes|nullable|string|max:100', 'note' => 'nullable|string|max:500', 'turnoutPercentage' => 'required|numeric|between:0,100|decimal:0,1'],
+            ['seats.*.not_in' => 'כל מפלגה יכולה לקבל 0 מנדטים או לפחות 4 מנדטים']);
         abort_unless(array_sum($data['seats']) === 120, 422, 'סך המנדטים חייב להיות 120');
         $seats = array_replace(array_fill_keys($ids, 0), array_map('intval', $data['seats']));
         DB::transaction(function () use ($r, $data, $seats) {

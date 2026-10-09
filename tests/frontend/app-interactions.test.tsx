@@ -100,6 +100,42 @@ function assertDraft() {
   assert.equal(input('הערה לתחזית').value, 'Draft note');
 }
 
+test('seat buttons skip results below four in both directions', async t => {
+  await start(t);
+  const adjust = async (direction: 'הוספת' | 'הפחתת') => {
+    const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${direction} מנדט להליכוד"]`)!;
+    await act(async () => button.click());
+  };
+  assert.equal(input('מנדטים להליכוד').value, '');
+  await adjust('הוספת');
+  assert.equal(input('מנדטים להליכוד').value, '4');
+  await adjust('הוספת');
+  assert.equal(input('מנדטים להליכוד').value, '5');
+  await adjust('הפחתת');
+  assert.equal(input('מנדטים להליכוד').value, '4');
+  await adjust('הפחתת');
+  assert.equal(input('מנדטים להליכוד').value, '');
+});
+
+test('typing multi-digit seats works and a below-minimum draft cannot be submitted', async t => {
+  await start(t);
+  await fill('מנדטים להליכוד', '1');
+  assert.equal(input('מנדטים להליכוד').value, '1');
+  await fill('מנדטים להליכוד', '12');
+  await act(async () => input('מנדטים להליכוד').dispatchEvent(new window.FocusEvent('focusout', { bubbles: true })));
+  assert.equal(input('מנדטים להליכוד').value, '12');
+
+  await fill('מנדטים להליכוד', '117');
+  await fill('מנדטים לביחד', '3');
+  const submitButton = [...document.querySelectorAll('button')].find(b => b.textContent === 'הגשת התחזית')!;
+  assert.equal(submitButton.disabled, true);
+  assert.equal(input('מנדטים לביחד').getAttribute('aria-invalid'), 'true');
+  await act(async () => input('מנדטים לביחד').dispatchEvent(new window.FocusEvent('focusout', { bubbles: true })));
+  assert.equal(input('מנדטים לביחד').value, '4');
+  await fill('מנדטים להליכוד', '116');
+  assert.equal(submitButton.disabled, false);
+});
+
 test('the full draft survives tab navigation and reloading the app', async t => {
   const app = await start(t);
   await openDraft();
@@ -155,7 +191,7 @@ test('reset restores all submitted fields, and background updates preserve local
   assert.equal(input('הערה לתחזית').value, 'Remote note');
 });
 
-test('Balad is absent from new picks and poll selections', async t => {
+test('Balad is absent from new picks', async t => {
   await start(t);
   assert.equal(document.querySelectorAll('.party-card').length, 14);
   assert.ok(![...document.querySelectorAll('input')].some(el => el.getAttribute('aria-label') === 'מנדטים לבל"ד'));
