@@ -84,12 +84,12 @@ export const PARTIES_LIST: Party[] = [
   {
     id: 'joint_list',
     name: 'הרשימה המשותפת',
-    leader: 'איימן עודה',
-    ballotLetter: 'ום',
+    leader: 'פרופ׳ יוסף ג׳בארין',
+    ballotLetter: 'ודם',
     color: '#dc2626',
     bloc: 'arab',
-    description: 'חד"ש ותע"ל בראשות איימן עודה ואחמד טיבי',
-    leaderImageUrl: '/leaders/joint_list.jpg'
+    description: 'רשימה משותפת לחד"ש, תע"ל ובל"ד בראשות פרופ׳ יוסף ג׳בארין',
+    leaderImageUrl: '/leaders/balad-jabareen.png'
   },
   {
     id: 'raam',
