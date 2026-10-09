@@ -183,7 +183,7 @@ class LeagueController extends Controller
             'unsubmittedPlayers' => $l->users->filter(fn ($u) => ! $predictions->contains('user_id', $u->id))->map(fn ($u) => ['id' => (string) $u->id, 'name' => $u->name, 'joinedAt' => $u->pivot->created_at->toIso8601String()])->values(),
             'deadlineLimit' => self::deadlineLimit(),
             'myPickLocked' => $this->personalPickPayload($r->user())['isLocked'],
-            'participants' => $l->users->map(fn ($u) => ['userId' => $u->id, 'name' => $u->name, 'submitted' => $predictions->contains('user_id', $u->id)])->values(),
+            'participants' => $l->users->map(fn ($u) => ['userId' => $u->id, 'name' => $u->name, 'avatarUrl' => $u->avatar_url, 'submitted' => $predictions->contains('user_id', $u->id)])->values(),
             'submittedCount' => $predictions->count(), 'totalPlayersCount' => $l->users->count(), 'predictionsHidden' => ! $locked, 'scoringVersion' => $l->scoring_version];
     }
 }
