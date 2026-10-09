@@ -5,7 +5,7 @@ import { Dialog } from './Dialog';
 import { AlertCircle, Send, Award, Plus, Minus, X } from 'lucide-react';
 
 
-import { PARTIES_LIST, SELECTABLE_PARTIES } from '../data/parties';
+import { PARTIES_LIST } from '../data/parties';
 import { LeaderPortrait } from './LeaderPortrait';
 
 const MINIMUM_PARTY_SEATS = 4;
@@ -57,7 +57,6 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
   const diffFrom120 = totalAllocated - 120;
   const isExact120 = totalAllocated === 120;
-  const retainedParties = PARTIES_LIST.filter(party => party.selectable === false && currentSeats[party.id] > 0);
   const hasBelowMinimum = PARTIES_LIST.some(party => belowMinimum(Number(currentSeats[party.id]) || 0));
 
   // Calculate user bloc counts based purely on their own picks
@@ -173,13 +172,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
         {!isLoading && !hasLoadError && !isSubmitting && !isLocked && prediction && hasChanges && <button type="button" className="button-quiet" onClick={handleResetDraft}>חזרה לתחזית שהוגשה</button>}
       </div>
 
-      {retainedParties.map(party => <div key={party.id} className="prediction-submission-status">
-        <p>{party.name} אינה מתמודדת בנפרד. {currentSeats[party.id]} מנדטים שהוקצו לה נשמרו בבחירה הקיימת.</p>
-        {!isLocked && !isLoading && !hasLoadError && !isSubmitting && <button type="button" className="button-quiet" onClick={() => handleSeatChange(party.id, 0)}>פינוי המנדטים לחלוקה מחדש</button>}
-      </div>)}
-
       <div className="party-grid">
-        {SELECTABLE_PARTIES.map(party => {
+        {PARTIES_LIST.map(party => {
           const seats = Number(currentSeats[party.id]) || 0;
           return <article key={party.id} className={`party-card ${seats > 0 ? 'has-seats' : ''}`}>
             <LeaderPortrait party={party}/>

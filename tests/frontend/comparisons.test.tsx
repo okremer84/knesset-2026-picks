@@ -54,10 +54,10 @@ test('omitted party allocations do not change displayed user bloc totals', () =>
   const survey: Survey = {
     id: 'partial', title: 'Partial poll', kind: 'opinion_poll',
     institute: 'Test', channelOrMedia: 'Test', date: '2026-09-09',
-    seats: { likud: 100, raam: 20 }, notReportedPartyIds: ['balad'],
+    seats: { likud: 100, raam: 20 }, notReportedPartyIds: ['joint_list'],
   };
-  const html = renderToStaticMarkup(<SurveyComparator surveys={[survey]} picks={[{id:'pick', leagueId:'league', leagueName:'League', seats:{ likud: 100, raam: 10, balad: 10 }}]}/>);
-  // The Arab bloc compares the 10 reported-party seats, excluding 10 Balad seats.
+  const html = renderToStaticMarkup(<SurveyComparator surveys={[survey]} picks={[{id:'pick', leagueId:'league', leagueName:'League', seats:{ likud: 100, raam: 10, joint_list: 10 }}]}/>);
+  // The Arab bloc compares the 10 reported-party seats, excluding 10 Joint List seats.
   const arabCard = html.slice(html.indexOf('מפלגות ערביות'), html.indexOf('הנדל וזליכה / אחרות')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(arabCard, /מפלגות ערביות 10 \/ בסקר: 20/);
   assert.match(arabCard, /10 מתחת לסקר/);
@@ -69,10 +69,10 @@ test('average error uses scored parties, including reported zeroes, and handles 
     <SurveyComparator surveys={[{
       id: 'average', title: 'Partial poll', kind: 'opinion_poll',
       institute: 'Test', channelOrMedia: 'Test', date: '2026-09-09', seats,
-    }]} picks={[{id:'pick', leagueId:'league', leagueName:'League', seats:{ likud: 90, raam: 20, balad: 10 }}]}/>
+    }]} picks={[{id:'pick', leagueId:'league', leagueName:'League', seats:{ likud: 90, raam: 20, joint_list: 10 }}]}/>
   ).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
   assert.match(render({ likud: 100, raam: 20 }), /ממוצע של 5\.0 למפלגה/);
-  assert.match(render({ likud: 100, raam: 20, balad: 0 }), /ממוצע של 6\.7 למפלגה/);
+  assert.match(render({ likud: 100, raam: 20, joint_list: 0 }), /ממוצע של 6\.7 למפלגה/);
   assert.match(render({}), /ממוצע של — למפלגה/);
 });
 

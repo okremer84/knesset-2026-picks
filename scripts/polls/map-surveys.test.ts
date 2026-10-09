@@ -13,7 +13,7 @@ test('maps current parties and calculates blocs without inventing unreported sea
   assert.equal(survey.sampleSize, 1000);
   assert.equal(survey.blocs.coalition, 120);
   assert.equal(survey.seats.balad, undefined);
-  assert.deepEqual(survey.notReportedPartyIds, ['balad']);
+  assert.deepEqual(survey.notReportedPartyIds, []);
   assert.equal(survey.kind, 'opinion_poll');
 });
 test('rejects unknown parties and incomplete data', () => {

@@ -140,22 +140,8 @@ export const PARTIES_LIST: Party[] = [
     bloc: 'opposition',
     description: 'מפלגת מרכז ממלכתית בראשות בני גנץ',
     leaderImageUrl: '/leaders/kachol_lavan.jpg'
-  },
-  {
-    id: 'balad',
-    selectable: false,
-    name: 'בל"ד',
-    leader: 'פרופ׳ יוסף ג׳בארין',
-    ballotLetter: 'ד',
-    color: '#b91c1c',
-    bloc: 'arab',
-    description: 'ברית לאומית דמוקרטית בראשות פרופ׳ יוסף ג׳בארין',
-    leaderImageUrl: '/leaders/balad-jabareen.png'
   }
 ];
-
-// Keep legacy IDs for saved picks, totals and scoring, but not for new selections.
-export const SELECTABLE_PARTIES = PARTIES_LIST.filter(party => party.selectable !== false);
 
 export const BLOC_LABELS: Record<string, { nameHe: string; color: string }> = {
   coalition: { nameHe: 'גוש הימין / קואליציה', color: '#1d4ed8' },
