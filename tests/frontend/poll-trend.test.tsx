@@ -10,4 +10,6 @@ test('every plotted poll date has an axis label, including September 24', () => 
   const html = renderToStaticMarkup(<PollTrendChart surveys={surveys}/>);
   const labels = [...html.matchAll(/<text[^>]*y="302"[^>]*>([^<]+)<\/text>/g)].map(match => match[1]);
   assert.deepEqual(labels, ['10.9', '17.9', '24.9', '1.10']);
+  assert.ok(!html.includes('בל&quot;ד'));
+  assert.ok(html.includes('הרשימה המשותפת'));
 });

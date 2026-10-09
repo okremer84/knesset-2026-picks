@@ -190,3 +190,11 @@ test('reset restores all submitted fields, and background updates preserve local
   assert.equal(input('תחזית אחוז הצבעה ארצי').value, '70');
   assert.equal(input('הערה לתחזית').value, 'Remote note');
 });
+
+test('Balad is absent from new picks', async t => {
+  await start(t);
+  assert.equal(document.querySelectorAll('.party-card').length, 14);
+  assert.ok(![...document.querySelectorAll('input')].some(el => el.getAttribute('aria-label') === 'מנדטים לבל"ד'));
+  assert.ok(document.querySelector('.party-grid')?.textContent?.includes('הרשימה המשותפת'));
+  assert.ok(!document.querySelector('.party-grid')?.textContent?.includes('בל"ד'));
+});
