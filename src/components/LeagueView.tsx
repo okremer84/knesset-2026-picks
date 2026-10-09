@@ -4,6 +4,7 @@ import { League, Prediction, Survey } from '../types';
 import { calculateScore } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
 import { formatIsraelTime } from '../utils/israelTime';
+import { Avatar } from './ProfileModal';
 interface LeagueViewProps {
   league: League; allSurveys: Survey[]; selectedSurveyId: string;
   onSelectSurveyId: (id: string) => void; onOpenCreateLeague: () => void;
@@ -34,7 +35,7 @@ export function LeagueView({ league, allSurveys, onOpenCreateLeague, onNavigateT
   const hidden = league.predictionsHidden;
 
   // Compatibility for older cached league responses; the server supplies the complete roster.
-  const roster = league.participants ?? [
+  const roster: NonNullable<League['participants']> = league.participants ?? [
     ...league.members.map(p => ({ userId: p.userId, name: p.memberName, submitted: true })),
     ...(league.unsubmittedPlayers || []).map(p => ({ userId: Number(p.id), name: p.name, submitted: false })),
   ];
@@ -75,7 +76,7 @@ export function LeagueView({ league, allSurveys, onOpenCreateLeague, onNavigateT
         const expanded = !!prediction && inspect === prediction.id;
         return <React.Fragment key={person.userId}><tr className={mine ? 'my-league-row' : ''}>
           {!hidden && <td>{position ?? '—'}</td>}
-          <th scope="row">{prediction?.pickName ? <><strong>{prediction.pickName}</strong><small>{person.name}</small></> : person.name}</th>
+          <th scope="row"><div className="league-player"><span aria-hidden="true"><Avatar name={person.name} url={person.avatarUrl}/></span><span className="league-player-name">{prediction?.pickName ? <><strong>{prediction.pickName}</strong><small>{person.name}</small></> : person.name}</span></div></th>
           {hidden ? <td>{mine && !league.isLocked && !league.myPickLocked
             ? <button className="text-action" onClick={onNavigateToPicker}>{person.submitted ? 'הוגשה · עדכון' : 'הגשת תחזית'}</button>
             : <span className={`submission-state ${person.submitted ? 'submitted' : ''}`}>{person.submitted ? 'הוגשה' : 'טרם הוגשה'}</span>}

@@ -233,6 +233,8 @@
 .league-table > tbody > tr { border-bottom: 1px solid #e6e6df; }
 .league-table th { font-weight: 500; }
 .league-table > tbody > tr > th { min-width: 110px; font-weight: 600; }
+.league-player { display: flex; align-items: center; gap: 10px; }
+.league-player-name { min-width: 0; overflow-wrap: anywhere; }
 .league-table small { display: block; font-size: 11px; color: #6b7067; font-weight: 400; margin-top: 4px; }
 .league-table .league-score { font-size: 22px; font-weight: 700; }
 .league-note { max-width: 200px; min-width: 100px; overflow-wrap: anywhere; }

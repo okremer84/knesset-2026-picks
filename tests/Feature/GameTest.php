@@ -74,6 +74,30 @@ class GameTest extends TestCase
         $this->actingAs($owner)->getJson('/api/my-picks')->assertOk()->assertJsonCount(1, 'picks');
     }
 
+    public function test_league_roster_includes_avatars_without_revealing_private_predictions(): void
+    {
+        $photo = 'data:image/png;base64,iVBORw0KGgo=';
+        $owner = User::factory()->create(['google_avatar_url' => 'https://example.org/old.jpg', 'avatar_data' => $photo]);
+        $member = User::factory()->create(['google_avatar_url' => 'https://example.org/member.jpg']);
+        $withoutPhoto = User::factory()->create();
+        $league = $this->league($owner);
+        $league->users()->attach([$member->id, $withoutPhoto->id]);
+        $this->actingAs($member)->postJson('/api/my-pick', [...$this->picks(), 'note' => 'Private prediction'])->assertOk();
+
+        $response = $this->actingAs($owner)->getJson('/api/leagues/'.$league->id)->assertOk()
+            ->assertJsonPath('league.predictionsHidden', true)->assertJsonCount(0, 'league.members')
+            ->assertJsonMissing(['note' => 'Private prediction']);
+        $roster = collect($response->json('league.participants'))->keyBy('userId');
+        $this->assertSame($photo, $roster[$owner->id]['avatarUrl']);
+        $this->assertSame('https://example.org/member.jpg', $roster[$member->id]['avatarUrl']);
+        $this->assertNull($roster[$withoutPhoto->id]['avatarUrl']);
+        $this->assertSame(['userId', 'name', 'avatarUrl', 'submitted'], array_keys($roster[$member->id]));
+
+        $this->travelTo($league->locks_at);
+        $this->getJson('/api/leagues/'.$league->id)->assertOk()->assertJsonPath('league.predictionsHidden', false)
+            ->assertJsonFragment(['avatarUrl' => 'https://example.org/member.jpg']);
+    }
+
     public function test_membership_and_owner_permissions(): void
     {
         $owner = User::factory()->create();
@@ -205,7 +229,7 @@ class GameTest extends TestCase
         $this->assertTrue($people[$owner->id]['submitted']);
         $this->assertFalse($people[$other->id]['submitted']);
         $this->assertStringNotContainsString('private note', $response->getContent());
-        $this->assertSame(['userId', 'name', 'submitted'], array_keys($people[$owner->id]));
+        $this->assertSame(['userId', 'name', 'avatarUrl', 'submitted'], array_keys($people[$owner->id]));
         $this->travelTo($league->locks_at);
         $this->getJson('/api/leagues/'.$league->id)->assertJsonPath('league.members.0.note', 'private note');
     }

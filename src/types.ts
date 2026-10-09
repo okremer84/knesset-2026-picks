@@ -31,7 +31,7 @@ export interface UnsubmittedPlayer {
 export type LeagueSummary = Pick<League, 'id' | 'name'>;
 
 export interface League {
-  participants?: { userId: number; name: string; submitted: boolean }[];
+  participants?: { userId: number; name: string; avatarUrl?: string | null; submitted: boolean }[];
   deadlineLimit?: string | null;
   myPickLocked?: boolean;
   isCommissioner: boolean;
