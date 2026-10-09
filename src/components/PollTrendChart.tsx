@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Survey } from '../types';
-import { PARTIES_LIST } from '../data/parties';
+import { SELECTABLE_PARTIES } from '../data/parties';
 
 // Chart colors are distinct from party branding, which contains many similar blues.
 const CHART_COLORS = ['#0072b2', '#d55e00', '#009e73', '#a23b9c', '#8c6510', '#3647b5', '#c42c52', '#47751b', '#705348', '#00838f', '#6f42c1', '#b34d00', '#4d6475', '#a06b82', '#333333'];
-const chartColor = (id: string) => CHART_COLORS[PARTIES_LIST.findIndex(p => p.id === id) % CHART_COLORS.length];
+const chartColor = (id: string) => CHART_COLORS[SELECTABLE_PARTIES.findIndex(p => p.id === id) % CHART_COLORS.length];
 const day = (date: string) => Date.parse(`${date}T12:00:00Z`);
 const shortDate = (date: string) => new Date(day(date)).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
 const PARTY_SELECTION_KEY = 'knesset_fantasy_poll_trend_parties';
@@ -14,7 +14,7 @@ function readPartySelection(): string[] {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(PARTY_SELECTION_KEY) ?? 'null');
     if (Array.isArray(saved) && saved.every(id => typeof id === 'string')) {
-      return PARTIES_LIST.filter(p => saved.includes(p.id)).map(p => p.id);
+      return SELECTABLE_PARTIES.filter(p => saved.includes(p.id)).map(p => p.id);
     }
   } catch {
     // Storage may be unavailable or contain an invalid value.
@@ -31,7 +31,7 @@ export function PollTrendChart({ surveys, selectedChannel }: { surveys: Survey[]
       // Keep the chart usable when browser storage is blocked or full.
     }
   }, [partyIds]);
-  const selectedParties = PARTIES_LIST.filter(p => partyIds.includes(p.id));
+  const selectedParties = SELECTABLE_PARTIES.filter(p => partyIds.includes(p.id));
   const [hovered, setHovered] = useState<string | null>(null);
   const channel = selectedChannel ?? surveys[0]?.channelOrMedia;
   const channelPolls = useMemo(() => surveys.filter(s => s.channelOrMedia === channel), [surveys, channel]);
@@ -47,7 +47,7 @@ export function PollTrendChart({ surveys, selectedChannel }: { surveys: Survey[]
     <div className="poll-trends-heading"><div><h2>המגמה לאורך זמן</h2><p>{channel} · כל הסקרים הזמינים · {shortDate(dates[0])}–{shortDate(dates[dates.length - 1])}</p></div>
     </div>
     <fieldset className="poll-party-checkboxes"><legend>מפלגות בגרף</legend>
-      {PARTIES_LIST.map(p => <label key={p.id}><input type="checkbox" checked={partyIds.includes(p.id)} onChange={e => { setPartyIds(ids => e.target.checked ? [...ids, p.id] : ids.filter(id => id !== p.id)); setHovered(null); }} style={{accentColor: chartColor(p.id)}}/><span className="poll-party-color" style={{background: chartColor(p.id)}}/>{p.name}</label>)}
+      {SELECTABLE_PARTIES.map(p => <label key={p.id}><input type="checkbox" checked={partyIds.includes(p.id)} onChange={e => { setPartyIds(ids => e.target.checked ? [...ids, p.id] : ids.filter(id => id !== p.id)); setHovered(null); }} style={{accentColor: chartColor(p.id)}}/><span className="poll-party-color" style={{background: chartColor(p.id)}}/>{p.name}</label>)}
     </fieldset>
     {!partyIds.length ? <p className="poll-chart-readout">סמנו מפלגות כדי להציג את המגמות שלהן.</p> : !reported.length ? <p>אין נתונים מדווחים למפלגות שבחרתם בסקרים הזמינים.</p> : <>
       <div className="poll-chart-scroll"><svg viewBox="0 0 890 315" role="img" aria-label={`מגמת המנדטים של ${selectedParties.map(p => p.name).join(', ')} — ${channel}`}>

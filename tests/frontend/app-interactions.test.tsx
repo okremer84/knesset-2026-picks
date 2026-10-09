@@ -154,3 +154,42 @@ test('reset restores all submitted fields, and background updates preserve local
   assert.equal(input('תחזית אחוז הצבעה ארצי').value, '70');
   assert.equal(input('הערה לתחזית').value, 'Remote note');
 });
+
+test('Balad is absent from new picks and poll selections', async t => {
+  await start(t);
+  assert.equal(document.querySelectorAll('.party-card').length, 14);
+  assert.ok(![...document.querySelectorAll('input')].some(el => el.getAttribute('aria-label') === 'מנדטים לבל"ד'));
+  assert.ok(document.querySelector('.party-grid')?.textContent?.includes('הרשימה המשותפת'));
+  assert.ok(!document.querySelector('.party-grid')?.textContent?.includes('בל"ד'));
+});
+
+test('existing Balad allocations survive edits, refreshes, reloads and resubmission', async t => {
+  const legacy = { ...submitted, seats: { likud: 104, joint_list: 8, balad: 8 } };
+  const app = await start(t, legacy);
+  assert.equal(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow'), '120');
+  assert.ok(document.body.textContent?.includes('8 מנדטים שהוקצו לה נשמרו'));
+  assert.ok(!document.querySelector('.party-grid')?.textContent?.includes('בל"ד'));
+  await fill('מנדטים להליכוד', '100');
+  await fill('מנדטים להרשימה המשותפת', '12');
+  await app.refresh();
+  await app.reload();
+  assert.equal(input('מנדטים להליכוד').value, '100');
+  assert.equal(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow'), '120');
+  await click('עדכון התחזית');
+  await submit();
+  assert.equal(app.api.pick?.seats.balad, 8);
+  assert.equal(app.api.pick?.seats.joint_list, 12);
+  assert.equal(app.api.pick?.seats.likud, 100);
+});
+
+test('only an explicit edit frees legacy seats, and the submitted pick remains intact until saving', async t => {
+  const legacy = { ...submitted, seats: { likud: 104, joint_list: 8, balad: 8 } };
+  const app = await start(t, legacy);
+  await click('פינוי המנדטים לחלוקה מחדש');
+  assert.equal(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow'), '112');
+  assert.equal(app.api.pick?.seats.balad, 8);
+  assert.equal(app.api.pick?.seats.joint_list, 8);
+  await click('חזרה לתחזית שהוגשה');
+  assert.equal(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow'), '120');
+  assert.ok(document.body.textContent?.includes('8 מנדטים שהוקצו לה נשמרו'));
+});

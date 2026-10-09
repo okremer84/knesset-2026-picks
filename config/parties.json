@@ -57,6 +57,7 @@
   },
   "balad": {
     "name": "בל\"ד",
-    "bloc": "arab"
+    "bloc": "arab",
+    "selectable": false
   }
 }

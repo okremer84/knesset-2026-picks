@@ -7,6 +7,7 @@ export interface Party {
   bloc: 'coalition' | 'opposition' | 'arab' | 'other';
   description?: string;
   leaderImageUrl?: string;
+  selectable?: boolean;
 }
 
 export interface Prediction {
