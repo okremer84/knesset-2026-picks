@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { LeagueView, PickDetails } from '../../src/components/LeagueView';
+import { LeagueView, PickDetails, PartyComparison } from '../../src/components/LeagueView';
 import { israelInstant, israelLocalTime, formatIsraelTime } from '../../src/utils/israelTime';
 import type { League } from '../../src/types';
 
@@ -63,4 +63,43 @@ test('league ignores legacy opinion poll benchmarks and waits for election resul
 test('dates display DD/MM/YYYY and 24-hour Israel time', () => {
   assert.equal(formatIsraelTime('2026-10-27T18:00:00Z'), '27/10/2026 20:00');
   assert.throws(() => israelInstant('2026-02-31T20:00'));
+});
+
+test('revealed comparison sorts parties by descending prediction', () => {
+  const html = renderToStaticMarkup(<PickDetails prediction={league.members[0]} benchmark={null}/>);
+  assert.ok(html.indexOf('ביחד') < html.indexOf('הליכוד'));
+});
+
+test('selected survey changes provisional league positions', () => {
+  const polls = league.members.map((p, i) => ({ ...league.benchmarkSurvey!, id: 'survey-' + i, kind: 'opinion_poll' as const, seats: p.seats }));
+  const renderSelection = (id: string) => renderToStaticMarkup(<LeagueView league={{ ...league, predictionsHidden: false }} allSurveys={polls} selectedSurveyId={id} onSelectSurveyId={() => {}} onOpenCreateLeague={() => {}} onJoinExistingLeagueById={() => {}} onNavigateToPicker={() => {}}/>);
+  const first = renderSelection('survey-0');
+  const second = renderSelection('survey-1');
+  assert.ok(first.includes('<select'));
+  assert.ok(first.indexOf('Alice') < first.indexOf('Bob'));
+  assert.ok(second.indexOf('Bob') < second.indexOf('Alice'));
+});
+
+test('party matrix aligns every pick with its party and distinguishes missing submissions', async () => {
+  const { JSDOM } = await import('jsdom');
+  const rows = league.participants!.map(person => ({ person, prediction: league.members.find(p => p.userId === person.userId), position: null }));
+  const html = renderToStaticMarkup(<PartyComparison rows={rows}/>);
+  const doc = new JSDOM(html).window.document;
+  const headers = [...doc.querySelectorAll('thead th')].map(el => el.textContent);
+  assert.ok(headers[1]?.includes('Alice'));
+  assert.ok(headers[2]?.includes('Bob'));
+  assert.ok(headers[3]?.includes('Charlie'));
+  const likud = [...doc.querySelectorAll('tbody tr')].find(row => row.querySelector('th')?.textContent?.includes('הליכוד'))!;
+  assert.deepEqual([...likud.querySelectorAll('td')].map(el => el.textContent), ['59', '61', '—']);
+  const blocs = [...doc.querySelectorAll('.party-bloc-totals tr')].map(row => [...row.children].map(cell => cell.textContent));
+  assert.deepEqual(blocs, [
+    ['קואליציה', '59', '61', '—'],
+    ['אופוזיציה', '61', '59', '—'],
+    ['ערבים', '0', '0', '—'],
+    ['אחרים', '0', '0', '—'],
+  ]);
+  assert.ok(!html.includes('אופוזיציה יכולה להקים ממשלה'));
+  const details = new JSDOM(renderToStaticMarkup(<PickDetails prediction={league.members[0]} benchmark={null}/>)).window.document;
+  assert.deepEqual([...details.querySelectorAll('.pick-majorities strong')].map(el => el.textContent), ['כן', 'כן', 'לא']);
+  assert.ok(!render(league).includes('תחזיות לפי מפלגה'));
 });
