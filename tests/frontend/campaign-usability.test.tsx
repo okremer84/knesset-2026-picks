@@ -53,9 +53,9 @@ test('open questions are the default, expired questions remain discoverable, and
     await click('+₪100');
     await click('+₪25');
     await click('+₪25');
-    assert.equal((document.querySelector('[aria-label="סכום הקנייה בשקלים"]') as HTMLInputElement).value, '175');
-    assert.match(document.querySelector('.buy-payout')!.textContent!, /₪437.50/);
-    await act(async () => root.render(<CampaignBoard data={{ ...data, wallet: { ...data.wallet, available: 19000 } }} userId={2} leagueName="Pilot" onAction={async <T,>() => ({} as T)} onRefresh={async () => {}} />));
+    assert.equal((document.querySelector('[aria-label="סכום הקנייה בשקלים"]') as HTMLInputElement).value, '150');
+    assert.match(document.querySelector('.buy-payout')!.textContent!, /₪375/);
+    await act(async () => root.render(<CampaignBoard data={{ ...data, wallet: { ...data.wallet, available: 16000 } }} userId={2} leagueName="Pilot" onAction={async <T,>() => ({} as T)} onRefresh={async () => {}} />));
     assert.ok([...document.querySelectorAll<HTMLButtonElement>('.buy-presets button')].every(b => b.disabled), 'increments cannot exceed available balance');
   } finally { await act(async () => root.unmount()); dom.window.close(); }
 });
@@ -68,4 +68,48 @@ test('open questions are the default, expired questions remain discoverable, and
   assert.ok(html.indexOf('ממתין לתוצאה') < html.indexOf('שולם'));
   assert.match(html, /₪62.50/);
   assert.doesNotMatch(html, /רווח אפשרי נטו|רווח והפסד/);
+});
+
+test('stakes reset after closing or completing a bet, but survive a failed submission', async () => {
+  const { JSDOM } = await import('jsdom');
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/' });
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
+  dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; };
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(document.getElementById('root')!);
+  const second = { ...market, id: 'second', title: 'שאלה שנייה' };
+  const data: CampaignData = { enabled: true, operator: false, wallet: { available: 1000000, outstanding: 0, profit: 0, entries: [] }, markets: [market, second], proposals: [], leaderboard: [] };
+  let fail = true;
+  const calls: { stake: number; request_key: string }[] = [];
+  const click = async (selector: string) => { const b = document.querySelector<HTMLButtonElement>(selector); assert.ok(b, selector); await act(async () => b.click()); };
+  const amount = () => document.querySelector<HTMLInputElement>('.buy-amount input')!.value;
+  try {
+    await act(async () => root.render(<CampaignBoard data={data} userId={1} leagueName="Shared" onAction={async <T,>(_path: string, body?: unknown): Promise<T> => {
+      const request = body as typeof calls[number]; calls.push(request);
+      if (fail) throw new Error('Network interrupted');
+      return { bet: { id: 'ticket', market_id: market.id, user_id: 1, name: 'Me', side: 'yes', stake: request.stake, promised_return: request.stake * 2.5, probability: 4000, paid: 0, status: 'pending', created_at: '2026-10-17T10:00:00Z' } } as T;
+    }} onRefresh={async () => {}}/>));
+    await click('.market-question');
+    await click('.buy-presets button');
+    await click('.campaign-close');
+    await click('.market-card:nth-child(2) .market-question');
+    assert.equal(amount(), '0', 'closing clears the stake before another question');
+    assert.equal(document.querySelector<HTMLButtonElement>('.buy-confirm')!.disabled, true);
+    await click('.buy-presets button');
+    await act(async () => document.querySelector('dialog')!.dispatchEvent(new dom.window.Event('cancel', { bubbles: true, cancelable: true })));
+    await click('.market-question');
+    assert.equal(amount(), '0', 'Escape also clears the stake');
+    await click('.buy-presets button');
+    await click('.buy-confirm');
+    assert.equal(amount(), '25', 'a failed bet retains its stake for retry');
+    fail = false;
+    await click('.buy-confirm');
+    assert.equal(calls[0].request_key, calls[1].request_key);
+    assert.match(document.querySelector('.buy-ticket')!.textContent!, /הקנייה בוצעה/);
+    assert.match(document.querySelector('.buy-ticket')!.textContent!, /₪25/);
+    await click('.buy-confirm');
+    await click('.market-question');
+    assert.equal(amount(), '0', 'a successful bet clears the stake even on the same question');
+  } finally { await act(async () => root.unmount()); dom.window.close(); }
 });

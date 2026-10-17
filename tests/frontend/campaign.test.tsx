@@ -32,6 +32,7 @@ test('the slip retries an uncertain request with the same key and requires a new
   try {
     await act(async () => render());
     await click('The next ad?');
+    await click('+₪25');
     await click('קניית כן');
     await click('קניית כן');
     assert.equal(calls[0].request_key, calls[1].request_key);
