@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Avatar, ProfileModal } from './ProfileModal';
 import { useAccount } from './AuthGate';
 
-export type AppTab = 'picker' | 'league' | 'surveys' | 'historical';
+export type AppTab = 'picker' | 'league' | 'surveys' | 'historical' | 'campaign';
 interface HeaderProps {
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
@@ -10,6 +10,7 @@ interface HeaderProps {
 const pages: { id: AppTab; label: string }[] = [
   { id: 'picker', label: 'התחזית שלי' },
   { id: 'league', label: 'הליגות שלי' },
+  { id: 'campaign', label: 'אייזנמארקט' },
   { id: 'surveys', label: 'סקרים אחרונים' },
   { id: 'historical', label: 'בחירות קודמות' },
 ];
@@ -31,7 +32,7 @@ export function Header({ activeTab, setActiveTab }: HeaderProps) {
 
     </div>
     <nav className="main-nav" aria-label="ניווט ראשי">
-      {pages.map(page => <button key={page.id} aria-current={activeTab === page.id ? 'page' : undefined} onClick={() => setActiveTab(page.id)}>{page.label}</button>)}
+      {pages.filter(page => page.id !== 'campaign' || user.campaign_access === true).map(page => <button key={page.id} aria-current={activeTab === page.id ? 'page' : undefined} onClick={() => setActiveTab(page.id)}>{page.label}</button>)}
     </nav>
   </header>;
 }

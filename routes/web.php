@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CampaignController;
+use App\Http\Controllers\CampaignMonitoringController;
 use App\Http\Controllers\LeagueController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Survey;
@@ -23,6 +25,27 @@ Route::prefix('api')->group(function () {
         Route::post('leagues', [LeagueController::class, 'create'])->middleware('throttle:10,1');
         Route::post('leagues/join', [LeagueController::class, 'join'])->middleware('throttle:10,1');
         Route::get('leagues/{league}', [LeagueController::class, 'show']);
+        Route::get('leagues/{league}/campaign', [CampaignController::class, 'index']);
+        Route::get('campaign/config', [CampaignController::class, 'configuration']);
+        Route::post('campaign/join', [CampaignController::class, 'join'])->middleware('throttle:10,1');
+        Route::post('leagues/{league}/campaign/suggestions', [CampaignController::class, 'suggest'])->middleware('throttle:10,1');
+        Route::post('leagues/{league}/campaign/proposals/{proposal}/decline', [CampaignController::class, 'decline']);
+        Route::post('leagues/{league}/campaign/proposals/generate', [CampaignController::class, 'generate'])->middleware('throttle:3,1');
+        Route::get('leagues/{league}/campaign/markets/{market}/prefill', [CampaignController::class, 'prefill']);
+        Route::post('leagues/{league}/campaign/import', [CampaignController::class, 'import'])->middleware('throttle:10,1');
+        Route::match(['get', 'post'], 'leagues/{league}/campaign/sources', [CampaignController::class, 'sources']);
+        Route::get('leagues/{league}/campaign/monitoring', [CampaignMonitoringController::class, 'index'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/monitoring/setup', [CampaignMonitoringController::class, 'setup'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/monitoring/drafts', [CampaignMonitoringController::class, 'drafts'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/monitoring/sources/{source}/collect', [CampaignMonitoringController::class, 'collect'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/markets/{market}/monitor-preview', [CampaignMonitoringController::class, 'preview'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/markets/{market}/monitor-dismiss', [CampaignMonitoringController::class, 'dismiss'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/markets/{market}/preview', [CampaignController::class, 'preview']);
+        Route::post('leagues/{league}/campaign/markets/{market}/settle', [CampaignController::class, 'settle']);
+        Route::post('leagues/{league}/campaign/markets/{market}/void', [CampaignController::class, 'void']);
+        Route::post('leagues/{league}/campaign/markets', [CampaignController::class, 'publish'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/markets/{market}/quote', [CampaignController::class, 'quote'])->middleware('throttle:20,1');
+        Route::post('leagues/{league}/campaign/markets/{market}/bets', [CampaignController::class, 'bet'])->middleware('throttle:60,1');
         Route::post('leagues/{league}/predict', [LeagueController::class, 'predict'])->middleware('throttle:30,1');
     });
 });

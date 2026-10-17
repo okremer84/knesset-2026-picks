@@ -67,7 +67,7 @@ QUEUE_CONNECTION=database
 
 Keep a stable, secret `APP_KEY` using Cloud's environment settings. If a key is not generated during setup, generate one locally with `php artisan key:generate --show` and add it as a secret. Never regenerate the key on each deployment.
 
-Keep Cloud's database credentials in its environment settings. The sessions and cache tables live in the same shared SQL database, which also supports the scheduler's `onOneServer` and overlap locks. No separate Redis instance or queue worker is required for the initial app: the import runs directly and Google handles authentication; sign-in does not require an email provider.
+Keep Cloud's database credentials in its environment settings. The sessions and cache tables live in the same shared SQL database, which also supports the scheduler's `onOneServer` and overlap locks. The campaign feature requires a queue worker (see [campaign setup](campaign-operations.md)). Without that feature, no separate Redis instance or queue worker is required for the initial app: the import runs directly and Google handles authentication; sign-in does not require an email provider.
 
 Set `WIKI_USER_AGENT` to an identifiable application/contact string. Mail delivery can be configured later if the app adds email notifications.
 

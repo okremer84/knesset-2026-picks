@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { clearCsrf, apiFetch, request } from '../lib/api';
-export type User = { id: number; name: string; email: string; avatar_url?: string | null };
+export type User = { id: number; name: string; email: string; campaign_access?: boolean; avatar_url?: string | null };
 const AuthContext = createContext<User | null>(null);
 const AccountContext = createContext<{ user: User; logout: () => Promise<void>; error: string; updateUser: (user: User) => void } | null>(null);
 export function useAccount() { return useContext(AccountContext)!; }
