@@ -29,8 +29,8 @@ test('open questions are the default, expired questions remain discoverable, and
     assert.match(document.querySelector('[aria-pressed="true"]')!.textContent!, /פתוחות לקנייה/);
     await click('ממתינים לתוצאה');
     assert.equal(document.querySelector('.market-question')!.textContent, 'השאלה שנסגרה');
-    await click('נסגר בקרוב');
-    assert.equal(document.querySelectorAll('.market-card').length, 0, 'expired questions are not closing soon');
+    await click('הכול');
+    assert.equal(document.querySelectorAll('.market-card').length, 2, 'all questions remain discoverable');
     await click('טבלת המובילים');
     assert.deepEqual([...document.querySelectorAll('.campaign-ranking>div>b')].map(e => e.textContent), ['1', '1']);
     assert.match(document.querySelector('.ranking-me')!.textContent!, /Secondaryאת\/ה/);

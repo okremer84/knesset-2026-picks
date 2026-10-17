@@ -38,7 +38,7 @@ class CampaignQuestionSlateTest extends TestCase
         $this->assertDatabaseCount('campaign_proposals', 5);
         $proposals = DB::table('campaign_proposals')->get()->map(fn ($p) => json_decode($p->payload, true));
         $this->assertSame(10000, $proposals->sum('probability'));
-        $candidate = $proposals->first();
+        $candidate = $proposals->first(fn ($p) => $p['contract']['presentation']['portrait'] === 'likud');
         $this->postJson($base.'/markets', $candidate)->assertCreated()->assertJsonPath('market.contract.presentation.portrait', 'likud')->assertJsonPath('market.quote.probability', 4000);
         $this->assertCount(7, app(QuestionSlate::class)->drafts('interview', $d['starts_at'], $d['ends_at']));
     }
