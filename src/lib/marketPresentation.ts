@@ -21,7 +21,7 @@ export function marketGroup(m: Market): { key: string; title: string; label: str
   const monitor = m.contract.monitor as { mode?: string; person?: string } | undefined;
   if (topic(m) === 'urich' && monitor?.person) return { key: `urich:${window}`, title: 'עם מי תיחשף התכתבות נוספת של אוריך?', label: monitor.person, note: 'כתבה חדשה ב־ynet, ב־N12 או בגלובס. כל שם הוא שאלה נפרדת — ייתכן שיותר מאחד יתקיים.' };
   if (topic(m) === 'x') {
-    const name = m.title.match(/(?:הפוסט הבא של |האם )(.+?) · X/)?.[1];
+    const name = m.title.match(/^האם (?:הפוסט הבא של )?(.+?) · X/)?.[1];
     if (name) return { key: `x:${m.contract.source_id}:${window}`, title: `מה יכתוב ${name}?`, label: monitor?.mode === 'x_count' ? 'לפחות 5 פוסטים בתקופה הזו' : friendlyTitle(m).split(' — יזכיר ')[1]?.replace(/\?$/, '') ?? friendlyTitle(m), note: 'הנושאים מתייחסים לפוסט המקורי הראשון בחלון. פוסט אחד יכול להזכיר כמה נושאים.' };
   }
   if (topic(m) === 'polls' && m.contract.publisher) return { key: `poll:${m.contract.publisher}:${m.contract.pollster}:${window}`, title: `מה יראה הסקר הבא של ${publishers[m.contract.publisher] ?? m.contract.publisher}?`, label: m.title.replace(/^האם /, '').replace(/ בסקר הבא של .+\?$/, '?'), note: 'כל שורה היא שאלה נפרדת. ההכרעה לפי הסקר והמכון שמוגדרים בכללים.' };
