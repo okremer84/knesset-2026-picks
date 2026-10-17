@@ -16,9 +16,8 @@ export function CampaignPicks({ markets, userId, onSelect }: { markets: Market[]
         <dl className="personal-bet-amounts">
           <div><dt>סכום ההימור</dt><dd dir="ltr">{money(b.stake)}</dd></div>
           <div><dt>{pending ? 'תשלום אפשרי בזכייה' : b.status === 'refunded' ? 'הסכום שהוחזר' : 'שולם'}</dt><dd dir="ltr">{money(pending ? b.promised_return : b.paid)}</dd></div>
-          <div><dt>{pending ? 'רווח אפשרי נטו' : 'רווח והפסד'}</dt><dd dir="ltr" className={(pending ? b.promised_return : b.paid) - b.stake >= 0 ? 'positive' : 'negative'}>{money((pending ? b.promised_return : b.paid) - b.stake)}</dd></div>
         </dl>
-        {pending && <p className="personal-bet-note">התשלום בזכייה כולל את סכום ההימור. הרווח נטו הוא מה שנשאר מעבר לסכום שהשקעת.</p>}
+        {pending && <p className="personal-bet-note">התשלום בזכייה כולל את סכום ההימור.</p>}
       </article>;
     })}</div>}
   </section>;

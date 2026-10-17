@@ -221,7 +221,7 @@
 .personal-bet-side.yes { background:#e6f5ec;color:#087b46; }.personal-bet-side.no { background:#fcecef;color:#b94350; }
 .personal-bet-status,.personal-bet-note { color:#66746c;font-size:12px; }
 .personal-bet-question { display:block;text-align:right;font-size:20px;font-weight:650;line-height:1.5; }
-.personal-bet-amounts { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;border-top:1px solid #e8eee9;margin-top:20px;padding-top:20px; }
+.personal-bet-amounts { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;border-top:1px solid #e8eee9;margin-top:20px;padding-top:20px; }
 .personal-bet-amounts dt { font-size:12px;color:#66746c;margin-bottom:6px; }.personal-bet-amounts dd { text-align:right;font-size:23px;font-weight:650;font-variant-numeric:tabular-nums; }
 .personal-bet-note { margin-top:16px;line-height:1.6; }
 @media(max-width:600px) { .personal-bet { padding:18px; }.personal-bet-question { font-size:18px; }.personal-bet-amounts { gap:10px; }.personal-bet-amounts dd { font-size:19px; }.personal-bet-amounts dt { font-size:11px; } }

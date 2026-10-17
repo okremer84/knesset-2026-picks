@@ -66,5 +66,6 @@ test('open questions are the default, expired questions remain discoverable, and
   assert.match(html, /1 הימורים פתוחים/);
   assert.equal((html.match(/<article/g) ?? []).length, 2);
   assert.ok(html.indexOf('ממתין לתוצאה') < html.indexOf('שולם'));
-  assert.match(html, /₪37.50/);
+  assert.match(html, /₪62.50/);
+  assert.doesNotMatch(html, /רווח אפשרי נטו|רווח והפסד/);
 });
