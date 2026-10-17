@@ -29,9 +29,10 @@ class Evidence
             return ['id' => $s->id, 'kind' => $s->kind, 'name' => $s->name, 'url' => $s->url, 'payload' => $payload];
         })->values()->all();
 
-        $observations = ! empty($contract['monitor']['source_ids']) ? DB::table('campaign_observations')->whereIn('source_id', collect($sources)->pluck('id'))->orderByDesc('published_at')->limit(100)->get(['url', 'title', 'text', 'published_at'])->map(fn ($r) => (array) $r)->all() : [];
+        $observations = ! empty($contract['monitor']['source_ids']) ? DB::table('campaign_observations')->whereIn('source_id', collect($sources)->pluck('id'))->where('published_at', '<', now())->orderByDesc('published_at')->limit(30)->get(['url', 'title', 'text', 'published_at'])->map(fn ($r) => (array) $r)->all() : [];
 
-        return ['polls' => $polls, 'sources' => $sources, ...($observations ? ['observations' => $observations] : [])];
+        return ['polls' => $polls, 'sources' => $sources, ...($observations ? ['observations' => $observations] : []),
+            ...(($contract['monitor']['mode'] ?? '') === 'x_next_mention' && collect($sources)->contains('id', $contract['source_id'] ?? null) ? ['keyword_sample' => PostTopics::sample($contract['source_id'])] : [])];
     }
 
     public function input(League $league, object $market): array
@@ -85,6 +86,9 @@ class Evidence
             $start = CarbonImmutable::parse($c['window_starts_at'])->setTimezone('Asia/Jerusalem')->toDateString();
             $end = CarbonImmutable::parse($market->window_ends_at, 'UTC')->setTimezone('Asia/Jerusalem')->toDateString();
             $poll = collect($snapshot['polls'])->filter(fn ($p) => $p['date'] >= $start && $p['date'] <= $end)->sortBy('date')->first();
+            if (($c['subject'] ?? '') === 'bloc:opposition') {
+                $c['parties'] = ['yashar', 'beyachad', 'democrats', 'israel_beitenu', 'kachol_lavan'];
+            }
             if ($poll && ! empty($c['parties'])) {
                 $missing = collect($c['parties'])->filter(fn ($id) => ! array_key_exists($id, $poll['seats']) || in_array($id, $poll['notReportedPartyIds'] ?? [], true));
                 if ($missing->isNotEmpty()) {

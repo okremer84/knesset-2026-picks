@@ -33,7 +33,7 @@ class Monitoring
             abort_unless(count($ids) === 1 && $data['type'] === 'mention_count' && $c['comparison'] === 'gte' && $c['threshold'] >= 1 && floor($c['threshold']) == $c['threshold'], 422, 'מעקב X דורש מקור אחד וסף שלם חיובי');
             abort_unless(config('campaign.x_bearer_token'), 422, 'אין עדיין גישת X API; שמרו כטיוטה');
             if ($m['mode'] === 'x_next_mention') {
-                abort_unless(in_array($m['topic'] ?? '', ['iran', 'qatar']) && $c['threshold'] == 1, 422, 'יש לבחור איראן או קטאר וסף 1');
+                abort_unless(array_key_exists($m['topic'] ?? '', PostTopics::catalog()) && $c['threshold'] == 1, 422, 'יש לבחור נושא מוכר וסף 1');
             }
         }
         // Publishing requires a real successful collection, never just a configured URL.
@@ -96,7 +96,7 @@ class Monitoring
                 $packet = [...$packet, 'status' => 'ready', 'observed' => $window->count(), 'message' => 'מספר הפוסטים המקוריים שנאספו בחלון; תגובות ושיתופים ללא תוספת לא נספרו'];
             } elseif ($m['mode'] === 'x_next_mention' && $complete && $window->isNotEmpty()) {
                 $first = $window->first();
-                $matches = $this->matches($first['text'], $m['topic']);
+                $matches = PostTopics::matches($first['text'], $m['topic']);
                 $packet['items'] = [[...$first, 'matches' => $matches]];
                 if ($first['metadata']['original_captured'] ?? false) {
                     $packet = [...$packet, 'status' => 'ready', 'observed' => $matches ? 1 : 0, 'source_url' => $first['url'], 'observed_at' => $first['published_at'], 'message' => 'נבחר הפוסט המקורי הראשון. נבדק הטקסט של החשבון בלבד, ללא תוכן מצורף'];
@@ -145,16 +145,6 @@ class Monitoring
         $complete = $ended ? $cursor->gte($until->addSeconds(15)) : $cursor->gte($until->subMinutes(10));
 
         return ['complete' => $complete, 'message' => $complete ? 'רצף בדיקות תקין במקור המוגדר; אינו מבטיח לכידת פרסום שנמחק בין בדיקות' : 'ממתינים לבדיקה משלימה אחרי סוף החלון'];
-    }
-
-    private function matches(string $text, string $topic): array
-    {
-        $text = preg_replace('~https?://\S+~u', '', $text);
-        $words = $topic === 'iran' ? 'איראן|איראני|איראנית|איראנים|איראניות' : 'קטאר|קטארי|קטארית|קטארים|קטאריות|קטארגייט|קטרגייט';
-        $english = $topic === 'iran' ? 'Iran|Iranian' : 'Qatar|Qatari|Qatargate';
-        preg_match_all('/(?<![\p{L}\p{N}])(?:[ובכלמשה]{0,3}(?:'.$words.')|'.$english.')(?![\p{L}\p{N}])/iu', $text, $matches);
-
-        return array_values(array_unique($matches[0]));
     }
 
     public function data(League $league, object $market, array $request): array

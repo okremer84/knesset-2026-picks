@@ -69,7 +69,7 @@ class CampaignMonitoringTest extends TestCase
     public function test_setup_is_idempotent_and_missing_x_access_is_explicit(): void
     {
         $this->postJson($this->base.'/monitoring/setup')->assertOk();
-        $this->assertDatabaseCount('campaign_sources', 5);
+        $this->assertDatabaseCount('campaign_sources', 9);
         app(MonitorCollector::class)->collect($this->source('x'));
         $this->assertDatabaseHas('campaign_monitor_runs', ['status' => 'failed']);
         $this->getJson($this->base.'/monitoring')->assertOk()->assertJsonPath('x_configured', false);

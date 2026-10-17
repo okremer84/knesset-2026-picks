@@ -198,7 +198,15 @@ class Game
         $quotes = DB::table('campaign_quotes')->where('market_id', $market->id)->orderBy('version')->get()->map(fn ($q) => [...(array) $q, 'probability' => (int) $q->probability, 'evidence' => json_decode($q->evidence, true)]);
         $resolution = DB::table('campaign_resolutions')->where('market_id', $market->id)->first();
 
-        return [...(array) $market, 'contract' => json_decode($market->contract, true), 'state' => $market->state === 'open' && now()->gte($this->cutoff($market)) ? 'closed' : $market->state, 'closes_at' => $this->cutoff($market)->toIso8601String(), 'window_ends_at' => CarbonImmutable::parse($market->window_ends_at, 'UTC')->toIso8601String(), 'quote' => $quotes->last(), 'quotes' => $quotes, 'bets' => DB::table('campaign_bets')->where('market_id', $market->id)->orderByDesc('created_at')->get()->map(fn ($b) => $this->ticket($b)), 'resolution' => $resolution ? json_decode($resolution->payload, true) : null];
+        $contract = json_decode($market->contract, true);
+        // Presentation only: existing funded PM contracts retain their options and quotes.
+        if (($contract['exclusive_key'] ?? null) === 'next-pm-2026') {
+            $option = (int) $contract['threshold'];
+            $contract['presentation'] = ['family' => 'prime_minister', 'key' => $contract['exclusive_key'],
+                'label' => $contract['exclusive_options'][$option], 'portrait' => [1 => 'yashar', 2 => 'likud', 3 => 'beyachad'][$option] ?? null];
+        }
+
+        return [...(array) $market, 'contract' => $contract, 'state' => $market->state === 'open' && now()->gte($this->cutoff($market)) ? 'closed' : $market->state, 'closes_at' => $this->cutoff($market)->toIso8601String(), 'window_ends_at' => CarbonImmutable::parse($market->window_ends_at, 'UTC')->toIso8601String(), 'quote' => $quotes->last(), 'quotes' => $quotes, 'bets' => DB::table('campaign_bets')->where('market_id', $market->id)->orderByDesc('created_at')->get()->map(fn ($b) => $this->ticket($b)), 'resolution' => $resolution ? json_decode($resolution->payload, true) : null];
     }
 
     public function feed(League $league, User $user): array
