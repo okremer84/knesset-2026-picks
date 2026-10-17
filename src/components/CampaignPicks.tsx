@@ -2,8 +2,24 @@ import React from 'react';
 import { groupTickets, money, type Market } from '../lib/campaign';
 import { friendlyTitle } from '../lib/marketPresentation';
 
-export function CampaignPicks({ markets, userId, onSelect }: { markets: Market[]; userId: number; onSelect: (market: Market, side?: 'yes'|'no')=>void }) {
-  const rows=markets.flatMap(m=>groupTickets(m.bets.filter(b=>b.user_id===userId)).map(b=>({m,b}))).sort((a,b)=>Number(b.b.status==='pending')-Number(a.b.status==='pending')||Date.parse(b.b.created_at)-Date.parse(a.b.created_at));
-  const pending=rows.filter(r=>r.b.status==='pending');
-  return <section className="personal-picks"><header><h2>הבחירות שלי</h2><p>{new Set(pending.map(r => `${r.m.id}:${r.b.side}`)).size} בחירות פתוחות · {money(pending.reduce((n,r)=>n+r.b.stake,0))} במשחק</p></header>{!rows.length?<div className="campaign-empty"><h3>עוד לא בחרת צד</h3><p>הבחירות שלך וההימורים הפתוחים יופיעו כאן יחד.</p></div>:<div className="scoreboard-table-wrap"><table className="scoreboard-table"><caption>כל הבחירות שלך, הפתוחות קודם</caption><thead><tr><th>השאלה</th><th>הצד שלך</th><th>מצב</th><th>סכום קנייה</th><th>החזר אפשרי / שולם</th><th>רווח והפסד</th></tr></thead><tbody>{rows.map(({m,b})=><tr key={b.id}><th scope="row"><button className="personal-question" onClick={()=>onSelect(m,b.side)}>{friendlyTitle(m)}</button></th><td>{b.side==='yes'?'כן':'לא'}</td><td>{{pending:'פתוח · ממתינים לתוצאה',won:'זכייה',lost:'הפסד',refunded:'הוחזר'}[b.status]}</td><td dir="ltr">{money(b.stake)}</td><td dir="ltr">{money(b.status==='pending'?b.promised_return:b.paid)}</td><td dir="ltr">{b.status==='pending'?'—':money(b.paid-b.stake)}</td></tr>)}</tbody></table></div>}</section>;
+export function CampaignPicks({ markets, userId, onSelect }: { markets: Market[]; userId: number; onSelect: (market: Market, side?: 'yes' | 'no') => void }) {
+  const rows = markets.flatMap(m => groupTickets(m.bets.filter(b => b.user_id === userId)).map(b => ({ m, b })))
+    .sort((a, b) => Number(b.b.status === 'pending') - Number(a.b.status === 'pending') || Date.parse(b.b.created_at) - Date.parse(a.b.created_at));
+  const pending = rows.filter(r => r.b.status === 'pending');
+  return <section className="personal-picks">
+    <header><h2>ההימורים שלי</h2><p>{new Set(pending.map(r => `${r.m.id}:${r.b.side}`)).size} הימורים פתוחים · {money(pending.reduce((n, r) => n + r.b.stake, 0))} במשחק</p></header>
+    {!rows.length ? <div className="campaign-empty"><h3>עוד לא בחרת צד</h3><p>ההימורים שלך יופיעו כאן, עם הסכום שהשקעת ומה אפשר להרוויח.</p></div> : <div className="personal-bet-list">{rows.map(({ m, b }) => {
+      const pending = b.status === 'pending';
+      return <article className="personal-bet" key={b.id}>
+        <div className="personal-bet-heading"><span className={`personal-bet-side ${b.side}`}>בחרת {b.side === 'yes' ? 'כן' : 'לא'}</span><span className="personal-bet-status">{{ pending: 'ממתין לתוצאה', won: 'זכייה', lost: 'הפסד', refunded: 'בוטל · הוחזר' }[b.status]}</span></div>
+        <button className="personal-bet-question" onClick={() => onSelect(m, b.side)}>{friendlyTitle(m)}</button>
+        <dl className="personal-bet-amounts">
+          <div><dt>סכום ההימור</dt><dd dir="ltr">{money(b.stake)}</dd></div>
+          <div><dt>{pending ? 'תשלום אפשרי בזכייה' : b.status === 'refunded' ? 'הסכום שהוחזר' : 'שולם'}</dt><dd dir="ltr">{money(pending ? b.promised_return : b.paid)}</dd></div>
+          <div><dt>{pending ? 'רווח אפשרי נטו' : 'רווח והפסד'}</dt><dd dir="ltr" className={(pending ? b.promised_return : b.paid) - b.stake >= 0 ? 'positive' : 'negative'}>{money((pending ? b.promised_return : b.paid) - b.stake)}</dd></div>
+        </dl>
+        {pending && <p className="personal-bet-note">התשלום בזכייה כולל את סכום ההימור. הרווח נטו הוא מה שנשאר מעבר לסכום שהשקעת.</p>}
+      </article>;
+    })}</div>}
+  </section>;
 }

@@ -59,8 +59,8 @@ test('open questions are the default, expired questions remain discoverable, and
  test('personal picks combine pending and settled tickets, with pending first and other users excluded', () => {
   const base = { market_id: market.id, user_id: 1, name: 'Me', side: 'yes' as const, stake: 2500, promised_return: 6250, probability: 4000, paid: 0, created_at: '2026-10-17T10:00:00Z' };
   const html = renderToStaticMarkup(<CampaignPicks markets={[{ ...market, bets: [{ ...base, id: 'won', status: 'won', paid: 6250 }, { ...base, id: 'pending', status: 'pending' }, { ...base, id: 'other', user_id: 2, status: 'lost' }] }]} userId={1} onSelect={() => {}}/>);
-  assert.match(html, /1 בחירות פתוחות/);
-  assert.equal((html.match(/<tr>/g) ?? []).length, 3);
-  assert.ok(html.indexOf('פתוח · ממתינים לתוצאה') < html.indexOf('זכייה'));
+  assert.match(html, /1 הימורים פתוחים/);
+  assert.equal((html.match(/<article/g) ?? []).length, 2);
+  assert.ok(html.indexOf('ממתין לתוצאה') < html.indexOf('שולם'));
   assert.match(html, /₪37.50/);
 });
