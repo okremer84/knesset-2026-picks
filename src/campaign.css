@@ -11,6 +11,7 @@
 .campaign-kicker i,.market-state i { width:6px;height:6px;border-radius:50%;background:#12a565;display:inline-block; }
 .campaign-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:30px; }
 .campaign-heading h1 { font-size:clamp(32px,4vw,46px); letter-spacing:-1.9px; line-height:1.2; font-weight:650; }
+.campaign-beta-label { display: block; margin-top: 5px; font-size: 12px; line-height: 1.4; color: #66746c; font-weight: 400; }
 .campaign-heading h1>span { color:#10a15b; }
 .campaign-heading p { color:#7a827e;font-size:14px;margin-top:12px;line-height:1.7; }
 .campaign-suggest { border:1px solid #d9e2dc; background:#fff; border-radius:9px; padding:0 17px; display:flex; align-items:center; gap:9px; font-size:13px; font-weight:500; }

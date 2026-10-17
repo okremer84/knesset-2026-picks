@@ -17,7 +17,7 @@ test('the campaign navigation requires an explicit server capability', async () 
     try {
       await act(async () => root.render(<AuthGate><Header activeTab="picker" setActiveTab={() => {}} /></AuthGate>));
       const labels = [...document.querySelectorAll('nav button')].map(button => button.textContent);
-      assert.equal(labels.includes('אייזנמארקט'), capability === true);
+      assert.equal(labels.includes('אייזנמארקטבהרצה'), capability === true);
       assert.ok(labels.includes('התחזית שלי'), 'ordinary prediction navigation remains available');
     } finally {
       await act(async () => root.unmount());
