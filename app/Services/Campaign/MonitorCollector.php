@@ -117,7 +117,7 @@ class MonitorCollector
         }
         $items = [];
         $next = null;
-        $start = now()->subDays(2)->utc()->format('Y-m-d\TH:i:s\Z');
+        $start = now()->subDays(empty($payload['history_collected_at']) ? 90 : 2)->utc()->format('Y-m-d\TH:i:s\Z');
         $end = now()->subSeconds(15)->utc()->format('Y-m-d\TH:i:s\Z');
         for ($page = 0; $page < 10; $page++) {
             $query = ['max_results' => 100, 'start_time' => $start, 'end_time' => $end, 'tweet.fields' => 'created_at,author_id,referenced_tweets,edit_history_tweet_ids,note_tweet'];
@@ -147,8 +147,13 @@ class MonitorCollector
                 $items[] = ['key' => $original, 'url' => 'https://x.com/i/web/status/'.$post['id'], 'title' => mb_substr($text, 0, 200), 'text' => $text, 'published_at' => $post['created_at'], 'metadata' => ['external_id' => $original, 'version_id' => $post['id'], 'original_captured' => $original === $post['id'], 'author_id' => $userId, 'kind' => 'post']];
             }
             $next = $body['meta']['next_token'] ?? null;
-            if (! $next) {
-                return ['items' => $items, 'identity' => ['x_user_id' => $userId]];
+            // Initial backfill needs 30 original posts plus the complete two-day live overlap,
+            // not every historical page. A page beyond that overlap cannot hide live-window posts.
+            $historyEnough = empty($payload['history_collected_at'])
+                && collect($items)->where('metadata.original_captured', true)->count() >= 30
+                && collect($body['data'] ?? [])->contains(fn ($post) => ! empty($post['created_at']) && CarbonImmutable::parse($post['created_at'])->lt(now()->subDays(2)));
+            if (! $next || $historyEnough) {
+                return ['items' => $items, 'identity' => ['x_user_id' => $userId, 'history_collected_at' => $payload['history_collected_at'] ?? now()->toIso8601String()]];
             }
         }
         throw new \RuntimeException('יותר מדי עמודי X; האיסוף אינו מלא');

@@ -68,7 +68,7 @@ class Automation
             return;
         }
         $markets = DB::table('campaign_markets')->where('league_id', $league->id)->where('season', config('campaign.season'))->where('state', 'open')->whereNull('action')->where('closes_at', '>', now())->when($types, fn ($q) => $q->whereIn('type', $types))->orderBy('id')->get();
-        $markets = $markets->reject(fn ($m) => isset(json_decode($m->contract, true)['exclusive_key']));
+        $markets = $markets->reject(fn ($m) => isset(json_decode($m->contract, true)['exclusive_key']) || isset(json_decode($m->contract, true)['presentation']));
         foreach ($markets->groupBy(fn ($m) => $m->group_key ?? $m->id) as $group) {
             $input = $group->map(fn ($m) => $this->evidence->input($league, $m))->values()->all();
             $hash = $this->evidence->hash($input);
@@ -118,7 +118,7 @@ class Automation
         $str = ['type' => 'string'];
         $contract = $this->object(['source_url' => $str, 'yes_rule' => $str, 'no_rule' => $str, 'void_rule' => $str, 'comparison' => ['type' => 'string', 'enum' => ['gt', 'gte', 'lt', 'lte', 'eq', 'event']], 'threshold' => ['type' => 'number'], 'window_starts_at' => $str, 'subject' => $str, 'pollster' => $str, 'publisher' => $str, 'count_rules' => $str, 'baseline' => ['type' => ['number', 'null']], 'source_id' => ['type' => ['integer', 'null']]]);
         $schema = $this->object(['proposals' => ['type' => 'array', 'items' => $this->object(['type' => ['type' => 'string', 'enum' => ['poll_value', 'poll_movement', 'channel_activity', 'mention_count', 'statement', 'deadline_event']], 'title' => $str, 'closes_at' => $str, 'window_ends_at' => $str, 'contract' => $contract, ...$this->quoteSchema()])]]);
-        $output = $this->ask('Propose up to '.config('campaign.proposal_limit').' short daily/weekly markets based only on supplied sources. No usable source means no proposals. Use ISO8601 timestamps with timezone. Cutoff before expected release and before election_cap. No automated publication.', ['now' => now()->toIso8601String(), 'election_cap' => LeagueController::deadlineLimit(), 'evidence' => $snapshot], $schema);
+        $output = $this->ask('Propose up to '.config('campaign.proposal_limit').' short daily/weekly markets based only on supplied sources. No usable source means no proposals. Use ISO8601 timestamps with timezone. Cutoff before expected release and before election_cap. Diversify poll publishers across Kan 11, HaHadashot 12, Channel 13 and Channel 14 whenever supplied evidence supports them. Use publisher-specific thresholds, never mix bloc definitions. No automated publication.', ['now' => now()->toIso8601String(), 'election_cap' => LeagueController::deadlineLimit(), 'evidence' => $snapshot], $schema);
         Validator::make($output, ['proposals' => 'present|array|max:'.config('campaign.proposal_limit')])->validate();
         foreach ($output['proposals'] as $p) {
             Validator::make($p, MarketRules::publish())->validate();

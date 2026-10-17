@@ -163,3 +163,23 @@
 .campaign-awaiting .market-grid { margin-top: 20px; }
 .campaign-awaiting .market-card { padding-bottom: 20px; }
 .campaign-awaiting a { color: #087f46; text-decoration: underline; }
+
+/* Multi-option questions keep each existing binary ticket and its settlement rules. */
+.candidate-market { grid-column: 1 / -1; background: #fff; border: 1px solid #dfe7e2; border-radius: 18px; overflow: hidden; box-shadow: 0 5px 22px #153c2510; }
+.candidate-market-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px; background: linear-gradient(110deg,#f8faf8,#eaf4ed); }
+.candidate-market-heading h3 { font-size: 25px; font-weight: 750; margin: 6px 0 0; letter-spacing: -.6px; }
+.candidate-count { color: #51705d; font-size: 12px; white-space: nowrap; }
+.candidate-options { padding: 0 24px; }
+.candidate-option { position: relative; display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 14px 0 16px; border-bottom: 1px solid #edf1ed; }
+.candidate-avatar { width: 52px; height: 52px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: #edf3ee; color: #668071; display: grid; place-items: center; border: 2px solid white; box-shadow: 0 0 0 1px #dce6df; }
+.candidate-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center 22%; }
+.candidate-name { flex: 1; text-align: right; display: grid; gap: 4px; min-width: 0; }
+.candidate-name strong { font-size: 17px; }
+.candidate-name small { color: #718178; font-size: 11px; }
+.candidate-percent { font-size: 27px; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.candidate-buy { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #e6f5eb; color: #087747; border-radius: 8px; font-size: 12px; font-weight: 700; }
+.candidate-buy:disabled { opacity: .45; }
+.candidate-meter { position: absolute; right: 0; bottom: 0; height: 2px; border-radius: 2px; background: #45a56e; }
+.candidate-disclaimer { padding: 16px 24px; margin: 0; font-size: 11px; line-height: 1.7; color: #748078; }
+.poll-publisher { display: inline-block; margin-inline-start: 8px; background: #eef3f7; color: #3c566b; border-radius: 5px; padding: 3px 7px; font-size: 10px; }
+@media (max-width: 600px) { .candidate-market-heading { padding: 20px 16px; } .candidate-market-heading h3 { font-size: 21px; } .candidate-options { padding: 0 16px; } .candidate-option { gap: 10px; } .candidate-avatar { width: 42px; height: 42px; } .candidate-name strong { font-size: 14px; } .candidate-percent { font-size: 22px; } .candidate-buy { padding: 9px; gap: 3px; } .candidate-buy svg { display: none; } .candidate-disclaimer { padding: 14px 16px; } }

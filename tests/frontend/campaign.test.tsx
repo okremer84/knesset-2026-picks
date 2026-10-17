@@ -109,3 +109,26 @@ test('monitoring requires a separate payout approval and clears stale previews o
     assert.doesNotMatch(document.body.textContent!, /אישור ההכרעה והתשלום/);
   } finally { await act(async()=>root.unmount()); dom.window.close(); }
 });
+
+test('candidate rows select the exact market and disable closed purchases', async () => {
+  const { JSDOM } = await import('jsdom');
+  const { CandidateMarkets } = await import('../../src/components/CandidateMarkets');
+  const { createRoot } = await import('react-dom/client');
+  const { act } = await import('react');
+  const dom = new JSDOM('<div id="root"></div>');
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
+  const base: Market = { id: 'netanyahu', title: 'נתניהו?', type: 'deadline_event', state: 'open', action: null, closes_at: '2099-01-01T00:00:00Z', window_ends_at: '2099-04-01T00:00:00Z', contract: { source_url: 'https://example.org', yes_rule: 'yes', no_rule: 'no', void_rule: 'none', comparison: 'event', threshold: 1, window_starts_at: '2099-01-01T00:00:00Z', presentation: { family: 'prime_minister', key: 'pm', label: 'בנימין נתניהו', portrait: 'likud' } }, quote: { id: 'q', probability: 4000, ai_probability: null, version: 1, tag: 'operator_edited', origin: 'operator', rationale: 'estimate', created_at: '2026-10-17T00:00:00Z', evidence: [] }, quotes: [], bets: [], resolution: null };
+  const second: Market = { ...base, id: 'eisenkot', quote: { ...base.quote, probability: 3500 }, contract: { ...base.contract, presentation: { ...base.contract.presentation!, label: 'גדי איזנקוט', portrait: 'yashar' } } };
+  const closed: Market = { ...base, id: 'closed', state: 'closed', contract: { ...base.contract, presentation: { ...base.contract.presentation!, label: 'סגור', portrait: null } } };
+  const selected: string[] = [];
+  const root = createRoot(document.getElementById('root')!);
+  try {
+    await act(async () => root.render(<CandidateMarkets markets={[base, second, closed]} onSelect={m => selected.push(m.id)}/>));
+    const row = [...document.querySelectorAll('.candidate-option')].find(r => r.textContent?.includes('גדי איזנקוט'))!;
+    assert.match(row.textContent!, /35%/);
+    await act(async () => (row.querySelector('.candidate-buy') as HTMLButtonElement).click());
+    assert.deepEqual(selected, ['eisenkot']);
+    assert.equal(document.querySelectorAll('.candidate-buy:disabled').length, 1);
+    assert.equal(document.querySelectorAll('.candidate-avatar img').length, 2);
+  } finally { await act(async () => root.unmount()); dom.window.close(); }
+});

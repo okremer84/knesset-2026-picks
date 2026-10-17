@@ -39,6 +39,9 @@ class CampaignOpeningSlateTest extends TestCase
         $feed = $this->getJson($base)->assertOk()->assertJsonCount(20, 'opening_slate')->assertJsonCount(11, 'markets')->assertJsonPath('wallet.available', 1000000)->json();
         $p1 = collect($feed['markets'])->firstWhere('contract.slate_key', 'P1');
         $this->assertNotNull($p1);
+        $pm = collect($feed['markets'])->firstWhere('contract.slate_key', 'M1');
+        $this->assertSame('yashar', $pm['contract']['presentation']['portrait']);
+        $this->assertSame('next-pm-2026', $pm['contract']['exclusive_key']);
         $this->assertSame(config('campaign_slate.questions.0.probability'), $p1['quote']['probability']);
         $this->postJson($base.'/markets/'.$p1['id'].'/bets', ['side' => 'yes', 'stake' => 10000, 'quote_id' => $p1['quote']['id'], 'request_key' => 'real-p1'])->assertCreated();
         config(['campaign_slate.questions.0.probability' => 7000]);
