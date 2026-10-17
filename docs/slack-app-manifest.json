@@ -1,0 +1,21 @@
+{
+  "display_information": {
+    "name": "Eisenmarkt Reviews",
+    "description": "Evidence review links for Eisenmarkt; approvals happen in the app.",
+    "background_color": "#0b9254"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Eisenmarkt Reviews",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": { "bot": ["chat:write"] }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

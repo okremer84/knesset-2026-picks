@@ -41,3 +41,5 @@ Schedule::call(function () {
         CollectCampaignMonitor::dispatch($id);
     }
 })->name('campaign-monitoring')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
+
+Schedule::command('campaign:slack --send')->everyMinute()->withoutOverlapping(3)->onOneServer();
