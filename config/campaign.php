@@ -2,7 +2,8 @@
 
 return [
     'enabled' => (bool) env('CAMPAIGN_ENABLED', true),
-    // Fixed pilot policy; legacy operator IDs cannot expand pilot access.
+    // One shared market; only the named administrator may operate it.
+    'public_access' => true,
     'pilot_only' => true,
     'pilot_accounts' => ['okremer84@gmail.com' => 'admin', 'omer@trytrackit.com' => 'bettor'],
     'season' => env('CAMPAIGN_SEASON', '2026'),

@@ -190,3 +190,25 @@
 .topic-choices button span { font-size: 11px; font-weight: 500; }
 .topic-choices button:disabled { opacity: .45; }
 @media(max-width:600px) { .topic-option { grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 16px 0; } .topic-choices { grid-column: 1 / -1; } .topic-choices button { display: flex; justify-content: center; align-items: center; gap: 8px; } }
+.campaign-primary-nav { display:flex; gap:12px; margin:24px 0; flex-wrap:wrap; }
+.campaign-primary-nav button { padding:15px 22px; background:#fff; border:1px solid #d7e4dc; border-radius:12px; font-size:17px; font-weight:700; }
+.campaign-primary-nav button[aria-current=page] { background:#193c2b;color:white;border-color:#193c2b; }
+.campaign-primary-nav b { font-size:12px; margin-inline-start:8px; opacity:.75; }
+.personal-summary-link { text-align:right; cursor:pointer; }
+.personal-summary-link strong { display:block; font-size:24px; }
+.scoreboard-back { margin-bottom:28px; color:#246c43; font-weight:700; }
+.scoreboard-table-wrap { overflow-x:auto; max-width:100%; border:1px solid #dce5de; border-radius:16px; background:white; }
+.scoreboard-table { width:100%; border-collapse:collapse; text-align:right; font-variant-numeric:tabular-nums; }
+.scoreboard-table caption { padding:18px 20px;text-align:right;color:#6b7d70;font-size:13px; }
+.scoreboard-table th,.scoreboard-table td { padding:18px 16px; border-top:1px solid #e8eee9; white-space:nowrap; }
+.scoreboard-table thead { background:#f0f5f1; font-size:13px; }
+.scoreboard-table thead button { font-weight:700; }
+.scoreboard-table tbody td { text-align:center; }
+.scoreboard-table .ranking-me { background:#eff8f1; }
+.scoreboard-person { display:flex; align-items:center; gap:10px; }
+.scoreboard-person img,.scoreboard-initial { width:36px;height:36px;border-radius:50%;object-fit:cover;background:#e0ede4;display:grid;place-items:center; }
+.scoreboard-person small { display:block;font-size:11px;color:#60836c; }
+.scoreboard-note { margin-top:18px; color:#6b7d70;line-height:1.8;font-size:12px; }
+.personal-picks header { margin-bottom:20px; }.personal-picks h2 { font-size:25px;font-weight:750; }.personal-picks header p { color:#67806e; }
+.personal-question { text-align:right;white-space:normal;min-width:180px;max-width:350px;color:#254f35; }
+@media(max-width:600px) { .campaign-primary-nav { gap:8px; }.campaign-primary-nav button { font-size:14px;padding:12px;flex:1; }.campaign-primary-nav b { display:block;margin:5px 0 0; }.scoreboard-table th,.scoreboard-table td { padding:14px 12px; } }

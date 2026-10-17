@@ -1,0 +1,15 @@
+import React, { useState } from 'react';
+import { money, type CampaignData } from '../lib/campaign';
+
+type Row = CampaignData['leaderboard'][number];
+type Sort = 'profit' | 'roi' | 'picks' | 'won' | 'lost' | 'win_rate' | 'outstanding' | 'potential_return';
+const columns: [Sort, string][] = [['profit','רווח והפסד'],['roi','תשואה'],['picks','בחירות'],['won','ניצחונות'],['lost','הפסדים'],['win_rate','אחוז הצלחה'],['outstanding','סכום פתוח'],['potential_return','החזר אפשרי']];
+export function CampaignScoreboard({ rows, userId, onBack }: { rows: Row[]; userId: number; onBack: () => void }) {
+  const [sort,setSort]=useState<Sort>('profit'); const [descending,setDescending]=useState(true);
+  const ranked=[...rows].sort((a,b)=>{const x=a[sort], y=b[sort]; if(x==null) return y==null ? a.user_id-b.user_id : 1; if(y==null)return -1; return (descending ? y-x : x-y) || a.user_id-b.user_id;});
+  const value=(r:Row,k:Sort)=>{const v=r[k]; if(v==null)return '—'; if(k==='roi'||k==='win_rate')return `${(v*100).toFixed(1)}%`; if(['profit','outstanding','potential_return'].includes(k))return `${k==='profit'&&v>0?'+':''}${money(v)}`; return String(v);};
+  return <section className="campaign scoreboard-page" dir="rtl"><button className="scoreboard-back" onClick={onBack}>→ חזרה לשאלות</button><header className="campaign-heading"><div><span className="market-category">אייזנמארקט · כולם על אותו לוח</span><h1>טבלת המובילים</h1><p>מי קרא את המפה? לחצו על כותרת עמודה כדי למיין.</p></div></header>
+    <div className="scoreboard-table-wrap"><table className="scoreboard-table"><caption>הביצועים של כל המשתתפים · כסף משחק</caption><thead><tr><th scope="col">מקום</th><th scope="col">משתתף</th>{columns.map(([key,label])=><th scope="col" key={key} aria-sort={sort===key?(descending?'descending':'ascending'):'none'}><button onClick={()=>{if(sort===key)setDescending(!descending);else {setSort(key);setDescending(true);}}}>{label} {sort===key?(descending?'↓':'↑'):'↕'}</button></th>)}</tr></thead><tbody>{ranked.map(r=><tr key={r.user_id} className={r.user_id===userId?'ranking-me':''}><td>{r[sort]==null?'—':ranked.findIndex(x=>x[sort]===r[sort])+1}</td><th scope="row"><span className="scoreboard-person">{r.avatar?<img src={r.avatar} alt=""/>:<span className="scoreboard-initial">{r.name.slice(0,1)}</span>}<span>{r.name}{r.user_id===userId&&<small>את/ה</small>}</span></span></th>{columns.map(([key])=><td key={key} dir="ltr" className={key==='profit'?(r.profit>0?'positive':r.profit<0?'negative':''):''}>{value(r,key)}</td>)}</tr>)}</tbody></table>{!rows.length&&<p className="campaign-muted">הטבלה תתמלא עם המשתתפים הראשונים.</p>}</div>
+    <p className="scoreboard-note">בחירה היא צד בשאלה; קניות חוזרות באותו צד נספרות פעם אחת. אחוז ההצלחה מחושב מתוך ניצחונות והפסדים בלבד, ללא בחירות פתוחות או החזרים. רווח והפסד מחושבים רק מקניות שהוכרעו; תשואה מוצגת אחרי 3 שאלות שהוכרעו.</p><p className="scoreboard-note">החזר אפשרי כולל את סכום הקנייה ואינו מובטח. הוא מציג את הצד המניב ביותר בכל שאלה, ותרחיש אחד בלבד בשאלת ראש הממשלה.</p>
+  </section>;
+}

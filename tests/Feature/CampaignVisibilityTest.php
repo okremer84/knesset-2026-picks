@@ -12,7 +12,7 @@ class CampaignVisibilityTest extends TestCase
 
     public function test_navigation_capability_requires_verified_google_identity_for_each_pilot_account(): void
     {
-        config(['campaign.enabled' => true, 'campaign.pilot_only' => true]);
+        config(['campaign.enabled' => true, 'campaign.pilot_only' => true, 'campaign.public_access' => false]);
         foreach (['okremer84@gmail.com', 'omer@trytrackit.com', 'outsider@example.org'] as $email) {
             $user = User::factory()->create(['email' => $email, 'google_id' => 'google-'.$email]);
             $this->actingAs($user)->getJson('/api/auth/user')->assertOk()
@@ -27,7 +27,7 @@ class CampaignVisibilityTest extends TestCase
 
     public function test_disabling_campaign_hides_capability_and_does_not_create_pilot_resources(): void
     {
-        config(['campaign.enabled' => false, 'campaign.pilot_only' => true]);
+        config(['campaign.enabled' => false, 'campaign.pilot_only' => true, 'campaign.public_access' => false]);
         $user = User::factory()->create(['email' => 'okremer84@gmail.com', 'google_id' => 'admin']);
         $this->actingAs($user)->getJson('/api/auth/user')->assertOk()->assertJsonPath('user.campaign_access', false);
         $this->getJson('/api/campaign/config')->assertOk()->assertJsonPath('enabled', false)->assertJsonCount(0, 'leagues');

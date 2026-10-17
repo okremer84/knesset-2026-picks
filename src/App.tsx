@@ -347,7 +347,8 @@ export default function App() {
     const url = new URL(window.location.href);
     url.searchParams.delete('invite');
     url.searchParams.set('tab', activeTab);
-    if (currentLeague) url.searchParams.set('league', currentLeague.id);
+    if (activeTab !== 'campaign') url.searchParams.delete('view');
+    if (activeTab !== 'campaign' && currentLeague) url.searchParams.set('league', currentLeague.id);
     else url.searchParams.delete('league');
     window.history.replaceState({}, '', url);
   }, [activeTab, currentLeague?.id, loadingLeague, user.id]);

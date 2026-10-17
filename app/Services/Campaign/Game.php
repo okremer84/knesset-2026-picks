@@ -15,19 +15,19 @@ class Game
     public function member(League $league, User $user): void
     {
         abort_unless(config('campaign.enabled'), 404);
-        abort_unless($this->allowed($user), 403, 'אייזנמארקט פתוח כרגע לשני חשבונות הפיילוט בלבד');
+        abort_unless($this->allowed($user), 403, 'יש להתחבר עם חשבון מאומת כדי להשתתף באייזנמארקט');
         abort_unless($league->users()->whereKey($user->id)->exists() || DB::table('campaign_members')->where('league_id', $league->id)->where('user_id', $user->id)->exists(), 403);
     }
 
     public function allowed(User $user): bool
     {
-        return ! config('campaign.pilot_only') || ($user->google_id && $user->email_verified_at && isset(config('campaign.pilot_accounts')[strtolower(trim($user->email))]));
+        return ! config('campaign.pilot_only') || ($user->google_id && $user->email_verified_at && (config('campaign.public_access') || isset(config('campaign.pilot_accounts')[strtolower(trim($user->email))])));
     }
 
     public function operator(User $user): bool
     {
         if (config('campaign.pilot_only')) {
-            return $this->allowed($user) && config('campaign.pilot_accounts')[strtolower(trim($user->email))] === 'admin';
+            return $this->allowed($user) && (config('campaign.pilot_accounts')[strtolower(trim($user->email))] ?? null) === 'admin';
         }
 
         return in_array($user->id, config('campaign.operator_ids'), true);
@@ -225,7 +225,12 @@ class Game
             $profit = $settled->sum('paid') - $stake;
             $count = $settled->pluck('market_id')->unique()->count();
 
-            return ['user_id' => $member->id, 'name' => $member->name, 'avatar' => $member->avatar_url, 'profit' => $profit, 'roi' => $count >= 3 && $stake ? $profit / $stake : null, 'markets' => $count, 'outstanding' => $all->where('status', 'pending')->sum('stake'), 'potential_return' => app(Exposure::class)->potential($markets, $member->id)];
+            // One market-side position is one pick, regardless of split purchases.
+            $positions = $all->groupBy(fn ($b) => $b['market_id'].':'.$b['side']);
+            $won = $positions->filter(fn ($p) => $p->contains('status', 'won'))->count();
+            $lost = $positions->filter(fn ($p) => $p->contains('status', 'lost'))->count();
+
+            return ['picks' => $positions->count(), 'won' => $won, 'lost' => $lost, 'win_rate' => $won + $lost ? $won / ($won + $lost) : null, 'user_id' => $member->id, 'name' => $member->name, 'avatar' => $member->avatar_url, 'profit' => $profit, 'roi' => $count >= 3 && $stake ? $profit / $stake : null, 'markets' => $count, 'outstanding' => $all->where('status', 'pending')->sum('stake'), 'potential_return' => app(Exposure::class)->potential($markets, $member->id)];
         })->sortByDesc('profit')->values();
         $proposals = DB::table('campaign_proposals')->where('league_id', $league->id)->when(! $this->operator($user), fn ($q) => $q->where(fn ($own) => $own->where('user_id', $user->id)->orWhereJsonContains('payload->submitter_ids', $user->id)))->orderByDesc('created_at')->get()->map(fn ($p) => [...(array) $p, 'payload' => json_decode($p->payload, true)]);
 

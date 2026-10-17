@@ -110,7 +110,7 @@ class CampaignController extends Controller
     public function join(Request $r, Game $game)
     {
         abort_unless(config('campaign.enabled'), 404);
-        abort_unless($game->allowed($r->user()), 403, 'אייזנמארקט פתוח כרגע לשני חשבונות הפיילוט בלבד');
+        abort_unless($game->allowed($r->user()), 403, 'יש להתחבר עם חשבון מאומת כדי להשתתף באייזנמארקט');
         $d = $r->validate(['code' => 'required|string|size:40']);
         $league = League::where('invite_code', $d['code'])->first();
         abort_unless($league, 404, 'קוד ההזמנה לא נמצא');
