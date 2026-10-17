@@ -50,9 +50,13 @@ test('open questions are the default, expired questions remain discoverable, and
     await click('→ חזרה לשאלות');
     await click('פתוחות לקנייה (1)');
     await click(market.title);
-    await click('₪100');
-    assert.equal((document.querySelector('[aria-label="סכום הקנייה בשקלים"]') as HTMLInputElement).value, '100');
-    assert.match(document.querySelector('.buy-payout')!.textContent!, /₪250/);
+    await click('+₪100');
+    await click('+₪25');
+    await click('+₪25');
+    assert.equal((document.querySelector('[aria-label="סכום הקנייה בשקלים"]') as HTMLInputElement).value, '175');
+    assert.match(document.querySelector('.buy-payout')!.textContent!, /₪437.50/);
+    await act(async () => root.render(<CampaignBoard data={{ ...data, wallet: { ...data.wallet, available: 19000 } }} userId={2} leagueName="Pilot" onAction={async <T,>() => ({} as T)} onRefresh={async () => {}} />));
+    assert.ok([...document.querySelectorAll<HTMLButtonElement>('.buy-presets button')].every(b => b.disabled), 'increments cannot exceed available balance');
   } finally { await act(async () => root.unmount()); dom.window.close(); }
 });
 
