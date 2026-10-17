@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Campaign\Automation;
 use App\Services\Campaign\Channels;
 use App\Services\Campaign\Game;
+use App\Services\Campaign\LaunchCleanup;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
@@ -89,6 +90,44 @@ class CampaignTest extends TestCase
         $this->postJson($vpath.'/void', ['reason' => 'לא פורסם סרטון'])->assertOk();
         $this->postJson($vpath.'/void', ['reason' => 'לא פורסם סרטון'])->assertOk();
         $this->getJson($this->base)->assertJsonPath('wallet.available', 1005000)->assertJsonPath('wallet.profit', 5000);
+    }
+
+    public function test_launch_cleanup_preserves_real_bets_and_ledger_and_is_reversible(): void
+    {
+        $qa = $this->market(['title' => LaunchCleanup::TITLES[1]]);
+        $path = $this->base.'/markets/'.$qa['id'];
+        $this->postJson($path.'/bets', ['side' => 'yes', 'stake' => 1000, 'quote_id' => $qa['quote']['id'], 'request_key' => 'qa'])->assertCreated();
+        $cleanup = app(LaunchCleanup::class);
+        try {
+            $cleanup->archive($this->league, true);
+            $this->fail('Pending QA cannot be archived');
+        } catch (HttpException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
+        $this->postJson($path.'/void', ['reason' => 'QA cleanup'])->assertOk();
+        $real = $this->market();
+        $this->postJson($this->base.'/markets/'.$real['id'].'/bets', ['side' => 'yes', 'stake' => 2500, 'quote_id' => $real['quote']['id'], 'request_key' => 'real'])->assertCreated();
+        $wallets = DB::table('campaign_wallets')->get()->toJson();
+        $entries = DB::table('campaign_entries')->get()->toJson();
+        DB::table('campaign_bets')->where('market_id', $qa['id'])->update(['paid' => 999]);
+        try {
+            $cleanup->archive($this->league, true);
+            $this->fail('Nonzero QA wallet impact cannot be hidden');
+        } catch (HttpException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
+        DB::table('campaign_bets')->where('market_id', $qa['id'])->update(['paid' => 1000]);
+        $this->artisan('campaign:launch-audit')->assertSuccessful();
+        $this->assertSame(1, $cleanup->archive($this->league)['markets']);
+        $this->getJson($this->base)->assertJsonCount(2, 'markets');
+        $this->assertSame(1, $cleanup->archive($this->league, true)['markets']);
+        $this->assertSame(0, $cleanup->archive($this->league, true)['markets']);
+        $this->getJson($this->base)->assertJsonCount(1, 'markets')->assertJsonPath('markets.0.id', $real['id'])->assertJsonPath('leaderboard.0.picks', 1)->assertJsonPath('wallet.outstanding', 2500);
+        $this->assertSame($wallets, DB::table('campaign_wallets')->get()->toJson());
+        $this->assertSame($entries, DB::table('campaign_entries')->get()->toJson());
+        $this->assertDatabaseCount('campaign_bets', 2);
+        DB::table('campaign_markets')->where('id', $qa['id'])->update(['archived_at' => null]);
+        $this->getJson($this->base)->assertJsonCount(2, 'markets');
     }
 
     public function test_imports_are_review_proposals_and_resolved_contracts_are_rejected(): void
