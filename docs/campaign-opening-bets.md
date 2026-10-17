@@ -1,5 +1,7 @@
 # Campaign bets: concrete questions and opening recommendations
 
+**Historical draft, October 15, 2026 — superseded for launch.** Current executable questions, answers and odds are in [the opening catalog](../data/campaign-opening-slate.json), with [independent research and agreed October 17 revisions](campaign-blind-odds-review.md). Eleven questions open; four X and five news questions remain unpriced and unavailable until collection and pricing approval. The older percentages below are retained as research history, not launch prices.
+
 Draft, October 15, 2026. This replaces the content recommendation in `campaign-launch-slate.md`. Nothing is published. The latest conversation expands revision 6 to include final election threshold and next-prime-minister bets, while requiring machine-collected evidence and a quick operator approval.
 
 Percentages are **my subjective opening recommendations**, not measured frequencies, calibrated forecasts, or proof of fairness. Source facts and judgment are distinguished below. All answers are **Yes / No**; a void refunds both sides. Prices are conditional on a valid, non-void observation. No probability is a statement that an outcome has occurred. Numbers should be refreshed before publication if evidence changes.

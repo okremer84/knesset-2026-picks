@@ -22,6 +22,12 @@ class Settlement
             abort_if($market->action || in_array($market->state, ['resolved', 'void']), 409, 'השוק כבר בטיפול');
             app(Monitoring::class)->verify($league, $market, $data);
             $markets = $this->group($league, $market);
+            $exclusive = json_decode($market->contract, true)['exclusive_key'] ?? null;
+            if ($exclusive) {
+                abort_unless($markets->count() === 4 && in_array((float) $data['observed'], [1.0, 2.0, 3.0, 4.0], true), 422, 'יש לבחור ראש ממשלה אחד מתוך ארבע האפשרויות');
+                abort_unless(parse_url($data['source_url'], PHP_URL_SCHEME) === 'https' && in_array(strtolower(parse_url($data['source_url'], PHP_URL_HOST) ?? ''), ['main.knesset.gov.il', 'www.knesset.gov.il', 'knesset.gov.il']), 422, 'נדרש קישור לפרסום רשמי של הכנסת');
+                abort_if(CarbonImmutable::parse($data['observed_at'])->gt(now()), 422, 'מועד ההשבעה אינו יכול להיות בעתיד');
+            }
             $results = [];
             $payout = 0;
             $refund = 0;
@@ -29,15 +35,20 @@ class Settlement
             foreach ($markets as $m) {
                 $c = json_decode($m->contract, true);
                 abort_if($m->action, 409, 'קבוצה כבר בטיפול');
+                $officialFinal = ! empty($c['official_final']);
+                if ($officialFinal) {
+                    abort_unless(($data['official_final_confirmed'] ?? false) && in_array(strtolower(parse_url($data['source_url'], PHP_URL_HOST) ?? ''), ['gov.il', 'www.gov.il', 'votes26.bechirot.gov.il', 'bechirot.gov.il', 'www.bechirot.gov.il']), 422, 'יש לאשר תוצאות סופיות ולקשר לפרסום הרשמי');
+                    abort_if(CarbonImmutable::parse($data['observed_at'])->gt(now()), 422, 'מועד התוצאה חייב להיות בעבר');
+                }
                 $late = $data['early_at'] ?? null;
                 abort_if(now()->lt($this->game->cutoff($m)) && ! $late, 422, 'יש לסגור את השוק או לציין מועד פרסום מוקדם');
                 abort_if($late && CarbonImmutable::parse($late)->gt(now()), 422, 'מועד האירוע חייב להיות בעבר');
                 abort_if(CarbonImmutable::parse($data['observed_at'])->lt($c['window_starts_at']), 422, 'האירוע מחוץ לחלון התצפית');
-                if (in_array($m->type, ['channel_activity', 'statement', 'deadline_event'])) {
+                if (! $exclusive && in_array($m->type, ['channel_activity', 'statement', 'deadline_event'])) {
                     abort_unless(in_array((float) $data['observed'], [0.0, 1.0], true), 422, 'יש להזין כן או לא');
-                    abort_if((float) $data['observed'] === 0.0 && now()->lt($m->window_ends_at), 422, 'עדיין מוקדם לקבוע שהאירוע לא קרה');
+                    abort_if(! $officialFinal && (float) $data['observed'] === 0.0 && now()->lt($m->window_ends_at), 422, 'עדיין מוקדם לקבוע שהאירוע לא קרה');
                 }
-                if (! in_array($m->type, ['channel_activity', 'statement', 'deadline_event']) || (float) $data['observed'] === 1.0) {
+                if ($exclusive || $officialFinal || ! in_array($m->type, ['channel_activity', 'statement', 'deadline_event']) || (float) $data['observed'] === 1.0) {
                     abort_if(CarbonImmutable::parse($data['observed_at'])->gt(CarbonImmutable::parse($m->window_ends_at, 'UTC')), 422, 'האירוע מחוץ לחלון התצפית');
                 }
                 if (in_array($m->type, ['mention_count', 'channel_activity', 'poll_value'])) {
@@ -64,13 +75,15 @@ class Settlement
             }
             $payload = ['preview_id' => $previewId, 'league_id' => $league->id, 'market_id' => $id, 'data' => $data, 'results' => $results, 'expires_at' => now()->addHour()->timestamp];
 
-            return ['token' => Crypt::encryptString(json_encode($payload)), 'outcome' => $results[0]['outcome'], 'payout' => $payout, 'refund' => $refund, 'results' => $results];
+            return ['token' => Crypt::encryptString(json_encode($payload)), 'outcome' => collect($results)->firstWhere('id', $id)['outcome'], 'winner_label' => $exclusive ? json_decode($market->contract, true)['exclusive_options'][(int) $data['observed']] : null, 'payout' => $payout, 'refund' => $refund, 'results' => $results];
         }, 3);
     }
 
     private function group(League $league, object $market)
     {
-        return DB::table('campaign_markets')->where('league_id', $league->id)->where('season', config('campaign.season'))->when($market->group_key, fn ($q) => $q->where('group_key', $market->group_key), fn ($q) => $q->where('id', $market->id))->whereNotIn('state', ['resolved', 'void'])->orderBy('id')->lockForUpdate()->get();
+        $exclusive = json_decode($market->contract, true)['exclusive_key'] ?? null;
+
+        return DB::table('campaign_markets')->where('league_id', $league->id)->where('season', config('campaign.season'))->when($exclusive, fn ($q) => $q->where('contract->exclusive_key', $exclusive), fn ($q) => $q->when($market->group_key, fn ($q) => $q->where('group_key', $market->group_key), fn ($q) => $q->where('id', $market->id)))->whereNotIn('state', ['resolved', 'void'])->orderBy('id')->lockForUpdate()->get();
     }
 
     public function confirm(League $league, string $id, User $user, string $token): void
@@ -101,7 +114,7 @@ class Settlement
                     abort_unless(json_decode($r->payload, true)['preview']['preview_id'] === $payload['preview']['preview_id'], 409, 'כבר אושרה הכרעה אחרת');
                 }
 
-                return $payload['action'] === 'settle' ? array_column(json_decode($r->payload, true)['preview']['results'], 'id') : DB::table('campaign_markets')->where('league_id', $league->id)->when($market->group_key, fn ($q) => $q->where('group_key', $market->group_key), fn ($q) => $q->where('id', $id))->where('action', 'void')->pluck('id')->all();
+                return $payload['action'] === 'settle' ? array_column(json_decode($r->payload, true)['preview']['results'], 'id') : DB::table('campaign_markets')->where('league_id', $league->id)->when(json_decode($market->contract, true)['exclusive_key'] ?? null, fn ($q, $key) => $q->where('contract->exclusive_key', $key), fn ($q) => $q->when($market->group_key, fn ($q) => $q->where('group_key', $market->group_key), fn ($q) => $q->where('id', $id)))->where('action', 'void')->pluck('id')->all();
             }
             if ($payload['action'] === 'settle') {
                 app(Monitoring::class)->verify($league, $market, $payload['preview']['data']);

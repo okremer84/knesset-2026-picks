@@ -41,3 +41,9 @@ Observation storage currently has no automatic retention pruning. Retain it thro
 ## Verification
 
 `php artisan test --filter=CampaignMonitoringTest` covers API authorization, idempotent setup, missing X access, archive preservation, edit identity, pagination, RSS/article parsing, redirect restrictions, coverage gaps, unreadable bodies, manual-bypass prevention, and stale/duplicate settlement confirmation. Frontend tests verify that payment requires a separate action and refreshing changed evidence clears its approval.
+
+## Private pilot activation
+
+In Laravel Cloud, open the production environment → Environment variables and set `CAMPAIGN_X_BEARER_TOKEN` to the app-only Bearer token. Do not use the API key/client secret in its place. Apply changes and redeploy/restart workers. Keep `CAMPAIGN_X_SLATE_APPROVED=false` and `CAMPAIGN_NEWS_SLATE_APPROVED=false` initially. The admin can set up the sources and collect once using the monitoring screen. Verify stable account IDs for Netanyahu/Lapid, complete pagination, original text/edit history, timestamps, reply/repost exclusion and keyword matches against public posts. The token needs user timeline read access and available quota. Collection reads up to two days per run, bounded to ten pages per account; consider quota before enabling the scheduler. No live X request has yet been validated with the pilot credential.
+
+Review a complete history sample, replace provisional catalog probabilities and rationale, and verify the window is still future before setting the X approval flag. For news, separately review the prior-publication baseline and odds for the exact three-feed scope before approving. Flags alone do not establish sound odds; 50% placeholders are not researched forecasts. Fixed October 18 windows never roll forward automatically. If setup misses the cutoff, create a new explicitly reviewed future slate.

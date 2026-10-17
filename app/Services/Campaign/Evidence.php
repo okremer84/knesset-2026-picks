@@ -85,6 +85,15 @@ class Evidence
             $start = CarbonImmutable::parse($c['window_starts_at'])->setTimezone('Asia/Jerusalem')->toDateString();
             $end = CarbonImmutable::parse($market->window_ends_at, 'UTC')->setTimezone('Asia/Jerusalem')->toDateString();
             $poll = collect($snapshot['polls'])->filter(fn ($p) => $p['date'] >= $start && $p['date'] <= $end)->sortBy('date')->first();
+            if ($poll && ! empty($c['parties'])) {
+                $missing = collect($c['parties'])->filter(fn ($id) => ! array_key_exists($id, $poll['seats']) || in_array($id, $poll['notReportedPartyIds'] ?? [], true));
+                if ($missing->isNotEmpty()) {
+                    return [...$out, 'note' => 'חסרים ערכים מאומתים לרשימות: '.$missing->implode(', ').'. אין לפרש חסר כאפס.'];
+                }
+                $components = collect($c['parties'])->mapWithKeys(fn ($id) => [$id => $poll['seats'][$id]])->all();
+
+                return ['observed' => array_sum($components), 'components' => $components, 'source_url' => $poll['originalSourceUrls'][0] ?? $poll['sourceUrl'], 'note' => 'סכום הרשימות הקבועות: '.collect($components)->map(fn ($value, $id) => ($c['party_labels'][$id] ?? $id).': '.$value)->implode(', ').'. סקר '.$poll['date'].'. יש לאמת בפרסום המקורי את השעה, התרחיש ושזהו הסקר החדש הראשון בחלון.'];
+            }
             if ($poll && array_key_exists($c['subject'], $poll['seats'])) {
                 $value = $poll['seats'][$c['subject']];
                 if ($market->type === 'poll_movement') {

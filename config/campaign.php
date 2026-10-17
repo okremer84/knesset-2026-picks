@@ -11,5 +11,7 @@ return [
     'api_key' => env('CAMPAIGN_AI_API_KEY'),
     'proposal_limit' => 8,
     'youtube_key' => env('CAMPAIGN_YOUTUBE_KEY'),
+    'x_slate_approved' => (bool) env('CAMPAIGN_X_SLATE_APPROVED', false),
+    'news_slate_approved' => (bool) env('CAMPAIGN_NEWS_SLATE_APPROVED', false),
     'x_bearer_token' => env('CAMPAIGN_X_BEARER_TOKEN'),
 ];

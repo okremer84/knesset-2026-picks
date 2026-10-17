@@ -117,6 +117,7 @@ class Game
             $market = $this->market($id, $league, true);
             abort_if($market->state !== 'open' || $market->action || now()->gte($this->cutoff($market)), 409, 'השוק סגור');
             $this->consistent($league, $market, $data['probability']);
+            abort_if(! $initial && isset(json_decode($market->contract, true)['exclusive_key']), 422, 'סיכויי הקבוצה נקבעים יחד');
             $previous = $market->quote_id ? DB::table('campaign_quotes')->find($market->quote_id) : null;
             if (! $initial) {
                 $data['ai_probability'] = $previous?->ai_probability;
@@ -203,22 +204,23 @@ class Game
     public function feed(League $league, User $user): array
     {
         $this->member($league, $user);
+        $openingSlate = app(OpeningSlate::class)->load($league);
         $wallet = $this->wallet($user);
         $markets = DB::table('campaign_markets')->where('league_id', $league->id)->where('season', config('campaign.season'))->orderByDesc('created_at')->get()->map(fn ($m) => $this->present($m));
         $bets = $markets->flatMap(fn ($m) => $m['bets']);
         $mine = $bets->where('user_id', $user->id);
         $members = $league->users->merge(User::whereIn('id', DB::table('campaign_members')->where('league_id', $league->id)->pluck('user_id'))->get())->unique('id')->filter(fn ($member) => $this->allowed($member));
-        $ranks = $members->map(function ($member) use ($bets) {
+        $ranks = $members->map(function ($member) use ($bets, $markets) {
             $all = $bets->where('user_id', $member->id);
             $settled = $all->whereIn('status', ['won', 'lost']);
             $stake = $settled->sum('stake');
             $profit = $settled->sum('paid') - $stake;
             $count = $settled->pluck('market_id')->unique()->count();
 
-            return ['user_id' => $member->id, 'name' => $member->name, 'avatar' => $member->avatar_url, 'profit' => $profit, 'roi' => $count >= 3 && $stake ? $profit / $stake : null, 'markets' => $count, 'outstanding' => $all->where('status', 'pending')->sum('stake')];
+            return ['user_id' => $member->id, 'name' => $member->name, 'avatar' => $member->avatar_url, 'profit' => $profit, 'roi' => $count >= 3 && $stake ? $profit / $stake : null, 'markets' => $count, 'outstanding' => $all->where('status', 'pending')->sum('stake'), 'potential_return' => app(Exposure::class)->potential($markets, $member->id)];
         })->sortByDesc('profit')->values();
         $proposals = DB::table('campaign_proposals')->where('league_id', $league->id)->when(! $this->operator($user), fn ($q) => $q->where(fn ($own) => $own->where('user_id', $user->id)->orWhereJsonContains('payload->submitter_ids', $user->id)))->orderByDesc('created_at')->get()->map(fn ($p) => [...(array) $p, 'payload' => json_decode($p->payload, true)]);
 
-        return ['enabled' => true, 'operator' => $this->operator($user), 'wallet' => [...(array) $wallet, 'available' => (int) $wallet->available, 'outstanding' => $mine->where('status', 'pending')->sum('stake'), 'profit' => $mine->whereIn('status', ['won', 'lost'])->sum('paid') - $mine->whereIn('status', ['won', 'lost'])->sum('stake'), 'entries' => DB::table('campaign_entries')->where('wallet_id', $wallet->id)->orderByDesc('id')->limit(100)->get()], 'markets' => $markets, 'leaderboard' => $ranks, 'proposals' => $proposals];
+        return ['opening_slate' => $openingSlate, 'enabled' => true, 'operator' => $this->operator($user), 'wallet' => [...(array) $wallet, 'available' => (int) $wallet->available, 'outstanding' => $mine->where('status', 'pending')->sum('stake'), 'profit' => $mine->whereIn('status', ['won', 'lost'])->sum('paid') - $mine->whereIn('status', ['won', 'lost'])->sum('stake'), 'entries' => DB::table('campaign_entries')->where('wallet_id', $wallet->id)->orderByDesc('id')->limit(100)->get()], 'markets' => $markets, 'leaderboard' => $ranks, 'proposals' => $proposals];
     }
 }

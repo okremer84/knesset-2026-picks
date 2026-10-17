@@ -10,6 +10,7 @@ use App\Services\Campaign\Evidence;
 use App\Services\Campaign\Game;
 use App\Services\Campaign\Imports;
 use App\Services\Campaign\MarketRules;
+use App\Services\Campaign\OpeningSlate;
 use App\Services\Campaign\Settlement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +69,7 @@ class CampaignController extends Controller
     public function preview(League $league, string $market, Request $r, Game $game, Settlement $settlement)
     {
         $this->access($league, $r, $game, true);
-        $d = $r->validate(['observed' => 'required|numeric|between:-100000,100000', 'source_url' => 'required|url:https|max:2000', 'observed_at' => 'required|date|before_or_equal:now', 'early_at' => 'nullable|date|before_or_equal:now', 'note' => 'required|string|max:4000']);
+        $d = $r->validate(['observed' => 'required|numeric|between:-100000,100000', 'source_url' => 'required|url:https|max:2000', 'observed_at' => 'required|date|before_or_equal:now', 'early_at' => 'nullable|date|before_or_equal:now', 'official_final_confirmed' => 'sometimes|boolean', 'note' => 'required|string|max:4000']);
 
         return $settlement->preview($league, $market, $d);
     }
@@ -94,6 +95,11 @@ class CampaignController extends Controller
     public function configuration(Request $r, Game $game)
     {
         $enabled = (bool) config('campaign.enabled') && $game->allowed($r->user());
+        if ($enabled && config('campaign.pilot_only')) {
+            $pilot = app(OpeningSlate::class)->pilot($r->user());
+
+            return ['enabled' => true, 'leagues' => [['id' => $pilot->id, 'name' => $pilot->name]], 'operator' => $game->operator($r->user())];
+        }
         $leagues = $enabled ? League::where(function ($q) use ($r) {
             $q->whereHas('users', fn ($users) => $users->where('users.id', $r->user()->id))->orWhereIn('id', DB::table('campaign_members')->where('user_id', $r->user()->id)->pluck('league_id'));
         })->get(['id', 'name']) : [];

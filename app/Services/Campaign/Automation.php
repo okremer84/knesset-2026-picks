@@ -68,6 +68,7 @@ class Automation
             return;
         }
         $markets = DB::table('campaign_markets')->where('league_id', $league->id)->where('season', config('campaign.season'))->where('state', 'open')->whereNull('action')->where('closes_at', '>', now())->when($types, fn ($q) => $q->whereIn('type', $types))->orderBy('id')->get();
+        $markets = $markets->reject(fn ($m) => isset(json_decode($m->contract, true)['exclusive_key']));
         foreach ($markets->groupBy(fn ($m) => $m->group_key ?? $m->id) as $group) {
             $input = $group->map(fn ($m) => $this->evidence->input($league, $m))->values()->all();
             $hash = $this->evidence->hash($input);

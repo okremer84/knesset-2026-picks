@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\Campaign\Game;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -18,7 +19,12 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    protected $appends = ['avatar_url'];
+    protected $appends = ['avatar_url', 'campaign_access'];
+
+    protected function campaignAccess(): Attribute
+    {
+        return Attribute::get(fn () => (bool) config('campaign.enabled') && app(Game::class)->allowed($this));
+    }
 
     protected function avatarUrl(): Attribute
     {

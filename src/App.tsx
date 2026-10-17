@@ -23,7 +23,7 @@ export default function App() {
   const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הסקרים עד לקבלת עדכון מהשרת');
   const [joinCode, setJoinCode] = useState('');
   const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
-  const [activeTab, setActiveTab] = useState(() => initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)));
+  const [activeTab, setActiveTab] = useState(() => { const tab = initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)); return tab === 'campaign' && !user.campaign_access ? 'picker' : tab; });
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
@@ -477,7 +477,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'campaign' && <CampaignView userId={user.id} initialLeagueId={currentLeague?.id}/>}
+        {activeTab === 'campaign' && user.campaign_access && <CampaignView userId={user.id} initialLeagueId={currentLeague?.id}/>}
 
         {activeTab === 'historical' && (
           <HistoricalAnalysis/>
