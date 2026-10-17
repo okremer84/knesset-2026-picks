@@ -11,7 +11,7 @@ export function OperatorPanel({ data, selected, onAction, busy, onDone }: { data
   const [editingSource, setEditingSource] = useState<Source | null>(null);
   const [localError, setLocalError] = useState('');
   const [prefill, updatePrefill] = useState<{ observed?: number; source_url?: string; observed_at?: string; note?: string }>({});
-  const [tab, setTab] = useState(selected ? 'settle' : 'queue'); const [proposal, setProposal] = useState<Proposal | null>(null); const [preview, setPreview] = useState<{ token: string; outcome: string; winner_label?: string; payout: number; refund: number } | null>(null);
+  const [tab, setTab] = useState(typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('review') && (!selected || selected.contract.monitor) ? 'monitor' : selected ? 'settle' : 'queue'); const [proposal, setProposal] = useState<Proposal | null>(null); const [preview, setPreview] = useState<{ token: string; outcome: string; winner_label?: string; payout: number; refund: number } | null>(null);
   const [settleId, setSettleId] = useState(selected?.id ?? ''); const [sources, setSources] = useState<Source[]>([]);
   const current = data.markets.find(m => m.id === settleId); const p = proposal?.payload;
   const pending = data.proposals.filter(p => p.status === 'pending');

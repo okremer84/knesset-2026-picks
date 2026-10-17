@@ -133,3 +133,27 @@ test('candidate rows select the exact market and disable closed purchases', asyn
     assert.equal(document.querySelectorAll('.candidate-avatar img').length, 2);
   } finally { await act(async () => root.unmount()); dom.window.close(); }
 });
+
+test('Slack review links open monitoring for an operator and never submit an approval', async () => {
+  const { JSDOM } = await import('jsdom');
+  const dom = new JSDOM('<div id="root"></div>', {url: 'https://knesset-picks.com/?tab=campaign&review=monitoring'});
+  dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; };
+  Object.assign(globalThis, {window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true});
+  const { createRoot } = await import('react-dom/client');
+  const { CampaignBoard } = await import('../../src/components/CampaignView');
+  const { act } = await import('react');
+  const calls: string[] = [];
+  const data = {enabled:true,operator:true,wallet:{available:100000,outstanding:0,profit:0,entries:[]},markets:[],proposals:[],leaderboard:[]};
+  const root = createRoot(document.getElementById('root')!);
+  try {
+    await act(async () => root.render(<CampaignBoard data={data} userId={1} leagueName="Shared" onAction={async <T,>(path: string): Promise<T> => { calls.push(path); return {x_configured:false,sources:[],packets:[]} as T; }} onRefresh={async () => {}}/>));
+    assert.match(document.body.textContent ?? '', /מעקב ואישור ראיות/);
+    assert.deepEqual(calls, ['/monitoring']);
+    await act(async () => root.unmount());
+    const outsider = createRoot(document.getElementById('root')!);
+    await act(async () => outsider.render(<CampaignBoard data={{...data,operator:false}} userId={2} leagueName="Shared" onAction={async <T,>(): Promise<T> => { throw new Error('must not call'); }} onRefresh={async () => {}}/>));
+    assert.doesNotMatch(document.body.textContent ?? '', /מעקב ואישור ראיות/);
+    await act(async () => outsider.unmount());
+  } finally { dom.window.close(); }
+});
