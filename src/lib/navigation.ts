@@ -2,7 +2,7 @@ import type { LeagueSummary } from '../types';
 import type { AppTab } from '../components/Header';
 
 export function initialTab(params: URLSearchParams, saved: unknown): AppTab {
-  const valid = (value: unknown): value is AppTab => ['picker', 'league', 'surveys', 'historical'].includes(value as string);
+  const valid = (value: unknown): value is AppTab => ['picker', 'league', 'surveys', 'historical', 'campaign'].includes(value as string);
   if (params.has('invite')) return 'league';
   const tab = params.get('tab');
   if (valid(tab)) return tab;

@@ -1,0 +1,93 @@
+{
+  "purpose": "External evidence for operator proposals only. These records are not published local markets and their prices are not local LLM quotes.",
+  "observed_at": "2026-10-15T00:29:19.126364+00:00",
+  "examples": [
+    {
+      "provider": "polymarket",
+      "external_id": "5237293",
+      "external_event_id": "1124809",
+      "external_slug": "netanyahu-drops-out-before-election",
+      "source_url": "https://polymarket.com/event/netanyahu-drops-out-before-election",
+      "api_url": "https://gamma-api.polymarket.com/events/slug/netanyahu-drops-out-before-election",
+      "observed_at": "2026-10-15T00:29:19.126364+00:00",
+      "title": "Netanyahu drops out before election?",
+      "original_rules": "Legislative elections are expected to be held in Israel on October 27, 2026.\n\nThis market will resolve to “Yes” if Benjamin Netanyahu announces that he will not run for reelection to the Israeli Knesset in this election by October 26, 2026, 11:59 PM Jerusalem Time. Otherwise, this market will resolve to “No”.\n\nOnly definitive announcements will count. Suggestions, statements of consideration, or other non-definitive statements will not count. \n\nThe primary resolution source for this market will be official information from Benjamin Netanyahu; however, a consensus of credible reporting may also be used.",
+      "resolution_source": "",
+      "status_flags": {
+        "active": true,
+        "closed": false,
+        "archived": false,
+        "acceptingOrders": true,
+        "umaResolutionStatus": null
+      },
+      "source_updated_at": "2026-10-15T00:06:53.208425Z",
+      "dates": {
+        "api_end_at": "2026-10-27T03:59:00Z",
+        "rules_deadline_local": "2026-10-26T23:59:00",
+        "rules_deadline_timezone": "Asia/Jerusalem",
+        "deadline_review_required": true,
+        "review_reason": "The API endDate does not equal the Jerusalem deadline stated in the rules."
+      },
+      "external_probability": {
+        "yes": "0.016",
+        "no": "0.984",
+        "source_field": "outcomePrices",
+        "kind": "external_market_implied_probability",
+        "is_local_quote": false
+      },
+      "external_price_snapshot": {
+        "bestBid": 0.003,
+        "bestAsk": 0.029,
+        "lastTradePrice": 0.014
+      },
+      "import_state": "proposal_only",
+      "local_publication_allowed": false
+    },
+    {
+      "provider": "kalshi",
+      "external_id": "KXDJTENDORSENETANYAHU-26JUN30-OCT28",
+      "external_event_id": "KXDJTENDORSENETANYAHU-26JUN30",
+      "external_series_id": "KXDJTENDORSENETANYAHU",
+      "source_url": "https://external-api.kalshi.com/trade-api/v2/markets/KXDJTENDORSENETANYAHU-26JUN30-OCT28",
+      "api_url": "https://external-api.kalshi.com/trade-api/v2/markets/KXDJTENDORSENETANYAHU-26JUN30-OCT28",
+      "observed_at": "2026-10-15T00:29:19.126364+00:00",
+      "title": "Will Donald Trump endorse Benjamin Netanyahu in the 2026 Israeli legislative election before Oct 28, 2026?",
+      "original_rules": {
+        "primary": "If Donald Trump publicly endorses Benjamin Netanyahu in the 2026 Israeli legislative election before Oct 28, 2026, then the market resolves to Yes.",
+        "secondary": "An endorsement requires a clear, affirmative statement of support for the nominee's election. The statement must be public (not private communications) and specifically reference the race or be clearly in context of the race. The endorsement must come directly from the person or through their official channels. Positive comments without explicit support, policy endorsements without nominee endorsement, or conditional endorsements do not qualify. Social media endorsements count only from verified accounts, and likes or retweets alone do not constitute endorsement. Quote tweets with additional supportive commentary do count. Sarcastic statements or those immediately clarified as jokes do not qualify."
+      },
+      "rules_url": "https://assets.kalshi.com/contract_terms/ENDORSE.pdf",
+      "status_flags": {
+        "status": "active",
+        "result": "",
+        "can_close_early": true
+      },
+      "source_updated_at": "2026-06-30T14:03:57.355342Z",
+      "dates": {
+        "open_time": "2026-06-29T19:56:00Z",
+        "close_time": "2026-10-28T14:00:00Z",
+        "expected_expiration_time": "2026-11-01T15:00:00Z",
+        "expiration_time": "2026-10-28T14:00:00Z",
+        "occurrence_datetime": "2026-10-28T14:00:00Z"
+      },
+      "deadline_review_required": true,
+      "review_reason": "The original endorsement deadline is after election day. Changing it creates a different local contract requiring separate rules and pricing.",
+      "external_probability": {
+        "yes": "0.2900",
+        "source_field": "last_price_dollars",
+        "kind": "external_last_trade_implied_probability",
+        "is_local_quote": false
+      },
+      "external_price_snapshot": {
+        "yes_bid_dollars": "0.1600",
+        "yes_ask_dollars": "0.3300",
+        "no_bid_dollars": "0.6700",
+        "no_ask_dollars": "0.8400",
+        "last_price_dollars": "0.2900",
+        "notional_value_dollars": "1.0000"
+      },
+      "import_state": "proposal_only",
+      "local_publication_allowed": false
+    }
+  ]
+}
