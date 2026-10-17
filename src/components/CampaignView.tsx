@@ -43,8 +43,8 @@ function MiniChart({ quotes, large = false }: { quotes: number[]; large?: boolea
 export function CampaignBoard({ data, userId, leagueName, onAction, onRefresh }: { data: CampaignData; userId: number; leagueName: string; onAction: CampaignAction; onRefresh: () => Promise<void> }) {
   const [receipt, setReceipt] = useState<Ticket | null>(null);
   const [search, setSearch] = useState(''); const [filter, setFilter] = useState('open');
-  const [panel, setPanel] = useState<'market' | 'details' | 'suggest' | 'operator' | 'wallet' | null>(null);
-  const [selected, setSelected] = useState<string | null>(null); const [side, setSide] = useState<'yes' | 'no'>('yes'); const [amount, setAmount] = useState('25');
+  const [panel, setPanel] = useState<'market' | 'details' | 'suggest' | 'operator' | 'wallet' | null>(() => data.operator && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('review') ? 'operator' : null);
+  const [selected, setSelected] = useState<string | null>(() => data.operator && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('review') : null); const [side, setSide] = useState<'yes' | 'no'>('yes'); const [amount, setAmount] = useState('25');
   const [notice, setNotice] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [scoreboard, setScoreboard] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'scoreboard');
   useEffect(() => { const pop = () => setScoreboard(new URLSearchParams(window.location.search).get('view') === 'scoreboard'); window.addEventListener('popstate', pop); return () => window.removeEventListener('popstate', pop); }, []);
   const showScoreboard = (show: boolean) => { const url = new URL(window.location.href); if(show) url.searchParams.set('view','scoreboard'); else url.searchParams.delete('view'); window.history.pushState({},'',url); setScoreboard(show); };
