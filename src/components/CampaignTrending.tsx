@@ -4,8 +4,8 @@ import { marketLabels, probability, trendingMarkets, type Market } from '../lib/
 
 export function CampaignTrending({ markets, onSelect, onShowAll }: { markets: Market[]; onSelect: (market: Market) => void; onShowAll: () => void }) {
   const trending = trendingMarkets(markets);
-  return <aside className="campaign-trending" aria-label="חם בליגה">
-    <button className="trending-heading" onClick={onShowAll}><span><Flame size={17}/>חם בליגה</span><ArrowUpLeft size={16}/></button>
+  return <aside className="campaign-trending" aria-label="חם עכשיו">
+    <button className="trending-heading" onClick={onShowAll}><span><Flame size={17}/>חם עכשיו</span><ArrowUpLeft size={16}/></button>
     {trending.length ? <div className="trending-list">{trending.slice(0, 3).map(({ market, participants }) => {
       const previous = [...market.quotes].filter(q => q.version < market.quote.version).sort((a, b) => b.version - a.version)[0];
       const change = previous ? (market.quote.probability - previous.probability) / 100 : null;

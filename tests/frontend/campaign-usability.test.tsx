@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import React, { act } from 'react';
+import { CampaignPicks } from '../../src/components/CampaignPicks';
 import { CampaignBoard, MarketCard } from '../../src/components/CampaignView';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { CampaignData, Market } from '../../src/lib/campaign';
@@ -32,17 +33,34 @@ test('open questions are the default, expired questions remain discoverable, and
     await click('הכול');
     assert.equal(document.querySelectorAll('.market-card').length, 2, 'all questions remain discoverable');
     await click('טבלת המובילים');
-    assert.deepEqual([...document.querySelectorAll('.campaign-ranking>div>b')].map(e => e.textContent), ['1', '1']);
+    assert.equal(document.querySelectorAll('.scoreboard-table tbody tr').length, 2);
+    assert.equal(document.querySelector('dialog'), null, 'scoreboard is a page, not a modal');
+    assert.equal(document.querySelectorAll('.rank-switch').length, 0);
+    assert.deepEqual([...document.querySelectorAll('.scoreboard-table tbody tr>td:first-child')].map(e => e.textContent), ['1', '1']);
     assert.match(document.querySelector('.ranking-me')!.textContent!, /Secondaryאת\/ה/);
-    assert.match(document.querySelector('.ranking-me')!.textContent!, /בהימורים פתוחים₪350פוטנציאל החזר₪460.77/);
-    assert.match(document.querySelector('.ranking-player')!.textContent!, /פוטנציאל החזר—/);
-    await click('תשואה באחוזים');
-    assert.deepEqual([...document.querySelectorAll('.campaign-ranking>div>b')].map(e => e.textContent), ['—', '—']);
-    await act(async () => (document.querySelector('[aria-label="סגירה"]') as HTMLButtonElement).click());
+    assert.match(document.querySelector('.ranking-me')!.textContent!, /₪350/);
+    assert.match(document.querySelector('.ranking-me')!.textContent!, /₪460.77/);
+    await click('סכום פתוח ↕');
+    assert.match(document.querySelector('.scoreboard-table tbody tr')!.textContent!, /Secondary/);
+    await click('סכום פתוח ↓');
+    assert.match(document.querySelector('.scoreboard-table tbody tr')!.textContent!, /Main/);
+    await click('תשואה ↕');
+    assert.deepEqual([...document.querySelectorAll('.scoreboard-table tbody tr>td:first-child')].map(e => e.textContent), ['—', '—']);
+    assert.match(window.location.search, /view=scoreboard/);
+    await click('→ חזרה לשאלות');
     await click('פתוחות לקנייה (1)');
     await click(market.title);
     await click('₪100');
     assert.equal((document.querySelector('[aria-label="סכום הקנייה בשקלים"]') as HTMLInputElement).value, '100');
     assert.match(document.querySelector('.buy-payout')!.textContent!, /₪250/);
   } finally { await act(async () => root.unmount()); dom.window.close(); }
+});
+
+ test('personal picks combine pending and settled tickets, with pending first and other users excluded', () => {
+  const base = { market_id: market.id, user_id: 1, name: 'Me', side: 'yes' as const, stake: 2500, promised_return: 6250, probability: 4000, paid: 0, created_at: '2026-10-17T10:00:00Z' };
+  const html = renderToStaticMarkup(<CampaignPicks markets={[{ ...market, bets: [{ ...base, id: 'won', status: 'won', paid: 6250 }, { ...base, id: 'pending', status: 'pending' }, { ...base, id: 'other', user_id: 2, status: 'lost' }] }]} userId={1} onSelect={() => {}}/>);
+  assert.match(html, /1 בחירות פתוחות/);
+  assert.equal((html.match(/<tr>/g) ?? []).length, 3);
+  assert.ok(html.indexOf('פתוח · ממתינים לתוצאה') < html.indexOf('זכייה'));
+  assert.match(html, /₪37.50/);
 });

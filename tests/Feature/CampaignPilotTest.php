@@ -25,6 +25,7 @@ class CampaignPilotTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['campaign.public_access' => false]);
         $this->travelTo(CarbonImmutable::parse('2026-10-16T10:00:00Z'));
         $this->admin = User::factory()->create(['email' => 'okremer84@gmail.com', 'google_id' => 'pilot-admin']);
         $this->bettor = User::factory()->create(['email' => 'omer@trytrackit.com', 'google_id' => 'pilot-bettor']);

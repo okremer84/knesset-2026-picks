@@ -81,7 +81,7 @@ class CampaignTest extends TestCase
         $preview = $this->postJson($path.'/preview', ['observed' => 3, 'source_url' => 'https://example.org/video', 'observed_at' => now()->toIso8601String(), 'note' => '00:04, 00:08, 00:12'])->assertOk()->assertJsonPath('outcome', 'yes')->assertJsonPath('payout', 25000)->json('token');
         $this->postJson($path.'/settle', ['token' => $preview])->assertOk();
         $this->postJson($path.'/settle', ['token' => $preview])->assertOk();
-        $this->getJson($this->base)->assertJsonPath('wallet.available', 1005000)->assertJsonPath('wallet.profit', 5000)->assertJsonPath('markets.0.state', 'resolved');
+        $this->getJson($this->base)->assertJsonPath('wallet.available', 1005000)->assertJsonPath('wallet.profit', 5000)->assertJsonPath('markets.0.state', 'resolved')->assertJsonPath('leaderboard.0.picks', 2)->assertJsonPath('leaderboard.0.won', 1)->assertJsonPath('leaderboard.0.lost', 1)->assertJsonPath('leaderboard.0.win_rate', 0.5);
         $this->postJson($path.'/void', ['reason' => 'too late'])->assertConflict();
         $void = $this->market(['closes_at' => '2026-10-16T10:00:00Z']);
         $vpath = $this->base.'/markets/'.$void['id'];
