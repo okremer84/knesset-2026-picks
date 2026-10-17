@@ -214,7 +214,7 @@ class Game
         $this->member($league, $user);
         $openingSlate = app(OpeningSlate::class)->load($league);
         $wallet = $this->wallet($user);
-        $markets = DB::table('campaign_markets')->where('league_id', $league->id)->where('season', config('campaign.season'))->orderByDesc('created_at')->get()->map(fn ($m) => $this->present($m));
+        $markets = DB::table('campaign_markets')->whereNull('archived_at')->where('league_id', $league->id)->where('season', config('campaign.season'))->orderByDesc('created_at')->get()->map(fn ($m) => $this->present($m));
         $bets = $markets->flatMap(fn ($m) => $m['bets']);
         $mine = $bets->where('user_id', $user->id);
         $members = $league->users->merge(User::whereIn('id', DB::table('campaign_members')->where('league_id', $league->id)->pluck('user_id'))->get())->unique('id')->filter(fn ($member) => $this->allowed($member));

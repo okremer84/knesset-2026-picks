@@ -111,7 +111,7 @@ class Monitoring
         }
         if (! $complete && $packet['status'] !== 'review') {
             $packet['status'] = now()->lt($start) ? 'waiting' : 'incomplete';
-            $packet['message'] = 'אין רצף איסוף מספק. אין להסיק תוצאת לא מהיעדר פרסומים';
+            $packet['message'] = now()->lt($start) ? 'חלון התצפית טרם התחיל; בינתיים בודקים את תקינות המקורות' : 'אין רצף איסוף מספק. אין להסיק תוצאת לא מהיעדר פרסומים';
             unset($packet['observed']);
         }
         // No timestamps that change on every healthy poll: only meaningful evidence/status changes invalidate approval.
