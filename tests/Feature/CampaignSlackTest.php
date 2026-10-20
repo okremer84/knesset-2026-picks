@@ -20,12 +20,22 @@ class CampaignSlackTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['campaign.processing_enabled' => true]);
         $this->travelTo(now()->startOfMinute());
         $user = User::factory()->create();
         $this->league = League::create(['name' => 'Slack', 'owner_id' => $user->id, 'invite_code' => str_repeat('s', 40), 'locks_at' => now()->addDay()]);
         config(['app.url' => 'https://knesset-picks.com', 'campaign.enabled' => true, 'campaign_slack.enabled' => true,
             'campaign_slack.token' => 'secret', 'campaign_slack.team_id' => 'T123', 'campaign_slack.channel_id' => 'C123', 'campaign_slack.league_id' => $this->league->id]);
         Http::preventStrayRequests();
+    }
+
+    public function test_paused_processing_does_not_check_or_send_slack_reviews(): void
+    {
+        config(['campaign.processing_enabled' => false]);
+        $this->assertFalse(app(SlackReview::class)->configured());
+        $this->artisan('campaign:slack --send')->assertSuccessful();
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('campaign_slack_notices', 0);
     }
 
     private function market(array $overrides = []): string

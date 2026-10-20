@@ -1,5 +1,8 @@
 # Campaign side game: setup and operation
 
+Processing is paused by default with `CAMPAIGN_PROCESSING_ENABLED=false`. Eisenmarket remains available; collection, AI updates, evidence checks, settlement and Slack review notifications stop, including queued work. Existing data is retained. Deploy with refreshed cached configuration and restarted workers. Only explicitly enable processing to resume the workflows below.
+
+
 The implementation follows [revision 6](prediction-markets-spec.md). It adds a Hebrew, RTL market board and operator console to the existing application, using the existing Google account and league. All amounts are play money; nothing connects to an exchange account or places external trades.
 
 ## Enable locally or in a deployment

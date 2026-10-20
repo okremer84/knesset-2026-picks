@@ -13,7 +13,7 @@ require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 $input = json_decode(base64_decode($argv[1]), true);
-config(['campaign.pilot_only' => false, 'campaign.enabled' => true, 'campaign.season' => '2026', 'queue.default' => 'sync']);
+config(['campaign.pilot_only' => false, 'campaign.enabled' => true, 'campaign.processing_enabled' => true, 'campaign.season' => '2026', 'queue.default' => 'sync']);
 CarbonImmutable::setTestNow($input['now']);
 Carbon::setTestNow($input['now']);
 $user = User::findOrFail($input['user']);

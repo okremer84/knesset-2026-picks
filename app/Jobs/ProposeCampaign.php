@@ -19,7 +19,7 @@ class ProposeCampaign implements ShouldQueue
 
     public function handle(Automation $automation): void
     {
-        if (config('campaign.enabled') && config('campaign.api_key')) {
+        if (config('campaign.enabled') && config('campaign.processing_enabled') && config('campaign.api_key')) {
             $automation->propose(League::findOrFail($this->leagueId));
         }
     }

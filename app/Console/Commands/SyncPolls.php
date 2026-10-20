@@ -44,7 +44,7 @@ class SyncPolls extends Command
                 Survey::where('kind', 'opinion_poll')->where('id', 'like', 'wiki-%')->whereNotIn('id', array_column($polls, 'id'))->update(['active' => false]);
                 DB::table('poll_imports')->where('id', $run)->update(['status' => 'succeeded', 'count' => count($polls), 'updated_at' => now()]);
             });
-            if (config('campaign.enabled')) {
+            if (config('campaign.enabled') && config('campaign.processing_enabled')) {
                 RepriceCampaign::dispatch(null, ['poll_value', 'poll_movement'])->afterCommit();
             }
             $this->info('Imported '.count($polls).' polls');

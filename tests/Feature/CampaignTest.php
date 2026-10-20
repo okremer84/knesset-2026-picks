@@ -2,6 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\CollectCampaignChannel;
+use App\Jobs\CollectCampaignMonitor;
+use App\Jobs\ProposeCampaign;
+use App\Jobs\RepriceCampaign;
+use App\Jobs\SettleCampaign;
 use App\Models\League;
 use App\Models\Survey;
 use App\Models\User;
@@ -9,6 +14,8 @@ use App\Services\Campaign\Automation;
 use App\Services\Campaign\Channels;
 use App\Services\Campaign\Game;
 use App\Services\Campaign\LaunchCleanup;
+use App\Services\Campaign\MonitorCollector;
+use App\Services\Campaign\Settlement;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
@@ -32,6 +39,7 @@ class CampaignTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['campaign.processing_enabled' => true]);
         $this->travelTo(CarbonImmutable::parse('2026-10-14T10:00:00Z'));
         $this->operator = User::factory()->create();
         $this->league = League::create(['name' => 'Friends', 'owner_id' => $this->operator->id, 'invite_code' => str_repeat('a', 40), 'locks_at' => now()->addDay()]);
@@ -39,6 +47,44 @@ class CampaignTest extends TestCase
         config(['campaign.pilot_only' => false, 'campaign.enabled' => true, 'campaign.operator_ids' => [$this->operator->id], 'election.date' => '2026-10-27']);
         $this->base = '/api/leagues/'.$this->league->id.'/campaign';
         $this->actingAs($this->operator);
+    }
+
+    public function test_paused_processing_keeps_market_available_but_blocks_checks(): void
+    {
+        config(['campaign.processing_enabled' => false]);
+        Http::preventStrayRequests();
+        Queue::fake();
+
+        $this->getJson($this->base)->assertOk()
+            ->assertJsonPath('enabled', true)
+            ->assertJsonPath('processing_enabled', false);
+
+        foreach (['/proposals/generate', '/import', '/markets/missing/preview', '/markets/missing/settle', '/markets/missing/void', '/monitoring/setup', '/monitoring/sources/1/collect', '/markets/missing/monitor-preview'] as $path) {
+            $this->postJson($this->base.$path)->assertStatus(409);
+        }
+        $this->getJson($this->base.'/monitoring')->assertStatus(409);
+        $this->getJson($this->base.'/markets/missing/prefill')->assertStatus(409);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_paused_processing_ignores_already_queued_work(): void
+    {
+        config(['campaign.processing_enabled' => false, 'campaign.api_key' => 'test']);
+        $channels = $this->mock(Channels::class);
+        $channels->shouldNotReceive('collect');
+        $collector = $this->mock(MonitorCollector::class);
+        $collector->shouldNotReceive('collect');
+        $automation = $this->mock(Automation::class);
+        $automation->shouldNotReceive('propose');
+        $automation->shouldNotReceive('reprice');
+        $settlement = $this->mock(Settlement::class);
+        $settlement->shouldNotReceive('finish');
+
+        (new CollectCampaignChannel(1))->handle($channels);
+        (new CollectCampaignMonitor(1))->handle($collector);
+        (new ProposeCampaign($this->league->id))->handle($automation);
+        (new RepriceCampaign($this->league->id))->handle($automation);
+        (new SettleCampaign($this->league->id, []))->handle($settlement);
     }
 
     public function test_first_access_grants_one_wallet_and_non_members_cannot_read_positions(): void

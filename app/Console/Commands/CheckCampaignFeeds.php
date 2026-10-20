@@ -13,6 +13,12 @@ class CheckCampaignFeeds extends Command
 
     public function handle(MonitorFeeds $feeds): int
     {
+        if (! config('campaign.enabled') || ! config('campaign.processing_enabled')) {
+            $this->info('Eisenmarket processing is paused; no feeds were fetched.');
+
+            return self::SUCCESS;
+        }
+
         $failed = false;
         foreach (MonitorFeeds::catalog() as $id => $feed) {
             try {

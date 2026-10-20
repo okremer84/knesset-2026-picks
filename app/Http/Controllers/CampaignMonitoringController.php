@@ -21,6 +21,7 @@ class CampaignMonitoringController extends Controller
     {
         app(Game::class)->member($league, $request->user());
         abort_unless(app(Game::class)->operator($request->user()), 403);
+        abort_unless(config('campaign.processing_enabled'), 409, 'איסוף, בדיקת הימורים והכרעות מושהים');
     }
 
     public function index(League $league, Request $request, Monitoring $monitoring)

@@ -19,7 +19,7 @@ class CollectCampaignChannel implements ShouldQueue
 
     public function handle(Channels $channels): void
     {
-        if (! config('campaign.enabled')) {
+        if (! config('campaign.enabled') || ! config('campaign.processing_enabled')) {
             return;
         }
         $source = DB::table('campaign_sources')->find($this->sourceId);

@@ -21,6 +21,9 @@ class SettleCampaign implements ShouldQueue
 
     public function handle(Settlement $settlement): void
     {
+        if (! config('campaign.enabled') || ! config('campaign.processing_enabled')) {
+            return;
+        }
         $settlement->finish($this->leagueId, $this->ids);
     }
 }

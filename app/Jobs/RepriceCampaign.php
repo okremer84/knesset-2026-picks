@@ -24,7 +24,7 @@ class RepriceCampaign implements ShouldQueue
 
     public function handle(Automation $automation): void
     {
-        if (! config('campaign.enabled') || ! config('campaign.api_key')) {
+        if (! config('campaign.enabled') || ! config('campaign.processing_enabled') || ! config('campaign.api_key')) {
             return;
         }
         foreach (League::when($this->leagueId, fn ($q) => $q->whereKey($this->leagueId))->cursor() as $league) {
