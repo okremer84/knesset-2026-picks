@@ -32,7 +32,7 @@ class CampaignConcurrencyTest extends TestCase
             $this->markTestSkipped('Row-lock races require MySQL.');
         }
         $this->travelTo(CarbonImmutable::parse('2026-10-14T10:00:00Z'));
-        config(['campaign.pilot_only' => false, 'campaign.enabled' => true, 'campaign.season' => '2026', 'election.date' => '2026-10-27']);
+        config(['campaign.pilot_only' => false, 'campaign.enabled' => true, 'campaign.processing_enabled' => true, 'campaign.season' => '2026', 'election.date' => '2026-10-27']);
         $user = User::factory()->create();
         $league = League::create(['name' => 'Race tests', 'owner_id' => $user->id, 'invite_code' => str_repeat('r', 40), 'locks_at' => now()->addDay()]);
         $league->users()->attach($user);
