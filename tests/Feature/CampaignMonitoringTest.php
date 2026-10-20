@@ -23,6 +23,7 @@ class CampaignMonitoringTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['campaign.processing_enabled' => true]);
         $this->travelTo(Time::parse('2026-10-15T10:00:00Z'));
         $user = User::factory()->create();
         $this->league = League::create(['name' => 'Monitor', 'owner_id' => $user->id, 'invite_code' => str_repeat('b', 40), 'locks_at' => now()->addDay()]);

@@ -69,6 +69,7 @@ class CampaignController extends Controller
     public function preview(League $league, string $market, Request $r, Game $game, Settlement $settlement)
     {
         $this->access($league, $r, $game, true);
+        abort_unless(config('campaign.processing_enabled'), 409, 'איסוף, בדיקת הימורים והכרעות מושהים');
         $d = $r->validate(['observed' => 'required|numeric|between:-100000,100000', 'source_url' => 'required|url:https|max:2000', 'observed_at' => 'required|date|before_or_equal:now', 'early_at' => 'nullable|date|before_or_equal:now', 'official_final_confirmed' => 'sometimes|boolean', 'note' => 'required|string|max:4000']);
 
         return $settlement->preview($league, $market, $d);
@@ -77,6 +78,7 @@ class CampaignController extends Controller
     public function settle(League $league, string $market, Request $r, Game $game, Settlement $settlement)
     {
         $this->access($league, $r, $game, true);
+        abort_unless(config('campaign.processing_enabled'), 409, 'איסוף, בדיקת הימורים והכרעות מושהים');
         $d = $r->validate(['token' => 'required|string|max:40000']);
         $settlement->confirm($league, $market, $r->user(), $d['token']);
 
@@ -86,6 +88,7 @@ class CampaignController extends Controller
     public function void(League $league, string $market, Request $r, Game $game, Settlement $settlement)
     {
         $this->access($league, $r, $game, true);
+        abort_unless(config('campaign.processing_enabled'), 409, 'איסוף, בדיקת הימורים והכרעות מושהים');
         $d = $r->validate(['reason' => 'required|string|max:2000']);
         $settlement->void($league, $market, $r->user(), $d['reason']);
 
@@ -153,6 +156,7 @@ class CampaignController extends Controller
     public function import(League $league, Request $r, Game $game, Imports $imports)
     {
         $this->access($league, $r, $game, true);
+        abort_unless(config('campaign.processing_enabled'), 409, 'איסוף, בדיקת הימורים והכרעות מושהים');
         $d = $r->validate(['provider' => ['required', Rule::in(['kalshi', 'polymarket'])], 'id' => 'required|string|max:150']);
 
         return $imports->import($league, $d['provider'], $d['id']);
@@ -161,6 +165,7 @@ class CampaignController extends Controller
     public function generate(League $league, Request $r, Game $game)
     {
         $this->access($league, $r, $game, true);
+        abort_unless(config('campaign.processing_enabled'), 409, 'איסוף, בדיקת הימורים והכרעות מושהים');
         abort_unless(config('campaign.api_key'), 503, 'נדרש מפתח AI בהגדרות השרת');
         ProposeCampaign::dispatch($league->id);
 
@@ -170,6 +175,7 @@ class CampaignController extends Controller
     public function prefill(League $league, string $market, Request $r, Game $game, Evidence $evidence)
     {
         $this->access($league, $r, $game, true);
+        abort_unless(config('campaign.processing_enabled'), 409, 'איסוף, בדיקת הימורים והכרעות מושהים');
 
         return $evidence->prefill($league, $game->market($market, $league));
     }
@@ -202,8 +208,10 @@ class CampaignController extends Controller
                     $id = DB::table('campaign_sources')->insertGetId([...$row, 'league_id' => $league->id, 'created_at' => now()]);
                 }
                 $game->event(null, $r->user()->id, 'source_saved', ['source_id' => $id, 'league_id' => $league->id]);
-                RepriceCampaign::dispatch($league->id)->afterCommit();
-                if (in_array($d['kind'], ['youtube', 'telegram'])) {
+                if (config('campaign.processing_enabled')) {
+                    RepriceCampaign::dispatch($league->id)->afterCommit();
+                }
+                if (config('campaign.processing_enabled') && in_array($d['kind'], ['youtube', 'telegram'])) {
                     CollectCampaignChannel::dispatch($id)->afterCommit();
                 }
             }, 3);

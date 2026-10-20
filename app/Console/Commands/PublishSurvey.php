@@ -16,7 +16,7 @@ class PublishSurvey extends Command
     {
         try {
             $store->store(json_decode(file_get_contents($this->argument('file')), true, flags: JSON_THROW_ON_ERROR));
-            if (config('campaign.enabled')) {
+            if (config('campaign.enabled') && config('campaign.processing_enabled')) {
                 RepriceCampaign::dispatch(null, ['poll_value', 'poll_movement'])->afterCommit();
             }
             $this->info('Survey published');

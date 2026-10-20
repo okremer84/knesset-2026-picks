@@ -2,6 +2,8 @@
 
 return [
     'enabled' => (bool) env('CAMPAIGN_ENABLED', true),
+    // Keep the market available without collection, AI processing or settlement.
+    'processing_enabled' => (bool) env('CAMPAIGN_PROCESSING_ENABLED', false),
     // One shared market; only the named administrator may operate it.
     'public_access' => true,
     'pilot_only' => true,

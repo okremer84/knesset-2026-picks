@@ -12,7 +12,7 @@ class SlackReview
 {
     public function configured(): bool
     {
-        return config('campaign.enabled') && config('campaign_slack.enabled')
+        return config('campaign.enabled') && config('campaign.processing_enabled') && config('campaign_slack.enabled')
             && filled(config('campaign_slack.token'))
             && preg_match('/^T[A-Z0-9]+$/', config('campaign_slack.team_id') ?? '')
             && preg_match('/^[CG][A-Z0-9]+$/', config('campaign_slack.channel_id') ?? '')

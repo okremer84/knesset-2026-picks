@@ -20,6 +20,7 @@ class CampaignQuestionSlateTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['campaign.processing_enabled' => true]);
         $this->travelTo(CarbonImmutable::parse('2026-10-17T10:00:00Z'));
         config(['campaign.pilot_only' => false, 'election.date' => '2026-10-27']);
     }

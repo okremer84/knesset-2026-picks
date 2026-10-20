@@ -27,7 +27,7 @@ class CollectCampaignMonitor implements ShouldBeUnique, ShouldQueue
 
     public function handle(MonitorCollector $collector): void
     {
-        if (! config('campaign.enabled')) {
+        if (! config('campaign.enabled') || ! config('campaign.processing_enabled')) {
             return;
         }
         $source = DB::table('campaign_sources')->find($this->sourceId);

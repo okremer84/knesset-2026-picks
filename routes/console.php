@@ -13,7 +13,7 @@ Schedule::command('polls:sync')->dailyAt('03:17')->timezone('Asia/Jerusalem')->w
 Schedule::command('polls:prune-snapshots')->dailyAt('03:05')->timezone('Asia/Jerusalem')->withoutOverlapping(30)->onOneServer();
 
 Schedule::call(function () {
-    if (! config('campaign.enabled')) {
+    if (! config('campaign.enabled') || ! config('campaign.processing_enabled')) {
         return;
     }
     $operators = config('campaign.pilot_only')
@@ -25,7 +25,7 @@ Schedule::call(function () {
 })->name('campaign-proposals')->dailyAt('08:00')->timezone('Asia/Jerusalem')->withoutOverlapping()->onOneServer();
 
 Schedule::call(function () {
-    if (! config('campaign.enabled')) {
+    if (! config('campaign.enabled') || ! config('campaign.processing_enabled')) {
         return;
     }
     foreach (DB::table('campaign_sources')->whereIn('kind', ['youtube', 'telegram'])->pluck('id') as $id) {
@@ -34,7 +34,7 @@ Schedule::call(function () {
 })->name('campaign-channels')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 
 Schedule::call(function () {
-    if (! config('campaign.enabled')) {
+    if (! config('campaign.enabled') || ! config('campaign.processing_enabled')) {
         return;
     }
     foreach (DB::table('campaign_sources')->whereIn('kind', ['x', 'news'])->pluck('id') as $id) {
@@ -42,4 +42,4 @@ Schedule::call(function () {
     }
 })->name('campaign-monitoring')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 
-Schedule::command('campaign:slack --send')->everyMinute()->withoutOverlapping(3)->onOneServer();
+Schedule::command('campaign:slack --send')->when(fn () => config('campaign.processing_enabled'))->everyMinute()->withoutOverlapping(3)->onOneServer();
