@@ -5,7 +5,7 @@ import { Dialog } from './Dialog';
 import { AlertCircle, Send, Award, Plus, Minus, X } from 'lucide-react';
 
 
-import { PARTIES_LIST } from '../data/parties';
+import { partiesForPick } from '../data/parties';
 import { LeaderPortrait } from './LeaderPortrait';
 
 const MINIMUM_PARTY_SEATS = 4;
@@ -40,13 +40,14 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
   hasLoadError = false,
   isLocked,
 }) => {
+  const parties = partiesForPick(prediction?.seats);
   const editorDisabled = isLocked || isLoading || hasLoadError || isSubmitting || isSwitching;
   const { pickName, turnoutPercentage, note } = details;
   const [errorMessage, setErrorMessage] = useState('');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
   // Calculate total seats allocated by user
-  const totalAllocated = PARTIES_LIST.reduce((sum, party) => {
+  const totalAllocated = parties.reduce((sum, party) => {
     const val = currentSeats[party.id];
     return sum + (typeof val === 'number' && !isNaN(val) ? val : 0);
   }, 0);
@@ -62,10 +63,10 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
   const diffFrom120 = totalAllocated - 120;
   const isExact120 = totalAllocated === 120;
-  const hasBelowMinimum = PARTIES_LIST.some(party => belowMinimum(Number(currentSeats[party.id]) || 0));
+  const hasBelowMinimum = parties.some(party => belowMinimum(Number(currentSeats[party.id]) || 0));
 
   // Calculate user bloc counts based purely on their own picks
-  const userBlocCounts = PARTIES_LIST.reduce(
+  const userBlocCounts = parties.reduce(
     (acc, party) => {
       const seats = Number(currentSeats[party.id]) || 0;
       acc[party.bloc] = (acc[party.bloc] || 0) + seats;
@@ -87,9 +88,9 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
     }
     const clamped = Math.max(0, Math.min(120, isNaN(numVal) ? 0 : numVal));
     
-    // Construct sanitized seats containing strictly valid PARTIES_LIST keys
+    // Construct sanitized seats containing strictly valid parties keys
     const nextSeats: Record<string, number> = {};
-    PARTIES_LIST.forEach((p) => {
+    parties.forEach((p) => {
       if (p.id === partyId) {
         nextSeats[p.id] = clamped;
       } else {
@@ -179,7 +180,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
       </div>
 
       <div className="party-grid">
-        {PARTIES_LIST.map(party => {
+        {parties.map(party => {
           const seats = Number(currentSeats[party.id]) || 0;
           return <article key={party.id} className={`party-card ${seats > 0 ? 'has-seats' : ''}`}>
             <LeaderPortrait party={party}/>

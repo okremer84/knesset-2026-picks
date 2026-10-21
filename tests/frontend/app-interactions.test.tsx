@@ -241,7 +241,7 @@ test('switching leagues isolates drafts and submits to the selected league', asy
 
 test('Balad is absent from new picks', async t => {
   await start(t);
-  assert.equal(document.querySelectorAll('.party-card').length, 14);
+  assert.equal(document.querySelectorAll('.party-card').length, 13);
   assert.ok(![...document.querySelectorAll('input')].some(el => el.getAttribute('aria-label') === 'מנדטים לבל"ד'));
   assert.ok(document.querySelector('.party-grid')?.textContent?.includes('הרשימה המשותפת'));
   assert.ok(!document.querySelector('.party-grid')?.textContent?.includes('בל"ד'));
@@ -457,4 +457,22 @@ test('successful joining remains selectable when destination loading fails', asy
   await chooseLeague('created');
   assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, 'created');
   assert.equal(app.api.joins, 1);
+});
+
+
+test('retired party stays in an existing pick but is excluded when copied into a new league', async t => {
+  const original = { ...submitted, seats: { likud: 110, kachol_lavan: 10 } };
+  const app = await start(t, original);
+  assert.equal(input('מנדטים לכחול לבן').value, '10');
+  await chooseLeague('second');
+  assert.ok(!document.querySelector('[aria-label="מנדטים לכחול לבן"]'));
+  await click('העתק בחירה מליגה אחת');
+  await click('העתק');
+  assert.equal(input('מנדטים להליכוד').value, '110');
+  assert.equal(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow'), '110');
+  await fill('מנדטים להליכוד', '120');
+  await click('הגשת התחזית');
+  await submit();
+  assert.equal(app.api.secondPick?.seats.kachol_lavan ?? 0, 0);
+  assert.equal(app.api.pick?.seats.kachol_lavan, 10);
 });

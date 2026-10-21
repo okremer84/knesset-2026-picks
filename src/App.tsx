@@ -15,7 +15,7 @@ import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
 import { DEFAULT_SURVEYS } from './data/surveys';
-import { PARTIES_LIST } from './data/parties';
+import { PARTIES_LIST, partiesForPick } from './data/parties';
 import { League, LeagueSummary, Prediction, Survey, SavedPick } from './types';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -250,7 +250,7 @@ export default function App() {
     // Always sanitize to strictly PARTIES_LIST keys with integer values
     const cleanSeats: Record<string, number> = {};
     let totalAllocated = 0;
-    PARTIES_LIST.forEach((p) => {
+    partiesForPick(userPrediction?.seats).forEach((p) => {
       const count = Math.max(0, Math.floor(Number(userSeats[p.id]) || 0));
       cleanSeats[p.id] = count;
       totalAllocated += count;

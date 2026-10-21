@@ -154,6 +154,8 @@ class LeagueController extends Controller
                 $this->member($league, $r);
             }
             abort_if($league ? $league->isLocked() : now()->gte(CarbonImmutable::parse(self::deadlineLimit())), 409, 'מועד ההגשה הסתיים');
+            $existing = Prediction::where('user_id', $r->user()->id)->where('scope', $league?->id ?? 'personal')->first();
+            abort_if(($seats['kachol_lavan'] ?? 0) > 0 && ($existing?->seats['kachol_lavan'] ?? 0) === 0, 422, 'כחול לבן אינה זמינה לתחזיות חדשות');
             $p = Prediction::updateOrCreate(['user_id' => $r->user()->id, 'scope' => $league?->id ?? 'personal'], ['seats' => $seats, 'turnout' => $data['turnoutPercentage'], 'note' => $data['note'] ?? null, ...(array_key_exists('pickName', $data) ? ['pick_name' => $data['pickName']] : [])]);
             DB::table('personal_prediction_revisions')->insert(['prediction_id' => $p->id, 'payload' => json_encode(['seats' => $seats, 'turnout' => $p->turnout, 'note' => $p->note, 'pickName' => $p->pick_name]), 'created_at' => now()]);
         }, 3);

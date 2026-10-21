@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\League;
+use App\Models\Prediction;
 use App\Models\Survey;
 use App\Models\User;
 use App\Services\PollStore;
@@ -44,6 +45,21 @@ class GameTest extends TestCase
     private function picks(array $seats = ['likud' => 60, 'beyachad' => 60]): array
     {
         return ['seats' => $seats, 'turnoutPercentage' => 70.5, 'memberName' => 'Cannot impersonate another user'];
+    }
+
+    public function test_retired_party_is_preserved_only_in_existing_picks(): void
+    {
+        $user = User::factory()->create();
+        $league = $this->league($user);
+        $seats = ['likud' => 110, 'kachol_lavan' => 10];
+        $this->postJson('/api/my-pick', $this->picks($seats))->assertUnprocessable();
+        $existing = Prediction::create(['user_id' => $user->id, 'scope' => 'personal', 'seats' => $seats, 'turnout' => 70.5]);
+        $this->getJson('/api/my-picks')->assertJsonPath('pick.seats.kachol_lavan', 10);
+        $this->postJson('/api/my-pick', $this->picks($seats))->assertOk();
+        $this->postJson('/api/my-pick', [...$this->picks($seats), 'leagueId' => $league->id])->assertUnprocessable();
+        $this->assertSame(10, $existing->fresh()->seats['kachol_lavan']);
+        $this->postJson('/api/my-pick', [...$this->picks(), 'leagueId' => $league->id])->assertOk();
+        $this->postJson('/api/my-pick', [...$this->picks($seats), 'leagueId' => $league->id])->assertUnprocessable();
     }
 
     public function test_pick_name_is_saved_separately_from_account_name(): void
