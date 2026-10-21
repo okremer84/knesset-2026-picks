@@ -20,11 +20,11 @@ const { clearCsrf } = await import('../../src/lib/api');
 
 const submitted: Prediction = { id: 'pick', userId: 1, memberName: 'Tester', pickName: 'Saved name', seats: { likud: 120 }, turnoutPercentage: 70, note: 'Saved note', submittedAt: '2026-10-06T12:00:00Z' };
 
-async function start(t: test.TestContext, initialPick: Prediction | null = null, options: { noLeagues?: boolean; personalPick?: Prediction; personalGate?: Promise<void>; url?: string; failCreatedPick?: boolean } = {}) {
+async function start(t: test.TestContext, initialPick: Prediction | null = null, options: { failPickRead?: boolean; singleLeague?: boolean; noLeagues?: boolean; personalPick?: Prediction; personalGate?: Promise<void>; url?: string; failCreatedPick?: boolean } = {}) {
   window.history.replaceState({}, '', options.url ?? '/?tab=picker');
   localStorage.clear();
   clearCsrf();
-  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, failCreatedPick: options.failCreatedPick ?? false, joins: 0, locked: false, failPickRead: false, secondPick: null as Prediction | null, personalPick: (options.personalPick ?? null) as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
+  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, failCreatedPick: options.failCreatedPick ?? false, joins: 0, locked: false, failPickRead: options.failPickRead ?? false, secondPick: null as Prediction | null, personalPick: (options.personalPick ?? null) as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
   if (options.personalGate) api.gates.set('/api/my-picks', options.personalGate);
   const league: League = {
     id: 'league', name: 'Our league', creatorName: 'Tester', isCommissioner: true,
@@ -48,7 +48,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
     if (url.startsWith('/api/my-picks') && api.failPickRead) return new Response('', { status: 503 });
     if (url === '/api/election') return Response.json({ deadlineLimit: '2026-10-27T18:00:00Z' });
     if (url === '/api/leagues' && init?.method === 'POST') { api.creates++; return Response.json({ league: { ...league, id: 'created', name: 'Created league' } }); }
-    if (url === '/api/leagues') return Response.json({ leagues: options.noLeagues ? [] : [{ id: league.id, name: league.name }, { id: 'second', name: 'Second league' }] });
+    if (url === '/api/leagues') return Response.json({ leagues: options.noLeagues ? [] : [{ id: league.id, name: league.name }, ...(options.singleLeague ? [] : [{ id: 'second', name: 'Second league' }])] });
     if (url === '/api/leagues/created') return Response.json({ league: { ...league, id: 'created', name: 'Created league' } });
     if (url === '/api/my-picks?leagueId=created') return api.failCreatedPick ? new Response('', { status: 503 }) : Response.json({ pick: null, picks: [], isLocked: false });
     if (url === '/api/leagues/second') return Response.json({ league: { ...league, id: 'second', name: 'Second league', members: api.secondPick ? [api.secondPick] : [] } });
@@ -522,3 +522,55 @@ test('a refresh finishing after a switch but before effect cleanup cannot overwr
   assert.equal(input('מנדטים להליכוד').value, '80');
   assert.equal(JSON.parse(localStorage.getItem('knesset_fantasy_user_seats_1_second')!).likud, 80);
 });
+
+
+test('a failed initial load can retry the only league from an empty selection', async t => {
+  const app = await start(t, submitted, { singleLeague: true, failPickRead: true });
+  const select = document.querySelector<HTMLSelectElement>('select')!;
+  assert.equal(select.value, '');
+  assert.ok(select.querySelector<HTMLOptionElement>('option[value=""]')?.disabled);
+  app.api.failPickRead = false;
+  await chooseLeague('league');
+  assert.equal(input('מנדטים להליכוד').value, '120');
+  assert.equal(app.api.creates, 0);
+  assert.equal(app.api.joins, 0);
+});
+
+for (const failure of ['writes', 'reads and writes']) {
+  test('drafts survive league switches when storage fails: ' + failure, async t => {
+    const app = await start(t);
+    // Start with an older persisted draft, then make newer edits that cannot persist.
+    await openDraft();
+    await click('ביטול');
+    const prototype = window.Storage.prototype;
+    const getItem = prototype.getItem;
+    const setItem = prototype.setItem;
+    prototype.setItem = () => { throw new Error('Storage unavailable'); };
+    if (failure === 'reads and writes') prototype.getItem = () => { throw new Error('Storage unavailable'); };
+    try {
+      await click('הגשת התחזית');
+      await fill('שם התחזית', 'In memory');
+      await fill('תחזית אחוז הצבעה ארצי', '77');
+      await fill('הערה לתחזית', 'Unsaved note');
+      await click('ביטול');
+      await fill('מנדטים להליכוד', '80');
+      await fill('מנדטים לביחד', '40');
+      await chooseLeague('second');
+      await fill('מנדטים להליכוד', '100');
+      await chooseLeague('league');
+      assert.equal(input('מנדטים להליכוד').value, '80');
+      assert.equal(input('מנדטים לביחד').value, '40');
+      await click('הגשת התחזית');
+      assert.equal(input('שם התחזית').value, 'In memory');
+      assert.equal(input('תחזית אחוז הצבעה ארצי').value, '77');
+      assert.equal(input('הערה לתחזית').value, 'Unsaved note');
+      await click('ביטול');
+      await chooseLeague('second');
+      assert.equal(input('מנדטים להליכוד').value, '100');
+      assert.equal(app.api.saves, 0);
+    } finally {
+      prototype.getItem = getItem;
+      prototype.setItem = setItem;
+    }
+  });
+}

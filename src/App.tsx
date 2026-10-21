@@ -119,6 +119,8 @@ export default function App() {
     }
   }, [userSeats, currentLeague?.id, loadingLeague, picksStatus, draftInitialized]);
 
+  const leagueDrafts = useRef(new Map<string, { seats: Record<string, number>; details: PredictionDetails }>());
+
   // Fetch the complete destination before replacing the visible editor.
   const selectLeague = async (league: League | null) => {
     const response = await fetch('/api/my-picks' + (league ? '?leagueId=' + encodeURIComponent(league.id) : ''));
@@ -126,12 +128,13 @@ export default function App() {
     const data = await response.json();
     const pick: Prediction | undefined = data.pick ?? undefined;
     const suffix = user.id + (league ? '_' + league.id : '');
-    const storedSeats = readPreference('knesset_fantasy_user_seats_' + suffix);
+    const cached = league ? leagueDrafts.current.get(league.id) : undefined;
+    const storedSeats = cached?.seats ?? readPreference('knesset_fantasy_user_seats_' + suffix);
     hasStoredDraft.current = storedSeats !== null && typeof storedSeats === 'object' && !Array.isArray(storedSeats);
     previousSubmittedSeats.current = pick?.seats;
     previousSubmittedDetails.current = predictionDetails(pick);
     setUserSeats(sanitizeSeatsMap(hasStoredDraft.current ? storedSeats : pick?.seats));
-    setDraftDetails(storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)) ?? predictionDetails(pick));
+    setDraftDetails(cached?.details ?? storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)) ?? predictionDetails(pick));
     setDraftInitialized(true);
     setUserPrediction(pick);
     setSavedPicks(data.picks);
@@ -143,6 +146,12 @@ export default function App() {
   // All changes of destination and submissions share one synchronous guard.
   const changeEditor = async (id: string | null, load: () => Promise<League | null>) => {
     if (editorOperation.current) throw new Error('יש להמתין לסיום הפעולה הנוכחית');
+    if (currentLeague && draftInitialized) {
+      leagueDrafts.current.set(currentLeague.id, {
+        seats: { ...userSeats },
+        details: { ...(draftDetails ?? predictionDetails(userPrediction)) },
+      });
+    }
     editorOperation.current = 'switch';
     predictionSync.current.beginOperation();
     setSwitchingLeague(true);
@@ -500,7 +509,7 @@ export default function App() {
 
       {/* Main Content Area */}
       {surveyNotice && activeTab !== 'campaign' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
-      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">בחירה לליגה: <select value={pendingLeagueId ?? currentLeague?.id ?? ''} disabled={loadingLeague || switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">בחירה לליגה: <select value={pendingLeagueId ?? currentLeague?.id ?? ''} disabled={loadingLeague || switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{!currentLeague && <option value="" disabled>בחירת ליגה</option>}{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
