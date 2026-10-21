@@ -233,8 +233,16 @@ class WikipediaPolls
                     }
                 }
                 $missing = array_values(array_diff(array_keys(config('election.parties')), array_keys($seats)));
-                if (array_sum($seats) !== 120 || array_diff($missing, ['balad', ...$unreported])) {
-                    throw new RuntimeException('Incomplete poll or invalid seat total');
+                // Wikipedia omits Blue & White from the post-withdrawal table.
+                // Keep it unreported, not a fabricated zero, and only allow an
+                // absent column from the reviewed October 19 layout onward.
+                $optional = ['balad', ...$unreported];
+                $mappedHeaders = array_map(fn ($label) => config('election.aliases')[$label] ?? null, $headers);
+                if ($date >= '2026-10-19' && ! in_array('kachol_lavan', $mappedHeaders, true)) {
+                    $optional[] = 'kachol_lavan';
+                }
+                if (array_sum($seats) !== 120 || array_diff($missing, $optional)) {
+                    throw new RuntimeException('Incomplete poll or invalid seat total: '.$date.' / '.$firm.' / '.$publisher.'; total='.array_sum($seats).'; missing='.implode(', ', $missing));
                 }
                 // Match the Python importer's stable identity (JSON separators include spaces).
                 $identity = '['.implode(', ', array_map(fn ($s) => json_encode($s, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), [$date, mb_strtolower($firm), mb_strtolower($publisher)])).']';
