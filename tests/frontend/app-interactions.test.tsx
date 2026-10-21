@@ -85,6 +85,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
   await render();
   t.after(async () => { await act(async () => root.unmount()); });
   return { api, async reload() { await act(async () => root.unmount()); root = createRoot(container); await render(); },
+    async refreshWithoutRender() { await Promise.all([...refreshes.values()].map(fn => fn())); },
     async refresh() { await act(async () => { for (const fn of [...refreshes.values()]) await fn(); }); } };
 }
 
@@ -475,4 +476,70 @@ test('retired party stays in an existing pick but is excluded when copied into a
   await submit();
   assert.equal(app.api.secondPick?.seats.kachol_lavan ?? 0, 0);
   assert.equal(app.api.pick?.seats.kachol_lavan, 10);
+});
+
+test('details edited after a failed refresh survive reopening the league', async t => {
+  const app = await start(t);
+  await openDraft();
+  app.api.failPickRead = true;
+  await app.refresh();
+  await fill('שם התחזית', 'Offline edit');
+  await fill('תחזית אחוז הצבעה ארצי', '75');
+  await fill('הערה לתחזית', 'Offline note');
+  await click('ביטול');
+  app.api.failPickRead = false;
+  await chooseLeague('second');
+  await chooseLeague('league');
+  await click('הגשת התחזית');
+  assert.equal(input('שם התחזית').value, 'Offline edit');
+  assert.equal(input('תחזית אחוז הצבעה ארצי').value, '75');
+  assert.equal(input('הערה לתחזית').value, 'Offline note');
+});
+
+test('a refresh finishing after a switch but before effect cleanup cannot overwrite the destination draft', async t => {
+  const app = await start(t, submitted);
+  app.api.secondPick = { ...submitted, id: 'second-pick', seats: { likud: 80, beyachad: 40 } };
+  const fetch = window.fetch;
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  let intercepted = false;
+  let destinationReads = 0;
+  let oldSignal: AbortSignal | null | undefined;
+  window.fetch = async (url, init) => {
+    if (String(url) === '/api/my-picks?leagueId=league' && !intercepted) {
+      intercepted = true;
+      oldSignal = init?.signal;
+      await pending;
+      const response = Response.json({});
+      response.json = async () => ({ pick: submitted, picks: [submitted], isLocked: true });
+      return response;
+    }
+    if (String(url) === '/api/leagues/second') {
+      const response = Response.json({});
+      response.json = async () => ({ league: { id: 'second', name: 'Second league', isLocked: false } });
+      return response;
+    }
+    if (String(url) === '/api/my-picks?leagueId=second') {
+      if (++destinationReads > 1) return new Promise<Response>(() => {});
+      const response = Response.json({});
+      response.json = async () => ({ pick: app.api.secondPick, picks: [], isLocked: false });
+      return response;
+    }
+    return fetch(url, init);
+  };
+  await act(async () => {
+    const refreshing = app.refreshWithoutRender();
+    assert.ok(intercepted, 'old pick refresh started before switching');
+    const select = document.querySelector<HTMLSelectElement>('select')!;
+    select.value = 'second';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    // Let destination loading finish while React is still batching this turn.
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    assert.equal(oldSignal?.aborted, false, 'old effect has not cleaned up');
+    release();
+    await refreshing;
+  });
+  assert.equal(input('מנדטים להליכוד').disabled, false);
+  assert.equal(input('מנדטים להליכוד').value, '80');
+  assert.equal(JSON.parse(localStorage.getItem('knesset_fantasy_user_seats_1_second')!).likud, 80);
 });

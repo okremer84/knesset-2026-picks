@@ -88,7 +88,7 @@ export default function App() {
   const previousSubmittedDetails = useRef<PredictionDetails | undefined>(undefined);
   const [draftDetails, setDraftDetails] = useState(() => storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''))));
   useEffect(() => {
-    if (loadingLeague || picksStatus !== 'ready' || !draftInitialized) return;
+    if (loadingLeague || !draftInitialized) return;
     if (draftDetails) writePreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), draftDetails);
   }, [draftDetails, user.id, currentLeague?.id, loadingLeague, picksStatus, draftInitialized]);
 
@@ -110,7 +110,7 @@ export default function App() {
 
   // Persist only a hydrated draft, never the temporary startup placeholders.
   useEffect(() => {
-    if (loadingLeague || picksStatus !== 'ready' || !draftInitialized) return;
+    if (loadingLeague || !draftInitialized) return;
     try {
       localStorage.setItem('knesset_fantasy_user_seats_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), JSON.stringify(userSeats));
     } catch {
@@ -143,6 +143,7 @@ export default function App() {
   const changeEditor = async (id: string | null, load: () => Promise<League | null>) => {
     if (editorOperation.current) throw new Error('יש להמתין לסיום הפעולה הנוכחית');
     editorOperation.current = 'switch';
+    predictionSync.current.beginOperation();
     setSwitchingLeague(true);
     setPendingLeagueId(id);
     try {
@@ -150,6 +151,7 @@ export default function App() {
       await selectLeague(league);
       return league;
     } finally {
+      predictionSync.current.endOperation();
       editorOperation.current = null;
       setSwitchingLeague(false);
       setPendingLeagueId(null);
@@ -268,7 +270,7 @@ export default function App() {
     setUserSeats(cleanSeats);
 
     editorOperation.current = 'save';
-    predictionSync.current.beginSubmission();
+    predictionSync.current.beginOperation();
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/my-pick', {
@@ -301,7 +303,7 @@ export default function App() {
       throw err;
     } finally {
       editorOperation.current = null;
-      predictionSync.current.endSubmission();
+      predictionSync.current.endOperation();
       setIsSubmitting(false);
     }
   };
