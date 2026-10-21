@@ -20,11 +20,12 @@ const { clearCsrf } = await import('../../src/lib/api');
 
 const submitted: Prediction = { id: 'pick', userId: 1, memberName: 'Tester', pickName: 'Saved name', seats: { likud: 120 }, turnoutPercentage: 70, note: 'Saved note', submittedAt: '2026-10-06T12:00:00Z' };
 
-async function start(t: test.TestContext, initialPick: Prediction | null = null) {
-  window.history.replaceState({}, '', '/?tab=picker');
+async function start(t: test.TestContext, initialPick: Prediction | null = null, options: { personalPick?: Prediction; personalGate?: Promise<void>; url?: string; failCreatedPick?: boolean } = {}) {
+  window.history.replaceState({}, '', options.url ?? '/?tab=picker');
   localStorage.clear();
   clearCsrf();
-  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, failCreatedPick: false, secondPick: null as Prediction | null, personalPick: null as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
+  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, failCreatedPick: options.failCreatedPick ?? false, joins: 0, locked: false, failPickRead: false, secondPick: null as Prediction | null, personalPick: (options.personalPick ?? null) as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
+  if (options.personalGate) api.gates.set('/api/my-picks', options.personalGate);
   const league: League = {
     id: 'league', name: 'Our league', creatorName: 'Tester', isCommissioner: true,
     isLocked: false, locksAt: '2026-10-27T18:00:00Z', inviteCode: 'x'.repeat(40),
@@ -43,6 +44,8 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
     if (url === '/api/auth/config') return Response.json({ googleEnabled: true });
     if (url === '/api/csrf') return Response.json({ token: 'test-csrf' });
     if (url === '/api/surveys') return Response.json({ surveys: [], sync: null });
+    if (url === '/api/leagues/join') { api.joins++; return Response.json({ league: { ...league, id: 'created', name: 'Joined league' } }); }
+    if (url.startsWith('/api/my-picks') && api.failPickRead) return new Response('', { status: 503 });
     if (url === '/api/election') return Response.json({ deadlineLimit: '2026-10-27T18:00:00Z' });
     if (url === '/api/leagues' && init?.method === 'POST') { api.creates++; return Response.json({ league: { ...league, id: 'created', name: 'Created league' } }); }
     if (url === '/api/leagues') return Response.json({ leagues: [{ id: league.id, name: league.name }, { id: 'second', name: 'Second league' }] });
@@ -57,7 +60,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
     }
     if (url === '/api/my-picks?leagueId=second') return Response.json({ pick: api.secondPick, picks: [...api.extraPicks, api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
     if (url === '/api/my-picks') return Response.json({ pick: api.personalPick, picks: api.pick ? [{ ...api.pick, leagueId: 'league', leagueName: 'Our league' }] : [], isLocked: false });
-    if (url.startsWith('/api/my-picks')) return Response.json({ pick: api.pick, picks: api.pick ? [api.pick] : [], isLocked: false });
+    if (url.startsWith('/api/my-picks')) return Response.json({ pick: api.pick, picks: api.pick ? [api.pick] : [], isLocked: api.locked });
     if (url === '/api/my-pick') {
       api.saves++;
       if (api.saveFailure) return Response.json({ message: 'Save rejected' }, { status: 422 });
@@ -418,4 +421,40 @@ test('successful creation survives a failed destination load and opening it agai
   assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, 'created');
   assert.equal(input('מנדטים להליכוד').value, '');
   assert.equal(app.api.creates, 1);
+});
+
+
+test('startup does not persist an empty personal draft before its saved pick loads', async t => {
+  let release!: () => void;
+  const app = await start(t, submitted, { personalPick: { ...submitted, seats: { likud: 88, beyachad: 32 } }, personalGate: new Promise(resolve => { release = resolve; }) });
+  assert.equal(localStorage.getItem('knesset_fantasy_user_seats_1'), null);
+  await act(async () => release());
+  await chooseLeague('');
+  assert.equal(input('מנדטים להליכוד').value, '88');
+  assert.equal(app.api.saves, 0);
+});
+
+for (const reason of ['locked', 'failed refresh']) {
+  test(`submit dialog remains open when saving becomes unavailable: ${reason}`, async t => {
+    const app = await start(t);
+    await openDraft();
+    app.api.locked = reason === 'locked';
+    app.api.failPickRead = reason === 'failed refresh';
+    await app.refresh();
+    await submit();
+    assert.equal(document.querySelector('dialog') !== null, true);
+    assert.equal(app.api.saves, 0);
+    assertDraft();
+    assert.ok(document.querySelector('dialog')?.textContent?.includes(reason === 'locked' ? 'מועד ההגשה הסתיים' : 'לא ניתן לשמור'));
+  });
+}
+
+test('successful joining remains selectable when destination loading fails', async t => {
+  const app = await start(t, submitted, { url: '/?tab=picker&invite=' + 'x'.repeat(40), failCreatedPick: true });
+  assert.equal(app.api.joins, 1);
+  assert.equal(document.querySelector('select option[value="created"]') !== null, true);
+  app.api.failCreatedPick = false;
+  await chooseLeague('created');
+  assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, 'created');
+  assert.equal(app.api.joins, 1);
 });

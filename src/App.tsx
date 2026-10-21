@@ -42,8 +42,10 @@ export default function App() {
   const importablePicks = savedPicks.filter(pick => pick.leagueId && pick.leagueId !== currentLeague?.id);
   const [picksStatus, setPicksStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [picksRetry, setPicksRetry] = useState(0);
+  const [draftInitialized, setDraftInitialized] = useState(false);
   const predictionSync = useRef(createPredictionSync());
   useEffect(() => {
+    if (loadingLeague) return;
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
@@ -64,7 +66,7 @@ export default function App() {
     void refresh();
     const timer = window.setInterval(refresh, 30000);
     return () => { controller.abort(); window.clearInterval(timer); };
-  }, [currentLeague?.id, picksRetry]);
+  }, [currentLeague?.id, picksRetry, loadingLeague]);
 
   // Helper to sanitize any raw seats object to strictly PARTIES_LIST keys
   const sanitizeSeatsMap = (raw: any): Record<string, number> => {
@@ -86,8 +88,9 @@ export default function App() {
   const previousSubmittedDetails = useRef<PredictionDetails | undefined>(undefined);
   const [draftDetails, setDraftDetails] = useState(() => storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''))));
   useEffect(() => {
+    if (loadingLeague || picksStatus !== 'ready' || !draftInitialized) return;
     if (draftDetails) writePreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), draftDetails);
-  }, [draftDetails, user.id, currentLeague?.id]);
+  }, [draftDetails, user.id, currentLeague?.id, loadingLeague, picksStatus, draftInitialized]);
 
   // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
@@ -105,14 +108,15 @@ export default function App() {
     return {};
   });
 
-  // Persist draft seats to localStorage
+  // Persist only a hydrated draft, never the temporary startup placeholders.
   useEffect(() => {
+    if (loadingLeague || picksStatus !== 'ready' || !draftInitialized) return;
     try {
       localStorage.setItem('knesset_fantasy_user_seats_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), JSON.stringify(userSeats));
     } catch {
       // Ignore
     }
-  }, [userSeats, currentLeague?.id]);
+  }, [userSeats, currentLeague?.id, loadingLeague, picksStatus, draftInitialized]);
 
   // Fetch the complete destination before replacing the visible editor.
   const selectLeague = async (league: League | null) => {
@@ -127,6 +131,7 @@ export default function App() {
     previousSubmittedDetails.current = predictionDetails(pick);
     setUserSeats(sanitizeSeatsMap(hasStoredDraft.current ? storedSeats : pick?.seats));
     setDraftDetails(storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)) ?? predictionDetails(pick));
+    setDraftInitialized(true);
     setUserPrediction(pick);
     setSavedPicks(data.picks);
     setPickLocked(data.isLocked);
@@ -237,7 +242,10 @@ export default function App() {
   // Submit only to the selected league (or the standalone personal pick).
   const handleSubmitPrediction = async (pickName: string, note?: string, turnoutPercentage?: number) => {
 
-    if (editorOperation.current || loadingLeague || switchingLeague || isSubmitting || picksStatus !== 'ready' || pickLocked) return;
+    if (pickLocked) throw new Error('מועד ההגשה הסתיים. הבחירה לא נשמרה.');
+    if (editorOperation.current || loadingLeague || switchingLeague || isSubmitting || picksStatus !== 'ready') {
+      throw new Error('לא ניתן לשמור כרגע. נסו שוב לאחר טעינת התחזית.');
+    }
 
     // Always sanitize to strictly PARTIES_LIST keys with integer values
     const cleanSeats: Record<string, number> = {};
@@ -365,6 +373,7 @@ export default function App() {
 
   // Switch / Join league by ID
   const handleJoinExistingLeagueById = async (leagueId: string) => {
+    let joinedSuccessfully = false;
     try {
       const league = await changeEditor(null, async () => {
         const res = await fetch('/api/leagues/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({code: leagueId}) });
@@ -373,14 +382,20 @@ export default function App() {
           const validation = Object.values(data.errors || {}).flat().join(' ');
           throw new Error(validation || data.message || data.error || 'לא נמצאה ליגה עם קוד זה.');
         }
-        return data.league;
+        const joined: League = data.league;
+        joinedSuccessfully = true;
+        setMyLeagues(prev => [joined, ...prev.filter(l => l.id !== joined.id)]);
+        return joined;
       });
       if (!league) return false;
-      setMyLeagues(prev => [league, ...prev.filter(l => l.id !== league.id)]);
       showToast(`עברת בהצלחה לליגת "${league.name}"!`);
       setActiveTab('league');
       return true;
     } catch (err) {
+      if (joinedSuccessfully) {
+        showToast('ההצטרפות הצליחה, אך לא ניתן לפתוח את הליגה כרגע. בחרו אותה ברשימת הליגות כדי לנסות שוב.', 'info');
+        return true;
+      }
       showToast(err instanceof Error ? err.message : 'שגיאה בטעינת הליגה', 'error');
       return false;
     }
@@ -388,6 +403,8 @@ export default function App() {
 
   const username = user.name;
   useEffect(() => {
+    if (loadingLeague || picksStatus !== 'ready') return;
+    setDraftInitialized(true);
     if (!userPrediction) return;
     const previous = previousSubmittedSeats.current;
     const stored = hasStoredDraft.current;
@@ -397,7 +414,7 @@ export default function App() {
     const previousDetails = previousSubmittedDetails.current;
     setDraftDetails(draft => reconcileDetails(draft, previousDetails, details));
     previousSubmittedDetails.current = details;
-  }, [userPrediction?.id, userPrediction?.submittedAt]);
+  }, [userPrediction?.id, userPrediction?.submittedAt, loadingLeague, picksStatus]);
 
   useEffect(() => {
     writePreference('knesset_fantasy_tab_' + user.id, activeTab);
