@@ -20,7 +20,8 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
   picksStatus = 'ready',
   onRetryPicks,
 }) => {
-  const selectedPick = picks[0];
+  const [selectedPickId, setSelectedPickId] = useState('');
+  const selectedPick = picks.find(pick => pick.id === selectedPickId) ?? picks[0];
   const userSeats = selectedPick?.seats ?? {};
   const surveys = useMemo(() => sourceSurveys.map(localizeSurvey), [sourceSurveys]);
 
@@ -142,6 +143,9 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
       {picksStatus === 'loading' && <p role="status">טוענים את התחזית שלך…</p>}
       {picksStatus === 'error' && <p role="alert">לא הצלחנו לטעון את התחזית. <button className="button-quiet" onClick={onRetryPicks}>ניסיון נוסף</button></p>}
       {selectedPick && <div className="survey-pick-selection">
+        {picks.length > 1 && <label>תחזית להשוואה <select value={selectedPick.id} onChange={e => setSelectedPickId(e.target.value)}>
+          {picks.map(pick => <option key={pick.id} value={pick.id}>{pick.leagueName || 'תחזית אישית'}{pick.pickName ? ' · ' + pick.pickName : ''}</option>)}
+        </select></label>}
         <p>השוואה לתחזית שלך{selectedPick.pickName && <> · <strong>{selectedPick.pickName}</strong></>}</p>
       </div>}
       <PollTrendChart surveys={surveys} selectedChannel={activeSurvey?.channelOrMedia} />

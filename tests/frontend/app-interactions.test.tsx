@@ -24,7 +24,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
   window.history.replaceState({}, '', '/?tab=picker');
   localStorage.clear();
   clearCsrf();
-  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0 };
+  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, secondPick: null as Prediction | null, savedLeagueId: '' };
   const league: League = {
     id: 'league', name: 'Our league', creatorName: 'Tester', isCommissioner: true,
     isLocked: false, locksAt: '2026-10-27T18:00:00Z', inviteCode: 'x'.repeat(40),
@@ -42,17 +42,25 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
     if (url === '/api/auth/config') return Response.json({ googleEnabled: true });
     if (url === '/api/csrf') return Response.json({ token: 'test-csrf' });
     if (url === '/api/surveys') return Response.json({ surveys: [], sync: null });
-    if (url === '/api/leagues') return Response.json({ leagues: [{ id: league.id, name: league.name }] });
+    if (url === '/api/leagues') return Response.json({ leagues: [{ id: league.id, name: league.name }, { id: 'second', name: 'Second league' }] });
+    if (url === '/api/leagues/second') return Response.json({ league: { ...league, id: 'second', name: 'Second league', members: api.secondPick ? [api.secondPick] : [] } });
     if (url === '/api/leagues/league') {
       if (api.saves && api.refreshFailure === 'network') throw new Error('League refresh unavailable');
       if (api.saves && api.refreshFailure === 'json') return new Response('invalid JSON');
       if (api.saves && api.refreshFailure === 'status') return new Response('', { status: 503 });
       return Response.json({ league: { ...league, members: api.pick ? [api.pick] : [] } });
     }
-    if (url === '/api/my-picks') return Response.json({ pick: api.pick, picks: api.pick ? [api.pick] : [], isLocked: false });
+    if (url === '/api/my-picks?leagueId=second') return Response.json({ pick: api.secondPick, picks: [api.pick, api.secondPick].filter(Boolean), isLocked: false });
+    if (url.startsWith('/api/my-picks')) return Response.json({ pick: api.pick, picks: api.pick ? [api.pick] : [], isLocked: false });
     if (url === '/api/my-pick') {
       api.saves++;
       if (api.saveFailure) return Response.json({ message: 'Save rejected' }, { status: 422 });
+      const body = JSON.parse(String(init?.body));
+      api.savedLeagueId = body.leagueId;
+      if (body.leagueId === 'second') {
+        api.secondPick = { ...submitted, ...body };
+        return Response.json({ pick: api.secondPick, picks: [api.pick, api.secondPick].filter(Boolean), isLocked: false });
+      }
       api.pick = { ...submitted, ...JSON.parse(String(init?.body)), submittedAt: '2026-10-06T12:01:00Z' };
       return Response.json({ pick: api.pick, picks: [api.pick], isLocked: false });
     }
@@ -189,6 +197,33 @@ test('reset restores all submitted fields, and background updates preserve local
   assert.equal(input('שם התחזית').value, 'Saved name');
   assert.equal(input('תחזית אחוז הצבעה ארצי').value, '70');
   assert.equal(input('הערה לתחזית').value, 'Remote note');
+});
+
+
+test('switching leagues isolates drafts and submits to the selected league', async t => {
+  const app = await start(t, submitted);
+  const switchLeague = async (id: string) => {
+    await act(async () => {
+      const select = document.querySelector<HTMLSelectElement>('select')!;
+      select.value = id;
+      select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    });
+  };
+  await fill('מנדטים להליכוד', '80');
+  await switchLeague('second');
+  assert.equal(input('מנדטים להליכוד').value, '');
+  await openDraft();
+  await click('ביטול');
+  await switchLeague('league');
+  assert.equal(input('מנדטים להליכוד').value, '80');
+  await switchLeague('second');
+  assert.equal(input('מנדטים להליכוד').value, '120');
+  await click('הגשת התחזית');
+  assertDraft();
+  await submit();
+  assert.equal(app.api.savedLeagueId, 'second');
+  assert.equal(app.api.pick?.pickName, 'Saved name');
+  assert.equal(app.api.secondPick?.pickName, 'My draft');
 });
 
 test('Balad is absent from new picks', async t => {

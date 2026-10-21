@@ -45,7 +45,7 @@ export default function App() {
       if (refreshing) return;
       refreshing = true;
       await predictionSync.current.refresh(async () => {
-        const response = await fetch('/api/my-picks', { signal: controller.signal });
+        const response = await fetch('/api/my-picks' + (currentLeague ? '?leagueId=' + encodeURIComponent(currentLeague.id) : ''), { signal: controller.signal });
         if (!response.ok) throw new Error('Failed to load pick');
         return response.json();
       }, data => {
@@ -79,15 +79,15 @@ export default function App() {
   const hasStoredDraft = useRef(false);
   const previousSubmittedSeats = useRef<Record<string, number> | undefined>(undefined);
   const previousSubmittedDetails = useRef<PredictionDetails | undefined>(undefined);
-  const [draftDetails, setDraftDetails] = useState(() => storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + user.id)));
+  const [draftDetails, setDraftDetails] = useState(() => storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''))));
   useEffect(() => {
-    if (draftDetails) writePreference('knesset_fantasy_draft_details_' + user.id, draftDetails);
-  }, [draftDetails, user.id]);
+    if (draftDetails) writePreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), draftDetails);
+  }, [draftDetails, user.id, currentLeague?.id]);
 
   // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
     try {
-      const saved = localStorage.getItem('knesset_fantasy_user_seats_' + user.id);
+      const saved = localStorage.getItem('knesset_fantasy_user_seats_' + user.id + (currentLeague ? '_' + currentLeague.id : ''));
       if (saved) {
         const parsed = JSON.parse(saved);
         hasStoredDraft.current = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
@@ -103,11 +103,28 @@ export default function App() {
   // Persist draft seats to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('knesset_fantasy_user_seats_' + user.id, JSON.stringify(userSeats));
+      localStorage.setItem('knesset_fantasy_user_seats_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), JSON.stringify(userSeats));
     } catch {
       // Ignore
     }
-  }, [userSeats]);
+  }, [userSeats, currentLeague?.id]);
+
+  // Switch the complete editor context together so drafts never cross leagues.
+  const selectLeague = (league: League | null) => {
+    if (league?.id !== currentLeague?.id) {
+      const suffix = user.id + (league ? '_' + league.id : '');
+      const seats = readPreference('knesset_fantasy_user_seats_' + suffix);
+      hasStoredDraft.current = seats !== null && typeof seats === 'object' && !Array.isArray(seats);
+      setUserSeats(sanitizeSeatsMap(seats));
+      setDraftDetails(storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)));
+      previousSubmittedSeats.current = undefined;
+      previousSubmittedDetails.current = undefined;
+      setUserPrediction(undefined);
+      setPickLocked(true);
+      setPicksStatus('loading');
+    }
+    setCurrentLeague(league);
+  };
 
   // Load surveys from backend
   useEffect(() => {
@@ -147,7 +164,7 @@ export default function App() {
         if (!response.ok) throw new Error('לא ניתן לפתוח את הליגה');
         const detail: { league: League } = await response.json();
         if (cancelled) return;
-        setCurrentLeague(detail.league);
+        selectLeague(detail.league);
         if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
       } catch (e) {
         if (!cancelled) showToast((e as Error).message, 'error');
@@ -192,8 +209,10 @@ export default function App() {
     }
   };
 
-  // Submit the personal prediction shared by every league.
+  // Submit only to the selected league (or the standalone personal pick).
   const handleSubmitPrediction = async (pickName: string, note?: string, turnoutPercentage?: number) => {
+
+    if (loadingLeague || switchingLeague || isSubmitting || picksStatus !== 'ready' || pickLocked) return;
 
     // Always sanitize to strictly PARTIES_LIST keys with integer values
     const cleanSeats: Record<string, number> = {};
@@ -222,6 +241,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          leagueId: currentLeague?.id,
           pickName,
           seats: cleanSeats,
           note,
@@ -254,13 +274,14 @@ export default function App() {
   // Create new league
   const [switchingLeague, setSwitchingLeague] = useState(false);
   const handleSwitchLeague = async (leagueId: string) => {
-    if (switchingLeague || leagueId === currentLeague?.id) return;
+    if (switchingLeague || isSubmitting || leagueId === currentLeague?.id) return;
+    if (!leagueId) { selectLeague(null); return; }
     setSwitchingLeague(true);
     try {
       const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId));
       const data = await response.json();
       if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
-      setCurrentLeague(data.league);
+      selectLeague(data.league);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'לא ניתן לטעון את הליגה', 'error');
     } finally {
@@ -295,7 +316,7 @@ export default function App() {
       throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
     }
 
-    setCurrentLeague(data.league);
+    selectLeague(data.league);
       setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
     if (data.league.targetSurveyId) {
       setSelectedSurveyId(data.league.targetSurveyId);
@@ -316,7 +337,7 @@ export default function App() {
         return false;
       }
 
-      setCurrentLeague(data.league);
+      selectLeague(data.league);
       setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
 
       showToast(`עברת בהצלחה לליגת "${data.league.name}"!`);
@@ -422,12 +443,14 @@ export default function App() {
 
       {/* Main Content Area */}
       {surveyNotice && activeTab !== 'campaign' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
-      {activeTab === 'league' && myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2"><option value="">תחזית אישית</option>{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {activeTab === 'picker' && currentLeague && <p className="max-w-7xl mx-auto w-full px-6 pt-2 text-sm text-slate-600">התחזית נשמרת רק לליגת {currentLeague.name}. לכל ליגה תחזית ומועד הגשה נפרדים.</p>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
         {activeTab === 'picker' && (
           <SeatPicker
+            key={currentLeague?.id ?? 'personal'}
             currentSeats={userSeats}
             details={draftDetails ?? predictionDetails(userPrediction)}
             onDetailsChange={setDraftDetails}
@@ -436,7 +459,7 @@ export default function App() {
             isSubmitting={isSubmitting}
             prediction={userPrediction}
             isLocked={pickLocked}
-            isLoading={picksStatus === 'loading'}
+            isLoading={loadingLeague || switchingLeague || picksStatus === 'loading'}
             hasLoadError={picksStatus === 'error'}
           />
         )}

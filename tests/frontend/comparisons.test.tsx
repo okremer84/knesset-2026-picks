@@ -90,5 +90,6 @@ test('without a submitted pick only survey results and trends are rendered', () 
   assert.ok(single.includes('מדדי דיוק'));
   assert.ok(!single.includes('<option value="pick"'));
   const multiple = renderToStaticMarkup(<SurveyComparator surveys={[survey]} picks={[pick, {...pick, id:'second'}]}/>);
-  assert.equal(multiple, single);
+  assert.ok(multiple.includes('תחזית להשוואה'));
+  assert.ok(multiple.includes('<option value="second"'));
 });
