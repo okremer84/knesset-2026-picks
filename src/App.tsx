@@ -320,37 +320,47 @@ export default function App() {
     targetSurveyId?: string,
     locksAt?: string
   ) => {
-    const league = await changeEditor(null, async () => {
-      const res = await fetch('/api/leagues', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          locksAt,
-          description,
-          targetSurveyId,
-        }),
+    let createdSuccessfully = false;
+    try {
+      const league = await changeEditor(null, async () => {
+        const res = await fetch('/api/leagues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            locksAt,
+            description,
+            targetSurveyId,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
+        }
+
+        if (!data.league || typeof data.league.id !== 'string' || typeof data.league.name !== 'string' || !Array.isArray(data.league.members)) {
+          throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
+        }
+
+        // The POST has committed: record it before the separate editor read.
+        const created: League = data.league;
+        createdSuccessfully = true;
+        setMyLeagues(prev => [created, ...prev.filter(l => l.id !== created.id)]);
+        return created;
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
+      if (!league) return;
+      if (league.targetSurveyId) {
+        setSelectedSurveyId(league.targetSurveyId);
       }
 
-      if (!data.league || typeof data.league.id !== 'string' || typeof data.league.name !== 'string' || !Array.isArray(data.league.members)) {
-        throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
-      }
-
-      return data.league;
-    });
-    if (!league) return;
-    setMyLeagues(prev => [league, ...prev.filter(l => l.id !== league.id)]);
-    if (league.targetSurveyId) {
-      setSelectedSurveyId(league.targetSurveyId);
+      showToast(`ליגת "${league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
+      setActiveTab('league');
+    } catch (error) {
+      if (!createdSuccessfully) throw error;
+      // Resolving closes the create form. Retrying via the dropdown only reads.
+      showToast(`ליגת "${name}" נוצרה, אך לא ניתן לפתוח אותה כרגע. בחרו אותה ברשימת הליגות כדי לנסות שוב.`, 'info');
     }
-
-    showToast(`ליגת "${league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
-    setActiveTab('league');
   };
 
   // Switch / Join league by ID

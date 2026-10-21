@@ -24,7 +24,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
   window.history.replaceState({}, '', '/?tab=picker');
   localStorage.clear();
   clearCsrf();
-  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, secondPick: null as Prediction | null, personalPick: null as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
+  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, failCreatedPick: false, secondPick: null as Prediction | null, personalPick: null as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
   const league: League = {
     id: 'league', name: 'Our league', creatorName: 'Tester', isCommissioner: true,
     isLocked: false, locksAt: '2026-10-27T18:00:00Z', inviteCode: 'x'.repeat(40),
@@ -44,8 +44,10 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
     if (url === '/api/csrf') return Response.json({ token: 'test-csrf' });
     if (url === '/api/surveys') return Response.json({ surveys: [], sync: null });
     if (url === '/api/election') return Response.json({ deadlineLimit: '2026-10-27T18:00:00Z' });
-    if (url === '/api/leagues' && init?.method === 'POST') { api.creates++; return Response.json({ league: { ...league, id: 'second', name: 'Created league' } }); }
+    if (url === '/api/leagues' && init?.method === 'POST') { api.creates++; return Response.json({ league: { ...league, id: 'created', name: 'Created league' } }); }
     if (url === '/api/leagues') return Response.json({ leagues: [{ id: league.id, name: league.name }, { id: 'second', name: 'Second league' }] });
+    if (url === '/api/leagues/created') return Response.json({ league: { ...league, id: 'created', name: 'Created league' } });
+    if (url === '/api/my-picks?leagueId=created') return api.failCreatedPick ? new Response('', { status: 503 }) : Response.json({ pick: null, picks: [], isLocked: false });
     if (url === '/api/leagues/second') return Response.json({ league: { ...league, id: 'second', name: 'Second league', members: api.secondPick ? [api.secondPick] : [] } });
     if (url === '/api/leagues/league') {
       if (api.saves && api.refreshFailure === 'network') throw new Error('League refresh unavailable');
@@ -387,4 +389,33 @@ test('creating a league after dismissing a pending save cannot change the editor
   await act(async () => releaseSave());
   assert.equal(app.api.pick?.pickName, 'My draft');
   assert.equal(localStorage.getItem('knesset_fantasy_draft_details_1_second'), null);
+});
+
+
+test('successful creation survives a failed destination load and opening it again does not create another league', async t => {
+  const app = await start(t, submitted);
+  await fill('מנדטים להליכוד', '80');
+  app.api.failCreatedPick = true;
+  await click('הליגות שלי');
+  await click('יצירת ליגה חדשה');
+  await act(async () => {
+    for (const [selector, value] of [['#league-name', 'Created league'], ['input[type="date"]', '2026-10-26']]) {
+      const el = document.querySelector<HTMLInputElement>(selector)!;
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(el, value);
+      el.dispatchEvent(new window.Event('input', { bubbles: true }));
+      el.dispatchEvent(new window.Event('change', { bubbles: true }));
+    }
+  });
+  await act(async () => document.querySelector('dialog form')!.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })));
+  assert.equal(app.api.creates, 1);
+  assert.equal(document.querySelector('dialog') === null, true, 'successful creation closes the form even when opening fails');
+  assert.ok(document.querySelector('select option[value="created"]'), 'created league remains selectable');
+  assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, 'league');
+  await click('התחזית שלי');
+  assert.equal(input('מנדטים להליכוד').value, '80');
+  app.api.failCreatedPick = false;
+  await chooseLeague('created');
+  assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, 'created');
+  assert.equal(input('מנדטים להליכוד').value, '');
+  assert.equal(app.api.creates, 1);
 });
