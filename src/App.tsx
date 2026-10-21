@@ -445,9 +445,15 @@ export default function App() {
 
       {/* Main Content Area */}
       {surveyNotice && activeTab !== 'campaign' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
-      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2"><option value="">תחזית אישית</option>{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
-      {activeTab === 'picker' && currentLeague && picksStatus === 'ready' && !pickLocked && <div className="max-w-7xl mx-auto w-full px-6 pt-1">
-        <PickImport key={currentLeague.id}
+      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">בחירה לליגה: <select value={currentLeague?.id || ''} disabled={switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2"><option value="">תחזית אישית</option>{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
+      <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
+        {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
+        {activeTab === 'picker' && (
+          <SeatPicker
+            key={currentLeague?.id ?? 'personal'}
+            importAction={currentLeague && picksStatus === 'ready' && !pickLocked ? (
+              <PickImport key={currentLeague.id}
             importablePicks={currentLeague && picksStatus === 'ready' ? importablePicks : []}
             onImportPick={source => {
               hasStoredDraft.current = true;
@@ -457,13 +463,7 @@ export default function App() {
             }}
           disabled={loadingLeague || switchingLeague || isSubmitting}
         />
-      </div>}
-      {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
-      <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
-        {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
-        {activeTab === 'picker' && (
-          <SeatPicker
-            key={currentLeague?.id ?? 'personal'}
+            ) : null}
             currentSeats={userSeats}
             details={draftDetails ?? predictionDetails(userPrediction)}
             onDetailsChange={setDraftDetails}

@@ -12,6 +12,7 @@ const MINIMUM_PARTY_SEATS = 4;
 const belowMinimum = (seats: number) => seats > 0 && seats < MINIMUM_PARTY_SEATS;
 
 interface SeatPickerProps {
+  importAction?: React.ReactNode;
   currentSeats: Record<string, number>;
   details: PredictionDetails;
   onDetailsChange: (details: PredictionDetails) => void;
@@ -25,6 +26,7 @@ interface SeatPickerProps {
 }
 
 export const SeatPicker: React.FC<SeatPickerProps> = ({
+  importAction,
   currentSeats,
   details,
   onDetailsChange,
@@ -163,6 +165,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
           <p className="eyebrow">הכנסת ה־26 / התחזית שלך</p>
           <h1>איך תיראה הכנסת הבאה?</h1>
           <p>בחרו את מספר המנדטים שכל מפלגה תקבל לדעתכם — 0 או לפחות 4 מנדטים</p>
+          {importAction}
         </div>
 
       </div>

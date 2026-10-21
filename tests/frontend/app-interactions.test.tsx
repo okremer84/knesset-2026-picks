@@ -242,12 +242,15 @@ test('copying a league pick creates an editable draft without submitting or chan
     select.value = 'second';
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
-  assert.equal(document.querySelector('select[aria-label="ליגה לייבוא תחזית"]'), null);
+  assert.equal(document.querySelector('dialog'), null);
   const actions = document.querySelector('.league-pick-import')!;
   assert.equal(document.querySelector('.prediction-dock .league-pick-import'), null);
   assert.ok(!document.body.textContent?.includes('התחזית נשמרת רק לליגת'));
-  assert.ok(actions.textContent?.includes('ייבוא מ־Our league'));
-  await click('ייבוא מ־Our league');
+  assert.ok(document.querySelector('.page-heading .league-pick-import'));
+  await click('העתק בחירה מליגה אחת');
+  assert.equal(document.querySelector<HTMLSelectElement>('select[aria-label="ליגה להעתקת בחירה"]')?.value, submitted.id);
+  await click('העתק');
+  assert.equal(document.querySelector('dialog'), null);
   assert.equal(input('מנדטים להליכוד').value, '120');
   assert.equal(app.api.saves, 0);
   assert.equal(app.api.secondPick, null);
@@ -269,7 +272,7 @@ test('copying a league pick creates an editable draft without submitting or chan
 });
 
 
-test('multiple source leagues require choosing a pick from the dropdown below league selection', async t => {
+test('multiple source leagues require choosing a pick from the copy modal', async t => {
   const app = await start(t, submitted);
   app.api.extraPicks = [{ ...submitted, id: 'third-pick', leagueId: 'third', leagueName: 'Third league', seats: { beyachad: 120 }, note: 'Third note' }];
   await act(async () => {
@@ -277,17 +280,18 @@ test('multiple source leagues require choosing a pick from the dropdown below le
     select.value = 'second';
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
-  const actions = document.querySelector('.league-pick-import')!;
-  const select = actions.querySelector<HTMLSelectElement>('select[aria-label="ליגה לייבוא תחזית"]')!;
+  await click('העתק בחירה מליגה אחת');
+  const actions = document.querySelector('dialog')!;
+  const select = actions.querySelector<HTMLSelectElement>('select[aria-label="ליגה להעתקת בחירה"]')!;
   assert.ok(select);
   assert.equal(select.options.length, 3);
-  const button = [...actions.querySelectorAll('button')].find(b => b.textContent === 'ייבוא')!;
+  const button = [...actions.querySelectorAll('button')].find(b => b.textContent === 'העתק')!;
   assert.equal(button.disabled, true);
   await act(async () => {
     select.value = 'third-pick';
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
-  await click('ייבוא');
+  await click('העתק');
   assert.equal(input('מנדטים לביחד').value, '120');
   assert.equal(input('מנדטים להליכוד').value, '');
   assert.equal(app.api.saves, 0);
