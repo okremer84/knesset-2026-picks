@@ -15,14 +15,19 @@ use Tests\TestCase;
 
 class CampaignConcurrencyTest extends TestCase
 {
-    use DatabaseMigrations { runDatabaseMigrations as private migrateMySql; }
+    use DatabaseMigrations;
 
     public function runDatabaseMigrations(): void
     {
         if (DB::getDriverName() !== 'mysql') {
             return;
         }
-        $this->migrateMySql();
+        // Rebuild disposable test tables without reversing data-preserving migrations.
+        $this->refreshTestDatabase();
+        $this->beforeApplicationDestroyed(function () {
+            $this->artisan('db:wipe');
+            RefreshDatabaseState::$migrated = false;
+        });
         RefreshDatabaseState::$migrated = false;
     }
 
