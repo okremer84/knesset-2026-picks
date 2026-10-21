@@ -149,3 +149,8 @@ export const BLOC_LABELS: Record<string, { nameHe: string; color: string }> = {
   arab: { nameHe: 'מפלגות ערביות', color: '#16a34a' },
   other: { nameHe: 'עצמאיות / לא משויכות', color: '#8b5cf6' },
 };
+
+// Retired parties remain in the catalog for historical picks and results.
+export function partiesForPick(submittedSeats?: Record<string, number>): Party[] {
+  return PARTIES_LIST.filter(p => p.id !== 'kachol_lavan' || (submittedSeats?.[p.id] ?? 0) > 0);
+}

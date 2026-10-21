@@ -45,25 +45,36 @@ class LeagueController extends Controller
         return ['leagues' => League::whereHas('users', fn ($q) => $q->where('users.id', $r->user()->id))->orderBy('created_at')->orderBy('id')->get(['id', 'name'])];
     }
 
-    private function personalPickPayload(User $user): array
+    private function personalPickPayload(User $user, ?League $league = null): array
     {
-        $leagues = League::whereHas('users', fn ($q) => $q->where('users.id', $user->id))->get();
-        $deadline = CarbonImmutable::parse(self::deadlineLimit());
-        foreach ($leagues as $league) {
-            $deadline = $deadline->min($league->effectiveDeadline());
-        }
-        $prediction = Prediction::where('user_id', $user->id)->first();
-        $pick = $prediction ? ['id' => $prediction->id, 'userId' => $user->id, 'memberName' => $user->name, 'pickName' => $prediction->pick_name,
-            'seats' => $prediction->seats, 'turnoutPercentage' => $prediction->turnout,
-            'note' => $prediction->note, 'submittedAt' => $prediction->updated_at->toIso8601String()] : null;
+        $leagues = League::whereHas('users', fn ($q) => $q->where('users.id', $user->id))->get()->keyBy('id');
+        $picks = Prediction::where('user_id', $user->id)->whereIn('scope', ['personal', ...$leagues->keys()->all()])->get();
+        $serialize = fn ($p) => ['id' => $p->id, 'userId' => $user->id, 'memberName' => $user->name, 'pickName' => $p->pick_name,
+            'leagueId' => $p->scope === 'personal' ? null : $p->scope, 'leagueName' => $leagues->get($p->scope)?->name,
+            'seats' => $p->seats, 'turnoutPercentage' => $p->turnout,
+            'note' => $p->note, 'submittedAt' => $p->updated_at->toIso8601String()];
+        $prediction = $picks->firstWhere('scope', $league?->id ?? 'personal');
+        $deadline = $league?->effectiveDeadline() ?? CarbonImmutable::parse(self::deadlineLimit());
 
-        return ['pick' => $pick, 'picks' => $pick ? [$pick] : [], 'locksAt' => $deadline->toIso8601String(),
-            'isLocked' => now()->gte($deadline) || $leagues->contains(fn ($l) => $l->isLocked())];
+        return ['pick' => $prediction ? $serialize($prediction) : null, 'picks' => $picks->map($serialize)->values(),
+            'locksAt' => $deadline->toIso8601String(), 'isLocked' => $league ? $league->isLocked() : now()->gte($deadline)];
+    }
+
+    private function requestedLeague(Request $r): ?League
+    {
+        $data = $r->validate(['leagueId' => 'sometimes|nullable|uuid']);
+        if (empty($data['leagueId'])) {
+            return null;
+        }
+        $league = League::findOrFail($data['leagueId']);
+        $this->member($league, $r);
+
+        return $league;
     }
 
     public function myPicks(Request $r)
     {
-        return $this->personalPickPayload($r->user());
+        return $this->personalPickPayload($r->user(), $this->requestedLeague($r));
     }
 
     public function show(League $league, Request $r)
@@ -114,19 +125,20 @@ class LeagueController extends Controller
     public function predict(League $league, Request $r)
     {
         $this->member($league, $r);
-        $this->savePersonalPick($r);
+        $this->savePersonalPick($r, $league);
 
-        return ['success' => true, 'league' => $this->payload($league->fresh(), $r), ...$this->personalPickPayload($r->user())];
+        return ['success' => true, 'league' => $this->payload($league->fresh(), $r), ...$this->personalPickPayload($r->user(), $league)];
     }
 
     public function savePick(Request $r)
     {
-        $this->savePersonalPick($r);
+        $league = $this->requestedLeague($r);
+        $this->savePersonalPick($r, $league);
 
-        return ['success' => true, ...$this->personalPickPayload($r->user())];
+        return ['success' => true, ...$this->personalPickPayload($r->user(), $league)];
     }
 
-    private function savePersonalPick(Request $r): void
+    private function savePersonalPick(Request $r, ?League $league = null): void
     {
         $ids = array_keys(config('election.parties'));
         $data = $r->validate(['seats' => ['required', 'array:'.implode(',', $ids)], 'seats.*' => ['required', 'integer', 'min:0', 'max:120', 'not_in:1,2,3'],
@@ -134,12 +146,17 @@ class LeagueController extends Controller
             ['seats.*.not_in' => 'כל מפלגה יכולה לקבל 0 מנדטים או לפחות 4 מנדטים']);
         abort_unless(array_sum($data['seats']) === 120, 422, 'סך המנדטים חייב להיות 120');
         $seats = array_replace(array_fill_keys($ids, 0), array_map('intval', $data['seats']));
-        DB::transaction(function () use ($r, $data, $seats) {
+        DB::transaction(function () use ($r, $data, $seats, $league) {
             // Membership changes take the same user lock; check deadlines after acquiring it.
             User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
-            $leagues = League::whereHas('users', fn ($q) => $q->where('users.id', $r->user()->id))->orderBy('id')->lockForUpdate()->get();
-            abort_if(now()->gte(CarbonImmutable::parse(self::deadlineLimit())) || $leagues->contains(fn ($l) => $l->isLocked()), 409, 'מועד ההגשה הסתיים');
-            $p = Prediction::updateOrCreate(['user_id' => $r->user()->id], ['seats' => $seats, 'turnout' => $data['turnoutPercentage'], 'note' => $data['note'] ?? null, ...(array_key_exists('pickName', $data) ? ['pick_name' => $data['pickName']] : [])]);
+            if ($league) {
+                $league = League::whereKey($league->id)->lockForUpdate()->firstOrFail();
+                $this->member($league, $r);
+            }
+            abort_if($league ? $league->isLocked() : now()->gte(CarbonImmutable::parse(self::deadlineLimit())), 409, 'מועד ההגשה הסתיים');
+            $existing = Prediction::where('user_id', $r->user()->id)->where('scope', $league?->id ?? 'personal')->first();
+            abort_if(($seats['kachol_lavan'] ?? 0) > 0 && ($existing?->seats['kachol_lavan'] ?? 0) === 0, 422, 'כחול לבן אינה זמינה לתחזיות חדשות');
+            $p = Prediction::updateOrCreate(['user_id' => $r->user()->id, 'scope' => $league?->id ?? 'personal'], ['seats' => $seats, 'turnout' => $data['turnoutPercentage'], 'note' => $data['note'] ?? null, ...(array_key_exists('pickName', $data) ? ['pick_name' => $data['pickName']] : [])]);
             DB::table('personal_prediction_revisions')->insert(['prediction_id' => $p->id, 'payload' => json_encode(['seats' => $seats, 'turnout' => $p->turnout, 'note' => $p->note, 'pickName' => $p->pick_name]), 'created_at' => now()]);
         }, 3);
     }
@@ -161,7 +178,7 @@ class LeagueController extends Controller
     private function payload(League $l, Request $r): array
     {
         $l->load(['owner', 'users']);
-        $predictions = Prediction::with('user')->whereIn('user_id', $l->users->modelKeys())->get();
+        $predictions = Prediction::with('user')->where('scope', $l->id)->whereIn('user_id', $l->users->modelKeys())->get();
         $locked = $l->isLocked();
         $benchmark = $this->publishedResult();
         $turnout = ($benchmark['kind'] ?? null) === 'official_results' ? ($benchmark['turnoutPercentage'] ?? null) : null;
@@ -182,7 +199,7 @@ class LeagueController extends Controller
             'benchmarkTurnoutPercentage' => $turnout, 'members' => $members, 'rankings' => $locked && $benchmark ? $rankings : [],
             'unsubmittedPlayers' => $l->users->filter(fn ($u) => ! $predictions->contains('user_id', $u->id))->map(fn ($u) => ['id' => (string) $u->id, 'name' => $u->name, 'joinedAt' => $u->pivot->created_at->toIso8601String()])->values(),
             'deadlineLimit' => self::deadlineLimit(),
-            'myPickLocked' => $this->personalPickPayload($r->user())['isLocked'],
+            'myPickLocked' => $locked,
             'participants' => $l->users->map(fn ($u) => ['userId' => $u->id, 'name' => $u->name, 'avatarUrl' => $u->avatar_url, 'submitted' => $predictions->contains('user_id', $u->id)])->values(),
             'submittedCount' => $predictions->count(), 'totalPlayersCount' => $l->users->count(), 'predictionsHidden' => ! $locked, 'scoringVersion' => $l->scoring_version];
     }

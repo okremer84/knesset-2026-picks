@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CampaignView } from './components/CampaignView';
 import { Header } from './components/Header';
+import { PickImport } from './components/PickImport';
 import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
@@ -14,7 +15,7 @@ import { SurveyComparator } from './components/SurveyComparator';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
 import { DEFAULT_SURVEYS } from './data/surveys';
-import { PARTIES_LIST } from './data/parties';
+import { PARTIES_LIST, partiesForPick } from './data/parties';
 import { League, LeagueSummary, Prediction, Survey, SavedPick } from './types';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -27,6 +28,9 @@ export default function App() {
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
+  const [switchingLeague, setSwitchingLeague] = useState(false);
+  const [pendingLeagueId, setPendingLeagueId] = useState<string | null>(null);
+  const editorOperation = useRef<'save' | 'switch' | null>(null);
   const [isCreateLeagueModalOpen, setIsCreateLeagueModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -35,31 +39,35 @@ export default function App() {
   const [userPrediction, setUserPrediction] = useState<Prediction | undefined>();
   const [pickLocked, setPickLocked] = useState(true);
   const [savedPicks, setSavedPicks] = useState<SavedPick[]>([]);
+  const importablePicks = savedPicks.filter(pick => pick.leagueId && pick.leagueId !== currentLeague?.id);
   const [picksStatus, setPicksStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [picksRetry, setPicksRetry] = useState(0);
+  const [draftInitialized, setDraftInitialized] = useState(false);
   const predictionSync = useRef(createPredictionSync());
   useEffect(() => {
+    if (loadingLeague) return;
+    if (!currentLeague) { setSavedPicks([]); setPickLocked(false); setPicksStatus('ready'); return; }
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
-      if (refreshing) return;
+      if (refreshing || editorOperation.current) return;
       refreshing = true;
       await predictionSync.current.refresh(async () => {
-        const response = await fetch('/api/my-picks', { signal: controller.signal });
+        const response = await fetch('/api/my-picks' + (currentLeague ? '?leagueId=' + encodeURIComponent(currentLeague.id) : ''), { signal: controller.signal });
         if (!response.ok) throw new Error('Failed to load pick');
         return response.json();
       }, data => {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && !editorOperation.current) {
           setSavedPicks(data.picks); setUserPrediction(data.pick ?? undefined);
           setPickLocked(data.isLocked); setPicksStatus('ready');
         }
-      }, () => { if (!controller.signal.aborted) setPicksStatus('error'); });
+      }, () => { if (!controller.signal.aborted && !editorOperation.current) setPicksStatus('error'); });
       refreshing = false;
     };
     void refresh();
     const timer = window.setInterval(refresh, 30000);
     return () => { controller.abort(); window.clearInterval(timer); };
-  }, [currentLeague, picksRetry]);
+  }, [currentLeague?.id, picksRetry, loadingLeague]);
 
   // Helper to sanitize any raw seats object to strictly PARTIES_LIST keys
   const sanitizeSeatsMap = (raw: any): Record<string, number> => {
@@ -79,15 +87,16 @@ export default function App() {
   const hasStoredDraft = useRef(false);
   const previousSubmittedSeats = useRef<Record<string, number> | undefined>(undefined);
   const previousSubmittedDetails = useRef<PredictionDetails | undefined>(undefined);
-  const [draftDetails, setDraftDetails] = useState(() => storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + user.id)));
+  const [draftDetails, setDraftDetails] = useState(() => storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''))));
   useEffect(() => {
-    if (draftDetails) writePreference('knesset_fantasy_draft_details_' + user.id, draftDetails);
-  }, [draftDetails, user.id]);
+    if (!currentLeague || loadingLeague || !draftInitialized) return;
+    if (draftDetails) writePreference('knesset_fantasy_draft_details_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), draftDetails);
+  }, [draftDetails, user.id, currentLeague?.id, loadingLeague, picksStatus, draftInitialized]);
 
   // User's current draft seats (starts empty by default, strictly sanitized)
   const [userSeats, setUserSeats] = useState<Record<string, number>>(() => {
     try {
-      const saved = localStorage.getItem('knesset_fantasy_user_seats_' + user.id);
+      const saved = localStorage.getItem('knesset_fantasy_user_seats_' + user.id + (currentLeague ? '_' + currentLeague.id : ''));
       if (saved) {
         const parsed = JSON.parse(saved);
         hasStoredDraft.current = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
@@ -100,14 +109,75 @@ export default function App() {
     return {};
   });
 
-  // Persist draft seats to localStorage
+  // Persist only a hydrated draft, never the temporary startup placeholders.
   useEffect(() => {
+    if (!currentLeague || loadingLeague || !draftInitialized) return;
     try {
-      localStorage.setItem('knesset_fantasy_user_seats_' + user.id, JSON.stringify(userSeats));
+      localStorage.setItem('knesset_fantasy_user_seats_' + user.id + (currentLeague ? '_' + currentLeague.id : ''), JSON.stringify(userSeats));
     } catch {
       // Ignore
     }
-  }, [userSeats]);
+  }, [userSeats, currentLeague?.id, loadingLeague, picksStatus, draftInitialized]);
+
+  const leagueDrafts = useRef(new Map<string, {
+    seats: Record<string, number>;
+    details: PredictionDetails;
+    submittedSeats: Record<string, number>;
+    submittedDetails: PredictionDetails;
+  }>());
+
+  // Fetch the complete destination before replacing the visible editor.
+  const selectLeague = async (league: League | null) => {
+    const response = await fetch('/api/my-picks' + (league ? '?leagueId=' + encodeURIComponent(league.id) : ''));
+    if (!response.ok) throw new Error('לא ניתן לטעון את התחזית');
+    const data = await response.json();
+    const pick: Prediction | undefined = data.pick ?? undefined;
+    const suffix = user.id + (league ? '_' + league.id : '');
+    const cached = league ? leagueDrafts.current.get(league.id) : undefined;
+    const storedSeats = cached?.seats ?? readPreference('knesset_fantasy_user_seats_' + suffix);
+    hasStoredDraft.current = storedSeats !== null && typeof storedSeats === 'object' && !Array.isArray(storedSeats);
+    previousSubmittedSeats.current = pick?.seats;
+    previousSubmittedDetails.current = predictionDetails(pick);
+    setUserSeats(cached
+      ? reconcileDraft(cached.seats, cached.submittedSeats, pick?.seats ?? {}, true)
+      : sanitizeSeatsMap(hasStoredDraft.current ? storedSeats : pick?.seats));
+    setDraftDetails(cached
+      ? reconcileDetails(cached.details, cached.submittedDetails, predictionDetails(pick))
+      : storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)) ?? predictionDetails(pick));
+    setDraftInitialized(true);
+    setUserPrediction(pick);
+    setSavedPicks(data.picks);
+    setPickLocked(data.isLocked);
+    setPicksStatus('ready');
+    setCurrentLeague(league);
+  };
+
+  // All changes of destination and submissions share one synchronous guard.
+  const changeEditor = async (id: string | null, load: () => Promise<League | null>) => {
+    if (editorOperation.current) throw new Error('יש להמתין לסיום הפעולה הנוכחית');
+    if (currentLeague && draftInitialized) {
+      leagueDrafts.current.set(currentLeague.id, {
+        seats: { ...userSeats },
+        details: { ...(draftDetails ?? predictionDetails(userPrediction)) },
+        submittedSeats: { ...userPrediction?.seats },
+        submittedDetails: predictionDetails(userPrediction),
+      });
+    }
+    editorOperation.current = 'switch';
+    predictionSync.current.beginOperation();
+    setSwitchingLeague(true);
+    setPendingLeagueId(id);
+    try {
+      const league = await load();
+      await selectLeague(league);
+      return league;
+    } finally {
+      predictionSync.current.endOperation();
+      editorOperation.current = null;
+      setSwitchingLeague(false);
+      setPendingLeagueId(null);
+    }
+  };
 
   // Load surveys from backend
   useEffect(() => {
@@ -147,7 +217,7 @@ export default function App() {
         if (!response.ok) throw new Error('לא ניתן לפתוח את הליגה');
         const detail: { league: League } = await response.json();
         if (cancelled) return;
-        setCurrentLeague(detail.league);
+        await selectLeague(detail.league);
         if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
       } catch (e) {
         if (!cancelled) showToast((e as Error).message, 'error');
@@ -192,13 +262,19 @@ export default function App() {
     }
   };
 
-  // Submit the personal prediction shared by every league.
+  // Submit only to the selected league.
   const handleSubmitPrediction = async (pickName: string, note?: string, turnoutPercentage?: number) => {
+
+    if (!currentLeague) throw new Error('יש לבחור ליגה לפני הגשת תחזית');
+    if (pickLocked) throw new Error('מועד ההגשה הסתיים. הבחירה לא נשמרה.');
+    if (editorOperation.current || loadingLeague || switchingLeague || isSubmitting || picksStatus !== 'ready') {
+      throw new Error('לא ניתן לשמור כרגע. נסו שוב לאחר טעינת התחזית.');
+    }
 
     // Always sanitize to strictly PARTIES_LIST keys with integer values
     const cleanSeats: Record<string, number> = {};
     let totalAllocated = 0;
-    PARTIES_LIST.forEach((p) => {
+    partiesForPick(userPrediction?.seats).forEach((p) => {
       const count = Math.max(0, Math.floor(Number(userSeats[p.id]) || 0));
       cleanSeats[p.id] = count;
       totalAllocated += count;
@@ -215,13 +291,15 @@ export default function App() {
     // Update local state to clean representation
     setUserSeats(cleanSeats);
 
-    predictionSync.current.beginSubmission();
+    editorOperation.current = 'save';
+    predictionSync.current.beginOperation();
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/my-pick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          leagueId: currentLeague?.id,
           pickName,
           seats: cleanSeats,
           note,
@@ -246,25 +324,23 @@ export default function App() {
       showToast(err.message || 'שגיאה בשמירת התחזית', 'error');
       throw err;
     } finally {
-      predictionSync.current.endSubmission();
+      editorOperation.current = null;
+      predictionSync.current.endOperation();
       setIsSubmitting(false);
     }
   };
 
-  // Create new league
-  const [switchingLeague, setSwitchingLeague] = useState(false);
   const handleSwitchLeague = async (leagueId: string) => {
-    if (switchingLeague || leagueId === currentLeague?.id) return;
-    setSwitchingLeague(true);
+    if (!leagueId || loadingLeague || editorOperation.current || leagueId === (currentLeague?.id ?? '')) return;
     try {
-      const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId));
-      const data = await response.json();
-      if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
-      setCurrentLeague(data.league);
+      await changeEditor(leagueId, async () => {
+        const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId));
+        const data = await response.json();
+        if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
+        return data.league;
+      });
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'לא ניתן לטעון את הליגה', 'error');
-    } finally {
-      setSwitchingLeague(false);
     }
   };
 
@@ -275,61 +351,83 @@ export default function App() {
     targetSurveyId?: string,
     locksAt?: string
   ) => {
-    const res = await fetch('/api/leagues', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        locksAt,
-        description,
-        targetSurveyId,
-      }),
-    });
+    let createdSuccessfully = false;
+    try {
+      const league = await changeEditor(null, async () => {
+        const res = await fetch('/api/leagues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            locksAt,
+            description,
+            targetSurveyId,
+          }),
+        });
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
+        }
+
+        if (!data.league || typeof data.league.id !== 'string' || typeof data.league.name !== 'string' || !Array.isArray(data.league.members)) {
+          throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
+        }
+
+        // The POST has committed: record it before the separate editor read.
+        const created: League = data.league;
+        createdSuccessfully = true;
+        setMyLeagues(prev => [created, ...prev.filter(l => l.id !== created.id)]);
+        return created;
+      });
+      if (!league) return;
+      if (league.targetSurveyId) {
+        setSelectedSurveyId(league.targetSurveyId);
+      }
+
+      showToast(`ליגת "${league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
+      setActiveTab('league');
+    } catch (error) {
+      if (!createdSuccessfully) throw error;
+      // Resolving closes the create form. Retrying via the dropdown only reads.
+      showToast(`ליגת "${name}" נוצרה, אך לא ניתן לפתוח אותה כרגע. בחרו אותה ברשימת הליגות כדי לנסות שוב.`, 'info');
     }
-
-    if (!data.league || typeof data.league.id !== 'string' || typeof data.league.name !== 'string' || !Array.isArray(data.league.members)) {
-      throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
-    }
-
-    setCurrentLeague(data.league);
-      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-    if (data.league.targetSurveyId) {
-      setSelectedSurveyId(data.league.targetSurveyId);
-    }
-
-    showToast(`ליגת "${data.league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
-    setActiveTab('league');
   };
 
   // Switch / Join league by ID
   const handleJoinExistingLeagueById = async (leagueId: string) => {
+    let joinedSuccessfully = false;
     try {
-      const res = await fetch('/api/leagues/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({code: leagueId}) });
-      const data = await res.json();
-      if (!res.ok || !data.league) {
-        const validation = Object.values(data.errors || {}).flat().join(' ');
-        showToast(validation || data.message || data.error || 'לא נמצאה ליגה עם קוד זה.', 'error');
-        return false;
-      }
-
-      setCurrentLeague(data.league);
-      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-
-      showToast(`עברת בהצלחה לליגת "${data.league.name}"!`);
+      const league = await changeEditor(null, async () => {
+        const res = await fetch('/api/leagues/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({code: leagueId}) });
+        const data = await res.json();
+        if (!res.ok || !data.league) {
+          const validation = Object.values(data.errors || {}).flat().join(' ');
+          throw new Error(validation || data.message || data.error || 'לא נמצאה ליגה עם קוד זה.');
+        }
+        const joined: League = data.league;
+        joinedSuccessfully = true;
+        setMyLeagues(prev => [joined, ...prev.filter(l => l.id !== joined.id)]);
+        return joined;
+      });
+      if (!league) return false;
+      showToast(`עברת בהצלחה לליגת "${league.name}"!`);
       setActiveTab('league');
       return true;
     } catch (err) {
-      showToast('שגיאה בטעינת הליגה', 'error');
+      if (joinedSuccessfully) {
+        showToast('ההצטרפות הצליחה, אך לא ניתן לפתוח את הליגה כרגע. בחרו אותה ברשימת הליגות כדי לנסות שוב.', 'info');
+        return true;
+      }
+      showToast(err instanceof Error ? err.message : 'שגיאה בטעינת הליגה', 'error');
       return false;
     }
   };
 
   const username = user.name;
   useEffect(() => {
+    if (loadingLeague || picksStatus !== 'ready') return;
+    setDraftInitialized(true);
     if (!userPrediction) return;
     const previous = previousSubmittedSeats.current;
     const stored = hasStoredDraft.current;
@@ -339,7 +437,7 @@ export default function App() {
     const previousDetails = previousSubmittedDetails.current;
     setDraftDetails(draft => reconcileDetails(draft, previousDetails, details));
     previousSubmittedDetails.current = details;
-  }, [userPrediction?.id, userPrediction?.submittedAt]);
+  }, [userPrediction?.id, userPrediction?.submittedAt, loadingLeague, picksStatus]);
 
   useEffect(() => {
     writePreference('knesset_fantasy_tab_' + user.id, activeTab);
@@ -422,12 +520,25 @@ export default function App() {
 
       {/* Main Content Area */}
       {surveyNotice && activeTab !== 'campaign' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
-      {activeTab === 'league' && myLeagues.length > 1 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">בחירה לליגה: <select value={pendingLeagueId ?? currentLeague?.id ?? ''} disabled={loadingLeague || switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{!currentLeague && <option value="" disabled>בחירת ליגה</option>}{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
-        {activeTab === 'picker' && (
+        {activeTab === 'picker' && currentLeague && (
           <SeatPicker
+            key={currentLeague?.id ?? 'personal'}
+            importAction={picksStatus === 'ready' && !pickLocked ? (
+              <PickImport key={currentLeague?.id ?? 'personal'}
+            importablePicks={importablePicks}
+            onImportPick={source => {
+              hasStoredDraft.current = true;
+              setUserSeats(sanitizeSeatsMap(source.seats));
+              setDraftDetails({ pickName: source.pickName || '', note: source.note || '', turnoutPercentage: String(source.turnoutPercentage ?? '') });
+              showToast('הבחירה הועתקה לטיוטה. ניתן לערוך אותה לפני ההגשה.', 'info');
+            }}
+          disabled={loadingLeague || switchingLeague || isSubmitting}
+        />
+            ) : null}
             currentSeats={userSeats}
             details={draftDetails ?? predictionDetails(userPrediction)}
             onDetailsChange={setDraftDetails}
@@ -436,12 +547,13 @@ export default function App() {
             isSubmitting={isSubmitting}
             prediction={userPrediction}
             isLocked={pickLocked}
-            isLoading={picksStatus === 'loading'}
+            isSwitching={switchingLeague}
+            isLoading={loadingLeague || picksStatus === 'loading'}
             hasLoadError={picksStatus === 'error'}
           />
         )}
 
-        {activeTab === 'league' && (
+        {(activeTab === 'league' || (activeTab === 'picker' && !currentLeague)) && (
           currentLeague ? (
             <LeagueView
               key={currentLeague.id}
@@ -472,7 +584,7 @@ export default function App() {
         {activeTab === 'surveys' && (
           <SurveyComparator
             surveys={allSurveys}
-            picks={picksStatus === 'ready' ? savedPicks : []}
+            picks={picksStatus === 'ready' ? savedPicks.filter(pick => pick.leagueId) : []}
             picksStatus={picksStatus}
             onRetryPicks={() => setPicksRetry(n => n + 1)}
           />

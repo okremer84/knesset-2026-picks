@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\League;
+use App\Models\Prediction;
 use App\Models\Survey;
 use App\Models\User;
 use App\Services\PollStore;
 use App\Services\Scoring;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class GameTest extends TestCase
@@ -46,6 +46,21 @@ class GameTest extends TestCase
         return ['seats' => $seats, 'turnoutPercentage' => 70.5, 'memberName' => 'Cannot impersonate another user'];
     }
 
+    public function test_retired_party_is_preserved_only_in_existing_picks(): void
+    {
+        $user = User::factory()->create();
+        $league = $this->league($user);
+        $seats = ['likud' => 110, 'kachol_lavan' => 10];
+        $this->postJson('/api/my-pick', $this->picks($seats))->assertUnprocessable();
+        $existing = Prediction::create(['user_id' => $user->id, 'scope' => 'personal', 'seats' => $seats, 'turnout' => 70.5]);
+        $this->getJson('/api/my-picks')->assertJsonPath('pick.seats.kachol_lavan', 10);
+        $this->postJson('/api/my-pick', $this->picks($seats))->assertOk();
+        $this->postJson('/api/my-pick', [...$this->picks($seats), 'leagueId' => $league->id])->assertUnprocessable();
+        $this->assertSame(10, $existing->fresh()->seats['kachol_lavan']);
+        $this->postJson('/api/my-pick', [...$this->picks(), 'leagueId' => $league->id])->assertOk();
+        $this->postJson('/api/my-pick', [...$this->picks($seats), 'leagueId' => $league->id])->assertUnprocessable();
+    }
+
     public function test_pick_name_is_saved_separately_from_account_name(): void
     {
         $user = User::factory()->create(['name' => 'Omer']);
@@ -59,7 +74,7 @@ class GameTest extends TestCase
         $this->getJson('/api/my-picks')->assertJsonPath('pick.pickName', 'Updated title');
     }
 
-    public function test_my_picks_returns_one_personal_submission_independent_of_memberships(): void
+    public function test_my_picks_lists_owned_submissions_and_selects_by_league(): void
     {
         $this->getJson('/api/my-picks')->assertUnauthorized();
         $owner = User::factory()->create();
@@ -67,11 +82,12 @@ class GameTest extends TestCase
         $league = $this->league($owner);
         $this->getJson('/api/my-picks')->assertOk()->assertJsonCount(0, 'picks');
         $this->postJson('/api/leagues/'.$league->id.'/predict', $this->picks())->assertOk();
-        $this->getJson('/api/my-picks')->assertOk()->assertJsonCount(1, 'picks')->assertJsonPath('picks.0.seats.likud', 60)->assertJsonPath('pick.userId', $owner->id);
+        $this->getJson('/api/my-picks')->assertOk()->assertJsonCount(1, 'picks')->assertJsonPath('picks.0.seats.likud', 60)->assertJsonPath('picks.0.userId', $owner->id);
         $this->actingAs($other)->postJson('/api/leagues/join', ['code' => $league->invite_code])->assertOk();
         $this->getJson('/api/my-picks')->assertOk()->assertJsonCount(0, 'picks');
         $league->users()->detach($owner->id);
-        $this->actingAs($owner)->getJson('/api/my-picks')->assertOk()->assertJsonCount(1, 'picks');
+        $this->actingAs($owner)->getJson('/api/my-picks')->assertOk()->assertJsonCount(0, 'picks');
+        $this->getJson('/api/my-picks?leagueId='.$league->id)->assertForbidden();
     }
 
     public function test_league_roster_includes_avatars_without_revealing_private_predictions(): void
@@ -82,7 +98,7 @@ class GameTest extends TestCase
         $withoutPhoto = User::factory()->create();
         $league = $this->league($owner);
         $league->users()->attach([$member->id, $withoutPhoto->id]);
-        $this->actingAs($member)->postJson('/api/my-pick', [...$this->picks(), 'note' => 'Private prediction'])->assertOk();
+        $this->actingAs($member)->postJson('/api/leagues/'.$league->id.'/predict', [...$this->picks(), 'note' => 'Private prediction'])->assertOk();
 
         $response = $this->actingAs($owner)->getJson('/api/leagues/'.$league->id)->assertOk()
             ->assertJsonPath('league.predictionsHidden', true)->assertJsonCount(0, 'league.members')
@@ -261,14 +277,14 @@ class GameTest extends TestCase
                 ->assertCreated()->assertJsonPath('league.locksAt', '2026-10-06T17:00:00+00:00')
                 ->assertJsonPath('league.isLocked', false);
             $id = $response->json('league.id');
-            $this->postJson('/api/my-pick', [...$this->picks(), 'note' => 'Private until 20:00'])->assertOk();
+            $this->postJson('/api/leagues/'.$id.'/predict', [...$this->picks(), 'note' => 'Private until 20:00'])->assertOk();
             $this->actingAs($other)->postJson('/api/leagues/join', ['code' => $response->json('league.inviteCode')])
                 ->assertOk()->assertJsonCount(0, 'league.members');
             $this->travelTo(CarbonImmutable::parse('2026-10-06T16:59:59Z'));
             $this->getJson('/api/leagues/'.$id)->assertJsonPath('league.predictionsHidden', true)->assertJsonCount(0, 'league.members');
             $this->travelTo(CarbonImmutable::parse('2026-10-06T17:00:00Z'));
             $this->getJson('/api/leagues/'.$id)->assertJsonPath('league.members.0.note', 'Private until 20:00');
-            $this->actingAs($owner)->postJson('/api/my-pick', $this->picks())->assertConflict();
+            $this->actingAs($owner)->postJson('/api/leagues/'.$id.'/predict', $this->picks())->assertConflict();
             $this->travelTo(CarbonImmutable::parse('2026-10-06T12:00:00Z'));
         }
     }
@@ -298,30 +314,29 @@ class GameTest extends TestCase
         $this->postJson('/api/leagues/'.$league->id.'/predict', $this->picks())->assertConflict();
     }
 
-    public function test_one_pick_is_shared_by_existing_and_new_leagues_and_locks_at_first_deadline(): void
+    public function test_league_picks_are_independent_and_lock_at_their_own_deadlines(): void
     {
         $owner = User::factory()->create();
         $first = $this->league($owner);
         $second = $this->league($owner);
         $second->update(['locks_at' => '2026-10-20T17:00:00Z']);
-        $this->postJson('/api/my-pick', [...$this->picks(), 'note' => 'One note'])->assertOk();
-        $initial = $this->getJson('/api/leagues/'.$first->id)->json('league.members.0');
-        $this->getJson('/api/leagues/'.$second->id)->assertJsonPath('league.members.0', $initial);
+        $this->postJson('/api/my-pick', [...$this->picks(), 'leagueId' => $first->id, 'note' => 'First'])->assertOk();
         $this->postJson('/api/leagues/'.$second->id.'/predict', $this->picks(['likud' => 55, 'beyachad' => 65]))->assertOk();
-        $this->getJson('/api/leagues/'.$first->id)->assertJsonPath('league.members.0.seats.likud', 55);
-        $this->assertDatabaseCount('personal_predictions', 1);
-        $this->getJson('/api/my-picks')->assertJsonCount(1, 'picks')->assertJsonPath('isLocked', false);
+        $this->getJson('/api/leagues/'.$first->id)->assertJsonPath('league.members.0.seats.likud', 60);
+        $this->getJson('/api/my-picks?leagueId='.$second->id)->assertJsonCount(2, 'picks')->assertJsonPath('pick.seats.likud', 55);
         $this->travelTo($first->locks_at);
-        $this->getJson('/api/my-picks')->assertJsonPath('isLocked', true);
-        $this->postJson('/api/my-pick', $this->picks())->assertConflict();
-        $this->postJson('/api/leagues/'.$second->id.'/predict', $this->picks())->assertConflict();
-        $this->getJson('/api/leagues/'.$second->id)->assertJsonPath('league.isLocked', false)->assertJsonPath('league.myPickLocked', true);
+        $this->postJson('/api/my-pick', [...$this->picks(), 'leagueId' => $first->id])->assertConflict();
+        $this->postJson('/api/leagues/'.$second->id.'/predict', $this->picks(['likud' => 50, 'beyachad' => 70]))->assertOk();
+        $this->getJson('/api/leagues/'.$first->id)->assertJsonPath('league.members.0.seats.likud', 60);
+        $this->getJson('/api/leagues/'.$second->id)->assertJsonPath('league.myPickLocked', false);
         $third = $this->league($owner);
-        $this->getJson('/api/leagues/'.$third->id)->assertJsonPath('league.members.0.seats.likud', 55);
-        $this->postJson('/api/leagues/'.$third->id.'/predict', $this->picks())->assertConflict();
+        $this->getJson('/api/leagues/'.$third->id)->assertJsonCount(0, 'league.members')->assertJsonPath('league.submittedCount', 0);
+        $this->postJson('/api/leagues/'.$third->id.'/predict', $this->picks())->assertOk();
+        $this->actingAs(User::factory()->create())->postJson('/api/my-pick', [...$this->picks(), 'leagueId' => $second->id])->assertForbidden();
+        $this->getJson('/api/my-picks?leagueId='.$second->id)->assertForbidden();
     }
 
-    public function test_personal_pick_can_be_submitted_before_joining_and_stays_private_until_each_leagues_deadline(): void
+    public function test_joining_requires_a_separate_submission_and_preserves_privacy(): void
     {
         $owner = User::factory()->create();
         $early = $this->league($owner);
@@ -330,7 +345,8 @@ class GameTest extends TestCase
         $other = User::factory()->create();
         $this->actingAs($other)->postJson('/api/my-pick', [...$this->picks(), 'note' => 'Private shared note'])->assertOk();
         foreach ([$early, $late] as $league) {
-            $this->postJson('/api/leagues/join', ['code' => $league->invite_code])->assertOk()->assertJsonPath('league.submittedCount', 1);
+            $this->postJson('/api/leagues/join', ['code' => $league->invite_code])->assertOk()->assertJsonPath('league.submittedCount', 0);
+            $this->postJson('/api/leagues/'.$league->id.'/predict', [...$this->picks(), 'note' => 'Private shared note'])->assertOk();
         }
         $this->travelTo($early->locks_at);
         $this->actingAs($owner)->getJson('/api/leagues/'.$early->id)->assertJsonPath('league.members.0.note', 'Private shared note');
@@ -346,28 +362,5 @@ class GameTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-10-27T18:00:00Z'));
         $this->getJson('/api/my-picks')->assertJsonPath('isLocked', true);
         $this->postJson('/api/my-pick', $this->picks())->assertConflict();
-    }
-
-    public function test_personal_pick_migration_preserves_legacy_records_and_first_closed_pick(): void
-    {
-        $owner = User::factory()->create();
-        $early = $this->league($owner);
-        $late = $this->league($owner);
-        $late->update(['locks_at' => '2026-10-20T17:00:00Z']);
-        $migration = require database_path('migrations/2026_10_06_000001_create_personal_predictions.php');
-        $migration->down();
-        foreach ([[$early, 'first', 60], [$late, 'latest', 55]] as [$league, $id, $seats]) {
-            DB::table('predictions')->insert(['id' => $id, 'league_id' => $league->id, 'user_id' => $owner->id,
-                'seats' => json_encode(['likud' => $seats, 'beyachad' => 120 - $seats]), 'turnout' => 70,
-                'created_at' => now(), 'updated_at' => $id === 'latest' ? now()->addMinute() : now()]);
-            DB::table('prediction_revisions')->insert(['prediction_id' => $id, 'payload' => '{}', 'created_at' => now()]);
-        }
-        $this->travelTo($early->locks_at);
-        $migration->up();
-        $this->getJson('/api/my-picks')->assertJsonPath('pick.seats.likud', 60)->assertJsonPath('isLocked', true);
-        $this->assertDatabaseCount('personal_predictions', 1);
-        $this->assertDatabaseCount('personal_prediction_revisions', 1);
-        $this->assertDatabaseCount('predictions', 2);
-        $this->assertDatabaseCount('prediction_revisions', 2);
     }
 }

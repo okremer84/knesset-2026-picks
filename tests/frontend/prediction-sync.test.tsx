@@ -14,10 +14,10 @@ test('a poll started before submission cannot replace the submitted prediction',
   const old = deferred<string>();
   let prediction = 'original';
   const polling = sync.refresh(() => old.promise, value => { prediction = value; }, () => assert.fail('unexpected failure'));
-  sync.beginSubmission();
+  sync.beginOperation();
   prediction = 'submitted';
   await sync.refresh(async () => assert.fail('must not poll while submitting'), () => assert.fail(), () => assert.fail());
-  sync.endSubmission();
+  sync.endOperation();
   old.resolve('stale');
   await polling;
   assert.equal(prediction, 'submitted');
@@ -30,8 +30,8 @@ test('stale poll failures cannot mark a successful submission unavailable; new f
   const old = deferred<string>();
   let failures = 0;
   const polling = sync.refresh(() => old.promise, () => assert.fail(), () => { failures++; });
-  sync.beginSubmission();
-  sync.endSubmission();
+  sync.beginOperation();
+  sync.endOperation();
   old.reject(new Error('old failure'));
   await polling;
   assert.equal(failures, 0);

@@ -131,6 +131,8 @@ export interface HistoricalElection {
 }
 
 export interface SavedPick {
+  note?: string | null;
+  turnoutPercentage?: number | null;
   pickName?: string | null;
   id: string;
   leagueId?: string;
