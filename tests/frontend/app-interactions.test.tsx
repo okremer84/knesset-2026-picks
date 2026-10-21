@@ -261,7 +261,7 @@ test('copying a league pick creates an editable draft without submitting or chan
   assert.equal(document.querySelector('.prediction-dock .league-pick-import'), null);
   assert.ok(!document.body.textContent?.includes('התחזית נשמרת רק לליגת'));
   assert.ok(document.querySelector('.page-heading .league-pick-import'));
-  await click('העתק בחירה מליגה אחת');
+  await click('העתק את הבחירה מOur league');
   assert.equal(document.querySelector<HTMLSelectElement>('select[aria-label="ליגה להעתקת בחירה"]')?.value, submitted.id);
   await click('העתק');
   assert.equal(document.querySelector('dialog'), null);
@@ -446,7 +446,7 @@ test('retired party stays in an existing pick but is excluded when copied into a
   assert.equal(input('מנדטים לכחול לבן').value, '10');
   await chooseLeague('second');
   assert.ok(!document.querySelector('[aria-label="מנדטים לכחול לבן"]'));
-  await click('העתק בחירה מליגה אחת');
+  await click('העתק את הבחירה מOur league');
   await click('העתק');
   assert.equal(input('מנדטים להליכוד').value, '110');
   assert.equal(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow'), '110');

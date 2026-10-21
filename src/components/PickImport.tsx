@@ -15,7 +15,7 @@ export function PickImport({ importablePicks, onImportPick, disabled }: {
     <button type="button" className="import-pick-button" disabled={disabled} onClick={() => {
       setImportPickId(importablePicks.length === 1 ? importablePicks[0].id : '');
       setOpen(true);
-    }}>העתק בחירה מליגה אחת</button>
+    }}>{importablePicks.length === 1 ? 'העתק את הבחירה מ' + importablePicks[0].leagueName : 'העתק בחירה מליגה אחת'}</button>
     {open && <Dialog open onClose={() => setOpen(false)} label="העתקת בחירה מליגה אחרת" closeOnBackdrop>
       <form className="space-y-4" onSubmit={event => {
         event.preventDefault();
