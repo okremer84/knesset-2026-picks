@@ -13,7 +13,11 @@ export function PickImport({ importablePicks, onImportPick, disabled }: {
   if (!importablePicks.length) return null;
   return <div className="league-pick-import">
     <button type="button" className="import-pick-button" disabled={disabled} onClick={() => {
-      setImportPickId(importablePicks.length === 1 ? importablePicks[0].id : '');
+      if (importablePicks.length === 1) {
+        onImportPick(importablePicks[0]);
+        return;
+      }
+      setImportPickId('');
       setOpen(true);
     }}>{importablePicks.length === 1 ? 'העתק את הבחירה מ' + importablePicks[0].leagueName : 'העתק בחירה מליגה אחת'}</button>
     {open && <Dialog open onClose={() => setOpen(false)} label="העתקת בחירה מליגה אחרת" closeOnBackdrop>
