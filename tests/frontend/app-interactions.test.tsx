@@ -50,7 +50,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
       if (api.saves && api.refreshFailure === 'status') return new Response('', { status: 503 });
       return Response.json({ league: { ...league, members: api.pick ? [api.pick] : [] } });
     }
-    if (url === '/api/my-picks?leagueId=second') return Response.json({ pick: api.secondPick, picks: [api.pick, api.secondPick].filter(Boolean), isLocked: false });
+    if (url === '/api/my-picks?leagueId=second') return Response.json({ pick: api.secondPick, picks: [api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
     if (url.startsWith('/api/my-picks')) return Response.json({ pick: api.pick, picks: api.pick ? [api.pick] : [], isLocked: false });
     if (url === '/api/my-pick') {
       api.saves++;
@@ -59,7 +59,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
       api.savedLeagueId = body.leagueId;
       if (body.leagueId === 'second') {
         api.secondPick = { ...submitted, ...body };
-        return Response.json({ pick: api.secondPick, picks: [api.pick, api.secondPick].filter(Boolean), isLocked: false });
+        return Response.json({ pick: api.secondPick, picks: [api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
       }
       api.pick = { ...submitted, ...JSON.parse(String(init?.body)), submittedAt: '2026-10-06T12:01:00Z' };
       return Response.json({ pick: api.pick, picks: [api.pick], isLocked: false });
@@ -232,4 +232,39 @@ test('Balad is absent from new picks', async t => {
   assert.ok(![...document.querySelectorAll('input')].some(el => el.getAttribute('aria-label') === 'מנדטים לבל"ד'));
   assert.ok(document.querySelector('.party-grid')?.textContent?.includes('הרשימה המשותפת'));
   assert.ok(!document.querySelector('.party-grid')?.textContent?.includes('בל"ד'));
+});
+
+
+test('copying a league pick creates an editable draft without submitting or changing the source', async t => {
+  const app = await start(t, submitted);
+  await act(async () => {
+    const select = document.querySelector<HTMLSelectElement>('select')!;
+    select.value = 'second';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  await act(async () => {
+    const select = document.querySelector<HTMLSelectElement>('select[aria-label="תחזית להעתקה"]')!;
+    assert.ok(select);
+    select.value = submitted.id;
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  await click('העתקה לטיוטה');
+  assert.equal(input('מנדטים להליכוד').value, '120');
+  assert.equal(app.api.saves, 0);
+  assert.equal(app.api.secondPick, null);
+  await click('הגשת התחזית');
+  assert.equal(input('שם התחזית').value, 'Saved name');
+  assert.equal(input('תחזית אחוז הצבעה ארצי').value, '70');
+  assert.equal(input('הערה לתחזית').value, 'Saved note');
+  await fill('שם התחזית', 'Second league version');
+  await fill('הערה לתחזית', 'Changed only here');
+  await click('ביטול');
+  await app.reload();
+  await click('הגשת התחזית');
+  assert.equal(input('שם התחזית').value, 'Second league version');
+  await submit();
+  assert.equal(app.api.savedLeagueId, 'second');
+  assert.equal(app.api.secondPick?.note, 'Changed only here');
+  assert.equal(app.api.pick?.note, 'Saved note');
+  assert.equal(app.api.pick?.pickName, 'Saved name');
 });

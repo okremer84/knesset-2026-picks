@@ -87,3 +87,5 @@ See [Laravel Cloud setup](docs/laravel-cloud.md) for deployment.
 The personal-pick migration preserves legacy per-league submissions and revisions in their original tables. It carries forward the first closed league’s submission when present, otherwise the latest submission, into one unique personal prediction per user.
 
 The league-pick migration copies each existing personal submission (including its name, note, turnout, timestamps and revision history) into every existing membership. Closed-league picks remain locked. Original personal and legacy records remain intact. Run `php artisan migrate` during deployment before serving the updated application. Rollback requires restoring a pre-migration backup to avoid discarding independent league picks.
+
+In the picker, select a destination league and use “העתקת תחזית קיימת” to copy one of your saved predictions into its draft. Seats, name, turnout and note are copied; editing and submitting affect only the destination league. Copying replaces the current draft and does not submit it automatically.

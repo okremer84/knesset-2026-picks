@@ -35,6 +35,8 @@ export default function App() {
   const [userPrediction, setUserPrediction] = useState<Prediction | undefined>();
   const [pickLocked, setPickLocked] = useState(true);
   const [savedPicks, setSavedPicks] = useState<SavedPick[]>([]);
+  const [importPickId, setImportPickId] = useState('');
+  const importablePicks = savedPicks.filter(pick => (pick.leagueId ?? null) !== (currentLeague?.id ?? null));
   const [picksStatus, setPicksStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [picksRetry, setPicksRetry] = useState(0);
   const predictionSync = useRef(createPredictionSync());
@@ -120,6 +122,7 @@ export default function App() {
       previousSubmittedSeats.current = undefined;
       previousSubmittedDetails.current = undefined;
       setUserPrediction(undefined);
+      setImportPickId('');
       setPickLocked(true);
       setPicksStatus('loading');
     }
@@ -448,6 +451,26 @@ export default function App() {
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
+        {activeTab === 'picker' && currentLeague && picksStatus === 'ready' && !pickLocked && importablePicks.length > 0 && (
+          <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+            <label className="block text-sm">העתקת תחזית קיימת
+              <select aria-label="תחזית להעתקה" value={importPickId} disabled={loadingLeague || switchingLeague || isSubmitting} onChange={e => setImportPickId(e.target.value)} className="border rounded-lg p-2 mx-2">
+                <option value="">בחירת תחזית</option>
+                {importablePicks.map(pick => <option key={pick.id} value={pick.id}>{pick.leagueName || 'תחזית אישית'}{pick.pickName ? ' · ' + pick.pickName : ''}</option>)}
+              </select>
+            </label>
+            <p className="text-sm text-slate-600">ההעתקה תחליף את הטיוטה בליגה זו. אפשר לשנות אותה לפני ההגשה; התחזית המקורית תישאר ללא שינוי.</p>
+            <button type="button" className="button-quiet" disabled={!importPickId || loadingLeague || switchingLeague || isSubmitting} onClick={() => {
+              const source = importablePicks.find(pick => pick.id === importPickId);
+              if (!source) return;
+              hasStoredDraft.current = true;
+              setUserSeats(sanitizeSeatsMap(source.seats));
+              setDraftDetails({ pickName: source.pickName || '', note: source.note || '', turnoutPercentage: String(source.turnoutPercentage ?? '') });
+              setImportPickId('');
+              showToast('התחזית הועתקה לטיוטה. ניתן לערוך אותה ולהגיש לליגה זו.', 'info');
+            }}>העתקה לטיוטה</button>
+          </div>
+        )}
         {activeTab === 'picker' && (
           <SeatPicker
             key={currentLeague?.id ?? 'personal'}
