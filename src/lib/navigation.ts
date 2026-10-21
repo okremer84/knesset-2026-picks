@@ -18,6 +18,7 @@ export async function initialLeagueId(
 ): Promise<string | null> {
   const invite = params.get('invite');
   if (invite && await join(invite)) return null; // Joining already selected the league.
+  if (params.get('league') === 'personal') return null;
   return params.get('league') || leagues[0]?.id || null;
 }
 

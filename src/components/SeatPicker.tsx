@@ -21,6 +21,7 @@ interface SeatPickerProps {
   isSubmitting: boolean;
   prediction?: Prediction;
   isLoading?: boolean;
+  isSwitching?: boolean;
   hasLoadError?: boolean;
   isLocked: boolean;
 }
@@ -35,9 +36,11 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
   isSubmitting,
   prediction,
   isLoading = false,
+  isSwitching = false,
   hasLoadError = false,
   isLocked,
 }) => {
+  const editorDisabled = isLocked || isLoading || hasLoadError || isSubmitting || isSwitching;
   const { pickName, turnoutPercentage, note } = details;
   const [errorMessage, setErrorMessage] = useState('');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -172,7 +175,7 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
 
       <div className={`prediction-submission-status ${!hasLoadError && !isLoading && prediction && !hasChanges ? 'is-submitted' : ''}`}>
         <p role="status">{submissionStatus}</p>
-        {!isLoading && !hasLoadError && !isSubmitting && !isLocked && prediction && hasChanges && <button type="button" className="button-quiet" onClick={handleResetDraft}>חזרה לתחזית שהוגשה</button>}
+        {!isLoading && !hasLoadError && !isSubmitting && !isLocked && !isSwitching && prediction && hasChanges && <button type="button" className="button-quiet" onClick={handleResetDraft}>חזרה לתחזית שהוגשה</button>}
       </div>
 
       <div className="party-grid">
@@ -181,12 +184,12 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
           return <article key={party.id} className={`party-card ${seats > 0 ? 'has-seats' : ''}`}>
             <LeaderPortrait party={party}/>
             <div className="seat-control">
-              <button type="button" disabled={isLocked || seats >= 120} onClick={() => handleAdjust(party.id, 1)} aria-label={`הוספת מנדט ל${party.name}`}><Plus size={16}/></button>
-              <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked} aria-label={`מנדטים ל${party.name}`} aria-invalid={belowMinimum(seats)} value={seats || ''} placeholder="0" onChange={e => handleSeatChange(party.id, e.target.value.replace(/[^0-9]/g, ''))} onBlur={() => {
+              <button type="button" disabled={editorDisabled || seats >= 120} onClick={() => handleAdjust(party.id, 1)} aria-label={`הוספת מנדט ל${party.name}`}><Plus size={16}/></button>
+              <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={editorDisabled} aria-label={`מנדטים ל${party.name}`} aria-invalid={belowMinimum(seats)} value={seats || ''} placeholder="0" onChange={e => handleSeatChange(party.id, e.target.value.replace(/[^0-9]/g, ''))} onBlur={() => {
                 // Let users finish typing values such as 12 before enforcing the minimum.
                 if (belowMinimum(seats)) handleSeatChange(party.id, MINIMUM_PARTY_SEATS);
               }}/>
-              <button type="button" disabled={isLocked || seats === 0} onClick={() => handleAdjust(party.id, -1)} aria-label={`הפחתת מנדט ל${party.name}`}><Minus size={16}/></button>
+              <button type="button" disabled={editorDisabled || seats === 0} onClick={() => handleAdjust(party.id, -1)} aria-label={`הפחתת מנדט ל${party.name}`}><Minus size={16}/></button>
             </div>
           </article>;
         })}
@@ -203,8 +206,8 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
             <span>עצמאיות <strong>{userBlocCounts.other}</strong></span>
           </div>
           <div className="prediction-actions">
-          <button className="button-primary" disabled={!isExact120 || hasBelowMinimum || isSubmitting || isLocked || isLoading || hasLoadError} onClick={handleBottomSubmit}>{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
-            <button className="reset-draft" disabled={isLocked || isLoading || hasLoadError || isSubmitting || (prediction ? !hasChanges : totalAllocated === 0 && !pickName && !note && !turnoutPercentage)} onClick={() => {
+          <button className="button-primary" disabled={!isExact120 || hasBelowMinimum || editorDisabled} onClick={handleBottomSubmit}>{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
+            <button className="reset-draft" disabled={editorDisabled || (prediction ? !hasChanges : totalAllocated === 0 && !pickName && !note && !turnoutPercentage)} onClick={() => {
               if (window.confirm(prediction ? 'לבטל את השינויים בטיוטה ולחזור לתחזית שהוגשה?' : 'לנקות את הטיוטה ולהתחיל מחדש?')) handleResetDraft();
             }}>איפוס הטיוטה</button>
           </div>

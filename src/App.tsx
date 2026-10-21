@@ -28,6 +28,9 @@ export default function App() {
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
+  const [switchingLeague, setSwitchingLeague] = useState(false);
+  const [pendingLeagueId, setPendingLeagueId] = useState<string | null>(null);
+  const editorOperation = useRef<'save' | 'switch' | null>(null);
   const [isCreateLeagueModalOpen, setIsCreateLeagueModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -44,24 +47,24 @@ export default function App() {
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
-      if (refreshing) return;
+      if (refreshing || editorOperation.current) return;
       refreshing = true;
       await predictionSync.current.refresh(async () => {
         const response = await fetch('/api/my-picks' + (currentLeague ? '?leagueId=' + encodeURIComponent(currentLeague.id) : ''), { signal: controller.signal });
         if (!response.ok) throw new Error('Failed to load pick');
         return response.json();
       }, data => {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && !editorOperation.current) {
           setSavedPicks(data.picks); setUserPrediction(data.pick ?? undefined);
           setPickLocked(data.isLocked); setPicksStatus('ready');
         }
-      }, () => { if (!controller.signal.aborted) setPicksStatus('error'); });
+      }, () => { if (!controller.signal.aborted && !editorOperation.current) setPicksStatus('error'); });
       refreshing = false;
     };
     void refresh();
     const timer = window.setInterval(refresh, 30000);
     return () => { controller.abort(); window.clearInterval(timer); };
-  }, [currentLeague, picksRetry]);
+  }, [currentLeague?.id, picksRetry]);
 
   // Helper to sanitize any raw seats object to strictly PARTIES_LIST keys
   const sanitizeSeatsMap = (raw: any): Record<string, number> => {
@@ -111,21 +114,41 @@ export default function App() {
     }
   }, [userSeats, currentLeague?.id]);
 
-  // Switch the complete editor context together so drafts never cross leagues.
-  const selectLeague = (league: League | null) => {
-    if (league?.id !== currentLeague?.id) {
-      const suffix = user.id + (league ? '_' + league.id : '');
-      const seats = readPreference('knesset_fantasy_user_seats_' + suffix);
-      hasStoredDraft.current = seats !== null && typeof seats === 'object' && !Array.isArray(seats);
-      setUserSeats(sanitizeSeatsMap(seats));
-      setDraftDetails(storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)));
-      previousSubmittedSeats.current = undefined;
-      previousSubmittedDetails.current = undefined;
-      setUserPrediction(undefined);
-      setPickLocked(true);
-      setPicksStatus('loading');
-    }
+  // Fetch the complete destination before replacing the visible editor.
+  const selectLeague = async (league: League | null) => {
+    const response = await fetch('/api/my-picks' + (league ? '?leagueId=' + encodeURIComponent(league.id) : ''));
+    if (!response.ok) throw new Error('לא ניתן לטעון את התחזית');
+    const data = await response.json();
+    const pick: Prediction | undefined = data.pick ?? undefined;
+    const suffix = user.id + (league ? '_' + league.id : '');
+    const storedSeats = readPreference('knesset_fantasy_user_seats_' + suffix);
+    hasStoredDraft.current = storedSeats !== null && typeof storedSeats === 'object' && !Array.isArray(storedSeats);
+    previousSubmittedSeats.current = pick?.seats;
+    previousSubmittedDetails.current = predictionDetails(pick);
+    setUserSeats(sanitizeSeatsMap(hasStoredDraft.current ? storedSeats : pick?.seats));
+    setDraftDetails(storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)) ?? predictionDetails(pick));
+    setUserPrediction(pick);
+    setSavedPicks(data.picks);
+    setPickLocked(data.isLocked);
+    setPicksStatus('ready');
     setCurrentLeague(league);
+  };
+
+  // All changes of destination and submissions share one synchronous guard.
+  const changeEditor = async (id: string | null, load: () => Promise<League | null>) => {
+    if (editorOperation.current) throw new Error('יש להמתין לסיום הפעולה הנוכחית');
+    editorOperation.current = 'switch';
+    setSwitchingLeague(true);
+    setPendingLeagueId(id);
+    try {
+      const league = await load();
+      await selectLeague(league);
+      return league;
+    } finally {
+      editorOperation.current = null;
+      setSwitchingLeague(false);
+      setPendingLeagueId(null);
+    }
   };
 
   // Load surveys from backend
@@ -166,7 +189,7 @@ export default function App() {
         if (!response.ok) throw new Error('לא ניתן לפתוח את הליגה');
         const detail: { league: League } = await response.json();
         if (cancelled) return;
-        selectLeague(detail.league);
+        await selectLeague(detail.league);
         if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
       } catch (e) {
         if (!cancelled) showToast((e as Error).message, 'error');
@@ -214,7 +237,7 @@ export default function App() {
   // Submit only to the selected league (or the standalone personal pick).
   const handleSubmitPrediction = async (pickName: string, note?: string, turnoutPercentage?: number) => {
 
-    if (loadingLeague || switchingLeague || isSubmitting || picksStatus !== 'ready' || pickLocked) return;
+    if (editorOperation.current || loadingLeague || switchingLeague || isSubmitting || picksStatus !== 'ready' || pickLocked) return;
 
     // Always sanitize to strictly PARTIES_LIST keys with integer values
     const cleanSeats: Record<string, number> = {};
@@ -236,6 +259,7 @@ export default function App() {
     // Update local state to clean representation
     setUserSeats(cleanSeats);
 
+    editorOperation.current = 'save';
     predictionSync.current.beginSubmission();
     setIsSubmitting(true);
     try {
@@ -268,26 +292,24 @@ export default function App() {
       showToast(err.message || 'שגיאה בשמירת התחזית', 'error');
       throw err;
     } finally {
+      editorOperation.current = null;
       predictionSync.current.endSubmission();
       setIsSubmitting(false);
     }
   };
 
-  // Create new league
-  const [switchingLeague, setSwitchingLeague] = useState(false);
   const handleSwitchLeague = async (leagueId: string) => {
-    if (switchingLeague || isSubmitting || leagueId === currentLeague?.id) return;
-    if (!leagueId) { selectLeague(null); return; }
-    setSwitchingLeague(true);
+    if (loadingLeague || editorOperation.current || leagueId === (currentLeague?.id ?? '')) return;
     try {
-      const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId));
-      const data = await response.json();
-      if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
-      selectLeague(data.league);
+      await changeEditor(leagueId, async () => {
+        if (!leagueId) return null;
+        const response = await fetch('/api/leagues/' + encodeURIComponent(leagueId));
+        const data = await response.json();
+        if (!response.ok || data.league?.id !== leagueId) throw new Error(data.message || 'לא ניתן לטעון את הליגה');
+        return data.league;
+      });
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'לא ניתן לטעון את הליגה', 'error');
-    } finally {
-      setSwitchingLeague(false);
     }
   };
 
@@ -298,55 +320,58 @@ export default function App() {
     targetSurveyId?: string,
     locksAt?: string
   ) => {
-    const res = await fetch('/api/leagues', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        locksAt,
-        description,
-        targetSurveyId,
-      }),
+    const league = await changeEditor(null, async () => {
+      const res = await fetch('/api/leagues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          locksAt,
+          description,
+          targetSurveyId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
+      }
+
+      if (!data.league || typeof data.league.id !== 'string' || typeof data.league.name !== 'string' || !Array.isArray(data.league.members)) {
+        throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
+      }
+
+      return data.league;
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || data.error || 'נכשלה יצירת הליגה');
+    if (!league) return;
+    setMyLeagues(prev => [league, ...prev.filter(l => l.id !== league.id)]);
+    if (league.targetSurveyId) {
+      setSelectedSurveyId(league.targetSurveyId);
     }
 
-    if (!data.league || typeof data.league.id !== 'string' || typeof data.league.name !== 'string' || !Array.isArray(data.league.members)) {
-      throw new Error('השרת לא החזיר ליגה תקינה. נסו שוב.');
-    }
-
-    selectLeague(data.league);
-      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-    if (data.league.targetSurveyId) {
-      setSelectedSurveyId(data.league.targetSurveyId);
-    }
-
-    showToast(`ליגת "${data.league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
+    showToast(`ליגת "${league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
     setActiveTab('league');
   };
 
   // Switch / Join league by ID
   const handleJoinExistingLeagueById = async (leagueId: string) => {
     try {
-      const res = await fetch('/api/leagues/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({code: leagueId}) });
-      const data = await res.json();
-      if (!res.ok || !data.league) {
-        const validation = Object.values(data.errors || {}).flat().join(' ');
-        showToast(validation || data.message || data.error || 'לא נמצאה ליגה עם קוד זה.', 'error');
-        return false;
-      }
-
-      selectLeague(data.league);
-      setMyLeagues(prev => [data.league, ...prev.filter(l => l.id !== data.league.id)]);
-
-      showToast(`עברת בהצלחה לליגת "${data.league.name}"!`);
+      const league = await changeEditor(null, async () => {
+        const res = await fetch('/api/leagues/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({code: leagueId}) });
+        const data = await res.json();
+        if (!res.ok || !data.league) {
+          const validation = Object.values(data.errors || {}).flat().join(' ');
+          throw new Error(validation || data.message || data.error || 'לא נמצאה ליגה עם קוד זה.');
+        }
+        return data.league;
+      });
+      if (!league) return false;
+      setMyLeagues(prev => [league, ...prev.filter(l => l.id !== league.id)]);
+      showToast(`עברת בהצלחה לליגת "${league.name}"!`);
       setActiveTab('league');
       return true;
     } catch (err) {
-      showToast('שגיאה בטעינת הליגה', 'error');
+      showToast(err instanceof Error ? err.message : 'שגיאה בטעינת הליגה', 'error');
       return false;
     }
   };
@@ -372,6 +397,7 @@ export default function App() {
     url.searchParams.set('tab', activeTab);
     if (activeTab !== 'campaign') url.searchParams.delete('view');
     if (activeTab !== 'campaign' && currentLeague) url.searchParams.set('league', currentLeague.id);
+    else if (activeTab !== 'campaign') url.searchParams.set('league', 'personal');
     else url.searchParams.delete('league');
     window.history.replaceState({}, '', url);
   }, [activeTab, currentLeague?.id, loadingLeague, user.id]);
@@ -445,7 +471,7 @@ export default function App() {
 
       {/* Main Content Area */}
       {surveyNotice && activeTab !== 'campaign' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
-      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">בחירה לליגה: <select value={currentLeague?.id || ''} disabled={switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2"><option value="">תחזית אישית</option>{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
+      {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">בחירה לליגה: <select value={pendingLeagueId ?? currentLeague?.id ?? ''} disabled={loadingLeague || switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2"><option value="">תחזית אישית</option>{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
@@ -472,7 +498,8 @@ export default function App() {
             isSubmitting={isSubmitting}
             prediction={userPrediction}
             isLocked={pickLocked}
-            isLoading={loadingLeague || switchingLeague || picksStatus === 'loading'}
+            isSwitching={switchingLeague}
+            isLoading={loadingLeague || picksStatus === 'loading'}
             hasLoadError={picksStatus === 'error'}
           />
         )}
