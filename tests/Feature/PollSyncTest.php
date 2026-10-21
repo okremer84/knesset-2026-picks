@@ -24,6 +24,36 @@ class PollSyncTest extends TestCase
         return file_get_contents(base_path('tests/Fixtures/wikipedia-october-metadata.html'));
     }
 
+    public function test_sync_accepts_the_october_19_table_without_blue_and_white(): void
+    {
+        $html = file_get_contents(base_path('tests/Fixtures/wikipedia-october-withdrawal.html'));
+        Http::fake(['*' => Http::response($html)]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $this->assertDatabaseCount('surveys', 2);
+        foreach (Survey::all() as $survey) {
+            $this->assertSame(120, array_sum($survey->payload['seats']));
+            $this->assertContains('kachol_lavan', $survey->payload['notReportedPartyIds']);
+            $this->assertArrayNotHasKey('kachol_lavan', $survey->payload['seats']);
+        }
+    }
+
+    public function test_withdrawal_exception_does_not_accept_earlier_omissions_or_invalid_totals(): void
+    {
+        $html = file_get_contents(base_path('tests/Fixtures/wikipedia-october-withdrawal.html'));
+        $invalidTotal = str_replace('>18</td>', '>17</td>', $html, $replacements);
+        $this->assertSame(1, $replacements);
+        $earlier = str_replace('2026-10-19', '2026-10-18', $html);
+        Http::fake(['*' => Http::sequence()->push($this->html())->push($invalidTotal)->push($earlier)]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $before = Survey::all()->toArray();
+        $this->artisan('polls:sync')->assertFailed();
+        $this->assertEquals($before, Survey::all()->toArray());
+        $this->assertStringContainsString('total=119', DB::table('poll_imports')->latest('id')->value('error'));
+        $this->artisan('polls:sync')->assertFailed();
+        $this->assertEquals($before, Survey::all()->toArray());
+        $this->assertStringContainsString('kachol_lavan', DB::table('poll_imports')->latest('id')->value('error'));
+    }
+
     public function test_live_metadata_matches_the_reviewed_bundle(): void
     {
         $expected = collect(json_decode(file_get_contents(base_path('data/wikipedia-surveys.json')), true)['surveys'])->keyBy('id');
