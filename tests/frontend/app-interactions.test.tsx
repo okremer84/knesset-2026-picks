@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React, { act } from 'react';
 import { JSDOM } from 'jsdom';
-import type { League, Prediction } from '../../src/types';
+import type { League, Prediction, SavedPick } from '../../src/types';
 
 const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/', pretendToBeVisual: true });
 Object.assign(globalThis, {
@@ -24,7 +24,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
   window.history.replaceState({}, '', '/?tab=picker');
   localStorage.clear();
   clearCsrf();
-  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, secondPick: null as Prediction | null, savedLeagueId: '' };
+  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, secondPick: null as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[] };
   const league: League = {
     id: 'league', name: 'Our league', creatorName: 'Tester', isCommissioner: true,
     isLocked: false, locksAt: '2026-10-27T18:00:00Z', inviteCode: 'x'.repeat(40),
@@ -50,7 +50,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
       if (api.saves && api.refreshFailure === 'status') return new Response('', { status: 503 });
       return Response.json({ league: { ...league, members: api.pick ? [api.pick] : [] } });
     }
-    if (url === '/api/my-picks?leagueId=second') return Response.json({ pick: api.secondPick, picks: [api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
+    if (url === '/api/my-picks?leagueId=second') return Response.json({ pick: api.secondPick, picks: [...api.extraPicks, api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
     if (url.startsWith('/api/my-picks')) return Response.json({ pick: api.pick, picks: api.pick ? [api.pick] : [], isLocked: false });
     if (url === '/api/my-pick') {
       api.saves++;
@@ -59,7 +59,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
       api.savedLeagueId = body.leagueId;
       if (body.leagueId === 'second') {
         api.secondPick = { ...submitted, ...body };
-        return Response.json({ pick: api.secondPick, picks: [api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
+        return Response.json({ pick: api.secondPick, picks: [...api.extraPicks, api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
       }
       api.pick = { ...submitted, ...JSON.parse(String(init?.body)), submittedAt: '2026-10-06T12:01:00Z' };
       return Response.json({ pick: api.pick, picks: [api.pick], isLocked: false });
@@ -242,13 +242,11 @@ test('copying a league pick creates an editable draft without submitting or chan
     select.value = 'second';
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
-  await act(async () => {
-    const select = document.querySelector<HTMLSelectElement>('select[aria-label="תחזית להעתקה"]')!;
-    assert.ok(select);
-    select.value = submitted.id;
-    select.dispatchEvent(new window.Event('change', { bubbles: true }));
-  });
-  await click('העתקה לטיוטה');
+  assert.equal(document.querySelector('select[aria-label="ליגה לייבוא תחזית"]'), null);
+  const actions = document.querySelector('.prediction-secondary-actions')!;
+  assert.ok(actions.textContent?.includes('איפוס הטיוטה'));
+  assert.ok(actions.textContent?.includes('ייבוא מ־Our league'));
+  await click('ייבוא מ־Our league');
   assert.equal(input('מנדטים להליכוד').value, '120');
   assert.equal(app.api.saves, 0);
   assert.equal(app.api.secondPick, null);
@@ -267,4 +265,29 @@ test('copying a league pick creates an editable draft without submitting or chan
   assert.equal(app.api.secondPick?.note, 'Changed only here');
   assert.equal(app.api.pick?.note, 'Saved note');
   assert.equal(app.api.pick?.pickName, 'Saved name');
+});
+
+
+test('multiple source leagues require choosing a pick from the dropdown beside reset', async t => {
+  const app = await start(t, submitted);
+  app.api.extraPicks = [{ ...submitted, id: 'third-pick', leagueId: 'third', leagueName: 'Third league', seats: { beyachad: 120 }, note: 'Third note' }];
+  await act(async () => {
+    const select = document.querySelector<HTMLSelectElement>('select')!;
+    select.value = 'second';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  const actions = document.querySelector('.prediction-secondary-actions')!;
+  const select = actions.querySelector<HTMLSelectElement>('select[aria-label="ליגה לייבוא תחזית"]')!;
+  assert.ok(select);
+  assert.equal(select.options.length, 3);
+  const button = [...actions.querySelectorAll('button')].find(b => b.textContent === 'ייבוא')!;
+  assert.equal(button.disabled, true);
+  await act(async () => {
+    select.value = 'third-pick';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  await click('ייבוא');
+  assert.equal(input('מנדטים לביחד').value, '120');
+  assert.equal(input('מנדטים להליכוד').value, '');
+  assert.equal(app.api.saves, 0);
 });

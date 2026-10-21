@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Prediction } from '../types';
+import { Prediction, SavedPick } from '../types';
 import { sameSeats, predictionDetails, type PredictionDetails } from '../utils/predictionDraft';
 import { Dialog } from './Dialog';
 import { AlertCircle, Send, Award, Plus, Minus, X } from 'lucide-react';
@@ -22,6 +22,8 @@ interface SeatPickerProps {
   isLoading?: boolean;
   hasLoadError?: boolean;
   isLocked: boolean;
+  importablePicks?: SavedPick[];
+  onImportPick?: (pick: SavedPick) => void;
 }
 
 export const SeatPicker: React.FC<SeatPickerProps> = ({
@@ -35,10 +37,15 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
   isLoading = false,
   hasLoadError = false,
   isLocked,
+  importablePicks = [],
+  onImportPick,
 }) => {
   const { pickName, turnoutPercentage, note } = details;
   const [errorMessage, setErrorMessage] = useState('');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [importPickId, setImportPickId] = useState('');
+  const importSource = importablePicks.length === 1 ? importablePicks[0] : importablePicks.find(pick => pick.id === importPickId);
+  const importDisabled = isLocked || isLoading || hasLoadError || isSubmitting;
 
   // Calculate total seats allocated by user
   const totalAllocated = PARTIES_LIST.reduce((sum, party) => {
@@ -201,9 +208,22 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
           </div>
           <div className="prediction-actions">
           <button className="button-primary" disabled={!isExact120 || hasBelowMinimum || isSubmitting || isLocked || isLoading || hasLoadError} onClick={handleBottomSubmit}>{hasLoadError ? 'מצב ההגשה אינו זמין' : isLoading ? 'טוען…' : isLocked ? 'ההגשה נסגרה' : isSubmitting ? 'שומר…' : prediction ? 'עדכון התחזית' : 'הגשת התחזית'}</button>
+            <div className="prediction-secondary-actions">
             <button className="reset-draft" disabled={isLocked || isLoading || hasLoadError || isSubmitting || (prediction ? !hasChanges : totalAllocated === 0 && !pickName && !note && !turnoutPercentage)} onClick={() => {
               if (window.confirm(prediction ? 'לבטל את השינויים בטיוטה ולחזור לתחזית שהוגשה?' : 'לנקות את הטיוטה ולהתחיל מחדש?')) handleResetDraft();
             }}>איפוס הטיוטה</button>
+            {onImportPick && importablePicks.length > 0 && <div className="prediction-import">
+              {importablePicks.length > 1 && <select aria-label="ליגה לייבוא תחזית" value={importSource?.id ?? ''} disabled={importDisabled} onChange={e => setImportPickId(e.target.value)}>
+                <option value="">בחירת ליגה</option>
+                {importablePicks.map(pick => <option key={pick.id} value={pick.id}>{pick.leagueName}{pick.pickName ? ' · ' + pick.pickName : ''}</option>)}
+              </select>}
+              <button type="button" className="reset-draft" disabled={importDisabled || !importSource} title="ייבוא לטיוטה בלבד. התחזית המקורית לא תשתנה." onClick={() => {
+                if (!importSource || importDisabled) return;
+                onImportPick(importSource);
+                setImportPickId('');
+              }}>{importablePicks.length === 1 ? `ייבוא מ־${importablePicks[0].leagueName}` : 'ייבוא'}</button>
+            </div>}
+            </div>
           </div>
         </div>
       </div>
