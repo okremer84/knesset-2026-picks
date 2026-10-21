@@ -24,7 +24,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
   window.history.replaceState({}, '', '/?tab=picker');
   localStorage.clear();
   clearCsrf();
-  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, secondPick: null as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[] };
+  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, secondPick: null as Prediction | null, personalPick: null as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[] };
   const league: League = {
     id: 'league', name: 'Our league', creatorName: 'Tester', isCommissioner: true,
     isLocked: false, locksAt: '2026-10-27T18:00:00Z', inviteCode: 'x'.repeat(40),
@@ -51,12 +51,17 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null)
       return Response.json({ league: { ...league, members: api.pick ? [api.pick] : [] } });
     }
     if (url === '/api/my-picks?leagueId=second') return Response.json({ pick: api.secondPick, picks: [...api.extraPicks, api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
+    if (url === '/api/my-picks') return Response.json({ pick: api.personalPick, picks: api.pick ? [{ ...api.pick, leagueId: 'league', leagueName: 'Our league' }] : [], isLocked: false });
     if (url.startsWith('/api/my-picks')) return Response.json({ pick: api.pick, picks: api.pick ? [api.pick] : [], isLocked: false });
     if (url === '/api/my-pick') {
       api.saves++;
       if (api.saveFailure) return Response.json({ message: 'Save rejected' }, { status: 422 });
       const body = JSON.parse(String(init?.body));
       api.savedLeagueId = body.leagueId;
+      if (!body.leagueId) {
+        api.personalPick = { ...submitted, ...body };
+        return Response.json({ pick: api.personalPick, picks: [api.personalPick, api.pick].filter(Boolean), isLocked: false });
+      }
       if (body.leagueId === 'second') {
         api.secondPick = { ...submitted, ...body };
         return Response.json({ pick: api.secondPick, picks: [...api.extraPicks, api.pick ? { ...api.pick, leagueId: 'league', leagueName: 'Our league' } : null, api.secondPick ? { ...api.secondPick, leagueId: 'second', leagueName: 'Second league' } : null].filter(Boolean), isLocked: false });
@@ -295,4 +300,25 @@ test('multiple source leagues require choosing a pick from the copy modal', asyn
   assert.equal(input('מנדטים לביחד').value, '120');
   assert.equal(input('מנדטים להליכוד').value, '');
   assert.equal(app.api.saves, 0);
+});
+
+
+test('personal drafts can copy a league pick without changing its submitted prediction', async t => {
+  const app = await start(t, submitted);
+  await act(async () => {
+    const select = document.querySelector<HTMLSelectElement>('select')!;
+    select.value = '';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  await click('העתק בחירה מליגה אחת');
+  await click('העתק');
+  assert.equal(input('מנדטים להליכוד').value, '120');
+  assert.equal(app.api.saves, 0);
+  await click('הגשת התחזית');
+  assert.equal(input('שם התחזית').value, 'Saved name');
+  await fill('שם התחזית', 'Personal version');
+  await submit();
+  assert.equal(app.api.savedLeagueId, undefined);
+  assert.equal(app.api.personalPick?.pickName, 'Personal version');
+  assert.equal(app.api.pick?.pickName, 'Saved name');
 });

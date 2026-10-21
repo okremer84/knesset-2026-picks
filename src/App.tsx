@@ -452,14 +452,14 @@ export default function App() {
         {activeTab === 'picker' && (
           <SeatPicker
             key={currentLeague?.id ?? 'personal'}
-            importAction={currentLeague && picksStatus === 'ready' && !pickLocked ? (
-              <PickImport key={currentLeague.id}
-            importablePicks={currentLeague && picksStatus === 'ready' ? importablePicks : []}
+            importAction={picksStatus === 'ready' && !pickLocked ? (
+              <PickImport key={currentLeague?.id ?? 'personal'}
+            importablePicks={importablePicks}
             onImportPick={source => {
               hasStoredDraft.current = true;
               setUserSeats(sanitizeSeatsMap(source.seats));
               setDraftDetails({ pickName: source.pickName || '', note: source.note || '', turnoutPercentage: String(source.turnoutPercentage ?? '') });
-              showToast('התחזית יובאה לטיוטה. ניתן לערוך אותה ולהגיש לליגה זו.', 'info');
+              showToast('הבחירה הועתקה לטיוטה. ניתן לערוך אותה לפני ההגשה.', 'info');
             }}
           disabled={loadingLeague || switchingLeague || isSubmitting}
         />
