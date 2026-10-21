@@ -24,10 +24,10 @@ The seeder imports only the bundled, previously reviewed Wikipedia feed into an 
 
 ## Game rules
 
-- Each account can submit one independent prediction per league, plus a standalone personal prediction. Display names are labels, never authentication.
+- Each account can submit one independent prediction per league. Display names are labels, never authentication.
 - The creator is the commissioner. Others join using the random invitation code.
 - The election date defaults to 27/10/2026; override `ELECTION_DATE` (YYYY-MM-DD) if it changes. The commissioner chooses a submission date when creating the league, no later than election day. Submissions always close at 20:00 Asia/Jerusalem on that date. The deadline cannot be edited after creation. Accepted timestamps are normalized to UTC before storage. The server rejects prediction edits and new members at or after that instant. Existing members can still open their league.
-- Each league has its own prediction and deadline. Joining or creating another league starts an unsubmitted draft; editing that prediction never changes another league’s entry. The standalone personal prediction locks at the election-day cutoff. Each league reveals its predictions at its own deadline.
+- Each league has its own prediction and deadline. Joining or creating another league starts an unsubmitted draft; editing that prediction never changes another league’s entry. Users create or join a league before submitting a prediction. Each league reveals its predictions at its own deadline.
 - Every prediction must contain exactly 120 integer seats using recognized party IDs. Each party must receive either 0 or at least 4 seats. A turnout prediction with at most one decimal place is also required.
 - Other players' picks and notes stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
 - Lower total absolute seat error wins. Closeness to official turnout is the only tiebreak; until it is published, equal seat errors share a position. Complete ties share a position.

@@ -20,7 +20,7 @@ const { clearCsrf } = await import('../../src/lib/api');
 
 const submitted: Prediction = { id: 'pick', userId: 1, memberName: 'Tester', pickName: 'Saved name', seats: { likud: 120 }, turnoutPercentage: 70, note: 'Saved note', submittedAt: '2026-10-06T12:00:00Z' };
 
-async function start(t: test.TestContext, initialPick: Prediction | null = null, options: { personalPick?: Prediction; personalGate?: Promise<void>; url?: string; failCreatedPick?: boolean } = {}) {
+async function start(t: test.TestContext, initialPick: Prediction | null = null, options: { noLeagues?: boolean; personalPick?: Prediction; personalGate?: Promise<void>; url?: string; failCreatedPick?: boolean } = {}) {
   window.history.replaceState({}, '', options.url ?? '/?tab=picker');
   localStorage.clear();
   clearCsrf();
@@ -48,7 +48,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
     if (url.startsWith('/api/my-picks') && api.failPickRead) return new Response('', { status: 503 });
     if (url === '/api/election') return Response.json({ deadlineLimit: '2026-10-27T18:00:00Z' });
     if (url === '/api/leagues' && init?.method === 'POST') { api.creates++; return Response.json({ league: { ...league, id: 'created', name: 'Created league' } }); }
-    if (url === '/api/leagues') return Response.json({ leagues: [{ id: league.id, name: league.name }, { id: 'second', name: 'Second league' }] });
+    if (url === '/api/leagues') return Response.json({ leagues: options.noLeagues ? [] : [{ id: league.id, name: league.name }, { id: 'second', name: 'Second league' }] });
     if (url === '/api/leagues/created') return Response.json({ league: { ...league, id: 'created', name: 'Created league' } });
     if (url === '/api/my-picks?leagueId=created') return api.failCreatedPick ? new Response('', { status: 503 }) : Response.json({ pick: null, picks: [], isLocked: false });
     if (url === '/api/leagues/second') return Response.json({ league: { ...league, id: 'second', name: 'Second league', members: api.secondPick ? [api.secondPick] : [] } });
@@ -312,27 +312,6 @@ test('multiple source leagues require choosing a pick from the copy modal', asyn
 });
 
 
-test('personal drafts can copy a league pick without changing its submitted prediction', async t => {
-  const app = await start(t, submitted);
-  await act(async () => {
-    const select = document.querySelector<HTMLSelectElement>('select')!;
-    select.value = '';
-    select.dispatchEvent(new window.Event('change', { bubbles: true }));
-  });
-  await click('העתק בחירה מליגה אחת');
-  await click('העתק');
-  assert.equal(input('מנדטים להליכוד').value, '120');
-  assert.equal(app.api.saves, 0);
-  await click('הגשת התחזית');
-  assert.equal(input('שם התחזית').value, 'Saved name');
-  await fill('שם התחזית', 'Personal version');
-  await submit();
-  assert.equal(app.api.savedLeagueId, undefined);
-  assert.equal(app.api.personalPick?.pickName, 'Personal version');
-  assert.equal(app.api.pick?.pickName, 'Saved name');
-});
-
-
 async function chooseLeague(id: string) {
   await act(async () => {
     const select = document.querySelector<HTMLSelectElement>('select')!;
@@ -360,15 +339,15 @@ test('league switching keeps the chosen dropdown value and shows no empty or fal
   assert.equal(input('מנדטים להליכוד').value, '80');
 });
 
-test('personal scope and its draft survive a reload with league memberships', async t => {
-  const app = await start(t, submitted);
-  await chooseLeague('');
+test('old personal links open a league and the dropdown only contains leagues', async t => {
+  const app = await start(t, submitted, { url: '/?tab=picker&league=personal' });
+  assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, 'league');
+  assert.ok(!document.querySelector('option[value=""]'));
   await fill('מנדטים להליכוד', '72');
   await app.reload();
-  assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, '');
+  assert.equal(document.querySelector<HTMLSelectElement>('select')!.value, 'league');
   assert.equal(input('מנדטים להליכוד').value, '72');
 });
-
 
 test('creating a league after dismissing a pending save cannot change the editor', async t => {
   const app = await start(t);
@@ -425,13 +404,13 @@ test('successful creation survives a failed destination load and opening it agai
 });
 
 
-test('startup does not persist an empty personal draft before its saved pick loads', async t => {
-  let release!: () => void;
-  const app = await start(t, submitted, { personalPick: { ...submitted, seats: { likud: 88, beyachad: 32 } }, personalGate: new Promise(resolve => { release = resolve; }) });
+test('users without leagues see create and join actions instead of a personal editor', async t => {
+  const app = await start(t, null, { noLeagues: true, url: '/?tab=picker&league=personal' });
+  assert.ok(!document.querySelector('.party-grid'));
+  assert.ok(!document.querySelector('select'));
+  assert.ok(document.querySelector('[aria-label="קוד הזמנה"]'));
+  assert.ok([...document.querySelectorAll('button')].some(button => button.textContent === 'יצירת ליגה'));
   assert.equal(localStorage.getItem('knesset_fantasy_user_seats_1'), null);
-  await act(async () => release());
-  await chooseLeague('');
-  assert.equal(input('מנדטים להליכוד').value, '88');
   assert.equal(app.api.saves, 0);
 });
 
