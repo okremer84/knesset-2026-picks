@@ -46,7 +46,7 @@ export default function App() {
   const predictionSync = useRef(createPredictionSync());
   useEffect(() => {
     if (loadingLeague) return;
-    if (!currentLeague) { setSavedPicks([]); setPicksStatus('ready'); return; }
+    if (!currentLeague) { setSavedPicks([]); setPickLocked(false); setPicksStatus('ready'); return; }
     const controller = new AbortController();
     let refreshing = false;
     const refresh = async () => {
@@ -119,7 +119,12 @@ export default function App() {
     }
   }, [userSeats, currentLeague?.id, loadingLeague, picksStatus, draftInitialized]);
 
-  const leagueDrafts = useRef(new Map<string, { seats: Record<string, number>; details: PredictionDetails }>());
+  const leagueDrafts = useRef(new Map<string, {
+    seats: Record<string, number>;
+    details: PredictionDetails;
+    submittedSeats: Record<string, number>;
+    submittedDetails: PredictionDetails;
+  }>());
 
   // Fetch the complete destination before replacing the visible editor.
   const selectLeague = async (league: League | null) => {
@@ -133,8 +138,12 @@ export default function App() {
     hasStoredDraft.current = storedSeats !== null && typeof storedSeats === 'object' && !Array.isArray(storedSeats);
     previousSubmittedSeats.current = pick?.seats;
     previousSubmittedDetails.current = predictionDetails(pick);
-    setUserSeats(sanitizeSeatsMap(hasStoredDraft.current ? storedSeats : pick?.seats));
-    setDraftDetails(cached?.details ?? storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)) ?? predictionDetails(pick));
+    setUserSeats(cached
+      ? reconcileDraft(cached.seats, cached.submittedSeats, pick?.seats ?? {}, true)
+      : sanitizeSeatsMap(hasStoredDraft.current ? storedSeats : pick?.seats));
+    setDraftDetails(cached
+      ? reconcileDetails(cached.details, cached.submittedDetails, predictionDetails(pick))
+      : storedPredictionDetails(readPreference('knesset_fantasy_draft_details_' + suffix)) ?? predictionDetails(pick));
     setDraftInitialized(true);
     setUserPrediction(pick);
     setSavedPicks(data.picks);
@@ -150,6 +159,8 @@ export default function App() {
       leagueDrafts.current.set(currentLeague.id, {
         seats: { ...userSeats },
         details: { ...(draftDetails ?? predictionDetails(userPrediction)) },
+        submittedSeats: { ...userPrediction?.seats },
+        submittedDetails: predictionDetails(userPrediction),
       });
     }
     editorOperation.current = 'switch';

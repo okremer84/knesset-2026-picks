@@ -405,6 +405,7 @@ test('successful creation survives a failed destination load and opening it agai
 test('users without leagues see create and join actions instead of a personal editor', async t => {
   const app = await start(t, null, { noLeagues: true, url: '/?tab=picker&league=personal' });
   assert.ok(!document.querySelector('.party-grid'));
+  assert.ok(!document.body.textContent?.includes('התחזית שלך נעולה.'));
   assert.ok(!document.querySelector('select'));
   assert.ok(document.querySelector('[aria-label="קוד הזמנה"]'));
   assert.ok([...document.querySelectorAll('button')].some(button => button.textContent === 'יצירת ליגה'));
@@ -570,5 +571,28 @@ for (const failure of ['writes', 'reads and writes']) {
       prototype.getItem = getItem;
       prototype.setItem = setItem;
     }
+  });
+}
+
+
+for (const edited of [false, true]) {
+  test('returning to a league reconciles newer submissions while preserving local edits: ' + edited, async t => {
+    const app = await start(t, submitted);
+    if (edited) {
+      await click('עדכון התחזית');
+      await fill('שם התחזית', 'Local name');
+      await click('ביטול');
+      await fill('מנדטים להליכוד', '80');
+      await fill('מנדטים לביחד', '40');
+    }
+    await chooseLeague('second');
+    app.api.pick = { ...submitted, seats: { likud: 90, beyachad: 30 }, pickName: 'Remote name', note: 'Remote note', turnoutPercentage: 77, submittedAt: '2026-10-06T13:00:00Z' };
+    await chooseLeague('league');
+    assert.equal(input('מנדטים להליכוד').value, edited ? '80' : '90');
+    await click('עדכון התחזית');
+    assert.equal(input('שם התחזית').value, edited ? 'Local name' : 'Remote name');
+    assert.equal(input('הערה לתחזית').value, 'Remote note');
+    assert.equal(input('תחזית אחוז הצבעה ארצי').value, '77');
+    assert.equal(app.api.saves, 0);
   });
 }
