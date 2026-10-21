@@ -166,7 +166,6 @@ export const SeatPicker: React.FC<SeatPickerProps> = ({
     <div className="picker-page">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">הכנסת ה־26 / התחזית שלך</p>
           <h1>איך תיראה הכנסת הבאה?</h1>
           <p>בחרו את מספר המנדטים שכל מפלגה תקבל לדעתכם — 0 או לפחות 4 מנדטים</p>
           {importAction}
