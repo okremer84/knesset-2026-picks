@@ -243,8 +243,9 @@ test('copying a league pick creates an editable draft without submitting or chan
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
   assert.equal(document.querySelector('select[aria-label="ליגה לייבוא תחזית"]'), null);
-  const actions = document.querySelector('.prediction-secondary-actions')!;
-  assert.ok(actions.textContent?.includes('איפוס הטיוטה'));
+  const actions = document.querySelector('.league-pick-import')!;
+  assert.equal(document.querySelector('.prediction-dock .league-pick-import'), null);
+  assert.ok(!document.body.textContent?.includes('התחזית נשמרת רק לליגת'));
   assert.ok(actions.textContent?.includes('ייבוא מ־Our league'));
   await click('ייבוא מ־Our league');
   assert.equal(input('מנדטים להליכוד').value, '120');
@@ -268,7 +269,7 @@ test('copying a league pick creates an editable draft without submitting or chan
 });
 
 
-test('multiple source leagues require choosing a pick from the dropdown beside reset', async t => {
+test('multiple source leagues require choosing a pick from the dropdown below league selection', async t => {
   const app = await start(t, submitted);
   app.api.extraPicks = [{ ...submitted, id: 'third-pick', leagueId: 'third', leagueName: 'Third league', seats: { beyachad: 120 }, note: 'Third note' }];
   await act(async () => {
@@ -276,7 +277,7 @@ test('multiple source leagues require choosing a pick from the dropdown beside r
     select.value = 'second';
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
-  const actions = document.querySelector('.prediction-secondary-actions')!;
+  const actions = document.querySelector('.league-pick-import')!;
   const select = actions.querySelector<HTMLSelectElement>('select[aria-label="ליגה לייבוא תחזית"]')!;
   assert.ok(select);
   assert.equal(select.options.length, 3);

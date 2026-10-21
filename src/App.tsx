@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CampaignView } from './components/CampaignView';
 import { Header } from './components/Header';
+import { PickImport } from './components/PickImport';
 import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
@@ -445,7 +446,18 @@ export default function App() {
       {/* Main Content Area */}
       {surveyNotice && activeTab !== 'campaign' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
       {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">הליגות שלי <select value={currentLeague?.id || ''} disabled={switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2"><option value="">תחזית אישית</option>{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
-      {activeTab === 'picker' && currentLeague && <p className="max-w-7xl mx-auto w-full px-6 pt-2 text-sm text-slate-600">התחזית נשמרת רק לליגת {currentLeague.name}. לכל ליגה תחזית ומועד הגשה נפרדים.</p>}
+      {activeTab === 'picker' && currentLeague && picksStatus === 'ready' && !pickLocked && <div className="max-w-7xl mx-auto w-full px-6 pt-1">
+        <PickImport key={currentLeague.id}
+            importablePicks={currentLeague && picksStatus === 'ready' ? importablePicks : []}
+            onImportPick={source => {
+              hasStoredDraft.current = true;
+              setUserSeats(sanitizeSeatsMap(source.seats));
+              setDraftDetails({ pickName: source.pickName || '', note: source.note || '', turnoutPercentage: String(source.turnoutPercentage ?? '') });
+              showToast('התחזית יובאה לטיוטה. ניתן לערוך אותה ולהגיש לליגה זו.', 'info');
+            }}
+          disabled={loadingLeague || switchingLeague || isSubmitting}
+        />
+      </div>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
         {activeTab === 'picker' && picksStatus === 'error' && <p role="alert">לא ניתן לטעון את התחזית. <button onClick={() => { setPicksStatus('loading'); setPicksRetry(n => n + 1); }}>ניסיון נוסף</button></p>}
@@ -456,13 +468,6 @@ export default function App() {
             details={draftDetails ?? predictionDetails(userPrediction)}
             onDetailsChange={setDraftDetails}
             onSeatsChange={seats => { hasStoredDraft.current = true; setUserSeats(seats); }}
-            importablePicks={currentLeague && picksStatus === 'ready' ? importablePicks : []}
-            onImportPick={source => {
-              hasStoredDraft.current = true;
-              setUserSeats(sanitizeSeatsMap(source.seats));
-              setDraftDetails({ pickName: source.pickName || '', note: source.note || '', turnoutPercentage: String(source.turnoutPercentage ?? '') });
-              showToast('התחזית יובאה לטיוטה. ניתן לערוך אותה ולהגיש לליגה זו.', 'info');
-            }}
             onSubmitPrediction={handleSubmitPrediction}
             isSubmitting={isSubmitting}
             prediction={userPrediction}
