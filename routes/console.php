@@ -5,6 +5,7 @@ use App\Jobs\CollectCampaignMonitor;
 use App\Jobs\ProposeCampaign;
 use App\Models\League;
 use App\Models\User;
+use App\Services\Coffee\SettleVotes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
@@ -43,3 +44,5 @@ Schedule::call(function () {
 })->name('campaign-monitoring')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 
 Schedule::command('campaign:slack --send')->when(fn () => config('campaign.processing_enabled'))->everyMinute()->withoutOverlapping(3)->onOneServer();
+
+Schedule::call(fn () => app(SettleVotes::class)->due())->name('coffee-settlement')->everyMinute()->withoutOverlapping()->onOneServer();

@@ -89,3 +89,15 @@ The personal-pick migration preserves legacy per-league submissions and revision
 The league-pick migration copies each existing personal submission (including its name, note, turnout, timestamps and revision history) into every existing membership. Closed-league picks remain locked. Original personal and legacy records remain intact. Run `php artisan migrate` during deployment before serving the updated application. Rollback requires restoring a pre-migration backup to avoid discarding independent league picks.
 
 In the picker, select a destination league and click “העתק בחירה מליגה אחת” below the instructions. Choose a source league in the dialog and click copy. Seats, name, turnout and note are copied into the draft; editing and submitting affect only the destination league. Copying replaces the current draft and does not submit automatically.
+
+## מאסטרקפה
+
+The main navigation now opens a shared coffee-bet board for signed-in accounts; old `?tab=campaign` links and saved navigation preferences open `coffee`. Existing campaign records remain intact.
+
+- Each bet stakes one Master Coffee. The creator supplies a yes/no question, optional resolution rules (such as the relevant date or event), and their side. Another account takes the opposite side. Conditions cannot change after creation; only an unmatched bet can be cancelled by its creator.
+- **מחכות למהמר** lists unmatched offers. **התערבויות** includes every unresolved bet, including unmatched offers, active matches, pending agreements and disputes. It defaults to all bets, with a toggle for the signed-in player’s bets.
+- Either participant can propose the outcome. Only the other participant can agree or dispute. Agreement settles immediately. A dispute opens voting to other signed-in accounts for 48 hours. Each account has one immutable vote; participants cannot vote. The most votes wins. A tie (including zero votes) remains unresolved until a new voter breaks it.
+- **טבלה** shows personal totals and everyone’s settled coffee debts as an interactive network. Green means coffee owed to the person; red means coffee they owe. Hover, keyboard focus, or tap highlights one side’s connections; cans animate from debtor to winner, respecting reduced-motion preferences. Opposing debts remain separate; there is no payment tracking. Cancelled offers never count.
+- Matching, settlement and voting serialize through a database row lock; votes additionally have a unique bet/account constraint. No payment processing is involved.
+
+Deployment requires `php artisan migrate` before serving the new frontend. The existing Laravel scheduler runs `coffee-settlement` every minute; loading the board also finalizes due non-tied disputes. No production migration or deployment is performed by adding these files.

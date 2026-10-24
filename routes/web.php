@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\CampaignMonitoringController;
+use App\Http\Controllers\CoffeeController;
 use App\Http\Controllers\LeagueController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Survey;
@@ -19,6 +20,9 @@ Route::prefix('api')->group(function () {
         Route::get('auth/user', fn (Request $r) => ['user' => $r->user()]);
         Route::post('auth/profile', [ProfileController::class, 'update'])->middleware('throttle:10,1');
         Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::get('coffee', [CoffeeController::class, 'index']);
+        Route::post('coffee', [CoffeeController::class, 'create'])->middleware('throttle:10,1');
+        Route::post('coffee/{bet}', [CoffeeController::class, 'act'])->middleware('throttle:30,1');
         Route::get('my-picks', [LeagueController::class, 'myPicks']);
         Route::post('my-pick', [LeagueController::class, 'savePick'])->middleware('throttle:30,1');
         Route::get('leagues', [LeagueController::class, 'index']);

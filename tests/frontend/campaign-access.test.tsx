@@ -4,7 +4,7 @@ import React, { act } from 'react';
 import { AuthGate } from '../../src/components/AuthGate';
 import { Header } from '../../src/components/Header';
 
-test('the campaign navigation requires an explicit server capability', async () => {
+test('coffee navigation is available to signed-in users regardless of the old campaign capability', async () => {
   const { JSDOM } = await import('jsdom');
   const { createRoot } = await import('react-dom/client');
   for (const capability of [undefined, false, true]) {
@@ -17,7 +17,8 @@ test('the campaign navigation requires an explicit server capability', async () 
     try {
       await act(async () => root.render(<AuthGate><Header activeTab="picker" setActiveTab={() => {}} /></AuthGate>));
       const labels = [...document.querySelectorAll('nav button')].map(button => button.textContent);
-      assert.equal(labels.includes('אייזנמארקטבהרצה'), capability === true);
+      assert.ok(labels.includes('מאסטרקפה?'));
+      assert.ok(!labels.includes('אייזנמארקטבהרצה'));
       assert.ok(labels.includes('התחזית שלי'), 'ordinary prediction navigation remains available');
     } finally {
       await act(async () => root.unmount());

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CampaignView } from './components/CampaignView';
+import { CoffeeView } from './components/CoffeeView';
 import { Header } from './components/Header';
 import { PickImport } from './components/PickImport';
 import { SeatPicker } from './components/SeatPicker';
@@ -24,7 +24,7 @@ export default function App() {
   const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הסקרים עד לקבלת עדכון מהשרת');
   const [joinCode, setJoinCode] = useState('');
   const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
-  const [activeTab, setActiveTab] = useState(() => { const tab = initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)); return tab === 'campaign' && !user.campaign_access ? 'picker' : tab; });
+  const [activeTab, setActiveTab] = useState(() => initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)));
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
@@ -445,8 +445,8 @@ export default function App() {
     const url = new URL(window.location.href);
     url.searchParams.delete('invite');
     url.searchParams.set('tab', activeTab);
-    if (activeTab !== 'campaign') url.searchParams.delete('view');
-    if (activeTab !== 'campaign' && currentLeague) url.searchParams.set('league', currentLeague.id);
+    url.searchParams.delete('view');
+    if (activeTab !== 'coffee' && currentLeague) url.searchParams.set('league', currentLeague.id);
     else url.searchParams.delete('league');
     window.history.replaceState({}, '', url);
   }, [activeTab, currentLeague?.id, loadingLeague, user.id]);
@@ -481,7 +481,7 @@ export default function App() {
   }, [currentLeague?.id]);
 
   return (
-    <div dir="rtl" className={`app-shell ${activeTab === 'picker' ? 'picks-surface' : activeTab === 'campaign' ? 'campaign-surface' : ''}`}>
+    <div dir="rtl" className={`app-shell ${activeTab === 'picker' ? 'picks-surface' : activeTab === 'coffee' ? 'coffee-surface' : ''}`}>
       
       {/* Toast Notification */}
       {toast && (
@@ -519,7 +519,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      {surveyNotice && activeTab !== 'campaign' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
+      {surveyNotice && activeTab !== 'coffee' && <p role="status" className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm text-amber-800">{surveyNotice}</p>}
       {(activeTab === 'league' || activeTab === 'picker') && myLeagues.length > 0 && <label className="max-w-7xl mx-auto w-full px-6 pt-4 text-sm">בחירה לליגה: <select value={pendingLeagueId ?? currentLeague?.id ?? ''} disabled={loadingLeague || switchingLeague || isSubmitting} onChange={e => { void handleSwitchLeague(e.target.value); }} className="border rounded-lg p-2">{!currentLeague && <option value="" disabled>בחירת ליגה</option>}{myLeagues.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>}
       {pickLocked && picksStatus === 'ready' && activeTab === 'picker' && <p className="max-w-7xl mx-auto w-full px-6 pt-4 text-amber-800">התחזית שלך נעולה.</p>}
       <main id="main-content" tabIndex={-1} className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 ${activeTab === 'picker' ? 'pt-6 sm:pt-8 pb-0' : 'py-6 sm:py-8'}`}>
@@ -590,7 +590,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'campaign' && user.campaign_access && <CampaignView userId={user.id} initialLeagueId={currentLeague?.id}/>}
+        {activeTab === 'coffee' && <CoffeeView userId={user.id}/>}
 
         {activeTab === 'historical' && (
           <HistoricalAnalysis/>
