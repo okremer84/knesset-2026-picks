@@ -4,6 +4,7 @@ import App from './App.tsx';
 import {AuthGate} from './components/AuthGate';
 import './index.css';
 import './campaign.css';
+import './coffee.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
