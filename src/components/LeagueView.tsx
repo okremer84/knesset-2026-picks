@@ -36,7 +36,7 @@ export function PickDetails({ prediction, benchmark }: { prediction: Prediction;
     </dl>
     <p className="pick-majority-note">לפי התחזית · רוב של 61 מנדטים ומעלה</p>
     <p className="pick-legend"><span>תחזית</span>{benchmark && <span>{surveyTitle(benchmark)}</span>}</p>
-    <table><caption className="sr-only">פירוט התחזית של {prediction.memberName}</caption><thead><tr><th>מפלגה</th><th>תחזית</th><th>מקור</th><th>הפרש</th><th>השוואה</th></tr></thead><tbody>
+    <table><caption className="sr-only">פירוט התחזית של {prediction.memberName}</caption><thead><tr><th>מפלגה</th><th>תחזית</th><th>מדגם</th><th>הפרש</th><th>השוואה</th></tr></thead><tbody>
       {[...REVEAL_PARTIES].sort((a, b) => (prediction.seats[b.id] || 0) - (prediction.seats[a.id] || 0) || a.name.localeCompare(b.name, 'he')).map(party => {
         const predicted = prediction.seats[party.id] || 0;
         const actual = benchmark?.seats[party.id];
