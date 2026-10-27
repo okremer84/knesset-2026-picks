@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { TrendingUp, Target } from 'lucide-react';
 import { Survey, SavedPick } from '../types';
 import { calculateScore, calculateBlocs } from '../utils/scoring';
-import { localizeSurvey, latestPollsByChannel } from '../utils/surveys';
+import { localizeSurvey, latestPollsByChannel, latestElectionResults } from '../utils/surveys';
 import { readPreference, writePreference } from '../lib/preferences';
 import { PollTrendChart } from './PollTrendChart';
 import { PARTIES_LIST } from '../data/parties';
@@ -23,7 +23,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
   const [selectedPickId, setSelectedPickId] = useState('');
   const selectedPick = picks.find(pick => pick.id === selectedPickId) ?? picks[0];
   const userSeats = selectedPick?.seats ?? {};
-  const surveys = useMemo(() => sourceSurveys.map(localizeSurvey), [sourceSurveys]);
+  const localizedSurveys = useMemo(() => sourceSurveys.map(localizeSurvey), [sourceSurveys]);
+  const results = useMemo(() => latestElectionResults(localizedSurveys), [localizedSurveys]);
+  const hasResults = results.length > 0;
+  const surveys = hasResults ? results : localizedSurveys;
 
   const [weeksAgo, setWeeksAgo] = useState(() => {
     const saved = readPreference('knesset_fantasy_poll_weeks');
@@ -54,8 +57,9 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
     return options;
   }, [surveys]);
   const period = periods.find(p => p.weeks === weeksAgo) ?? periods[0];
-  const channelSurveys = useMemo(() => latestPollsByChannel(surveys, period.cutoff), [surveys, period.cutoff]);
+  const channelSurveys = useMemo(() => hasResults ? results : latestPollsByChannel(surveys, period.cutoff), [hasResults, results, surveys, period.cutoff]);
   const activeSurvey = channelSurveys.find(s => (s.channelOrMedia || s.title) === selectedChannel) ?? channelSurveys[0];
+  const resultName = activeSurvey?.kind === 'official_results' ? 'תוצאה הרשמית' : hasResults ? 'מדגם' : 'סקר';
 
   // Live user bloc tallies
   const userBlocCounts = useMemo(() => {
@@ -80,7 +84,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
 
   // Compare user prediction against all surveys to find the closest match
   const surveyMatchRankings = useMemo(() => {
-    return surveys
+    return channelSurveys
       .map((s) => {
         let totalDiff = 0;
         let exactHits = 0;
@@ -98,7 +102,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
         };
       })
       .sort((a, b) => a.totalDiff - b.totalDiff);
-  }, [surveys, userSeats]);
+  }, [channelSurveys, userSeats]);
 
   const closestSurvey = surveyMatchRankings[0];
 
@@ -124,11 +128,21 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
     <div className="space-y-6 text-slate-900 pb-8">
 
       <div className="page-heading">
-        <div><p className="eyebrow">סקרי הבחירות / תמונת מצב</p><h1>מה הסקרים אומרים?</h1><p>תוצאות הסקרים, מגמות לאורך זמן והשוואה לתחזית שלך.</p></div>
+        <div><p className="eyebrow">{hasResults ? 'בחירות 2026 / ליל הבחירות' : 'סקרי הבחירות / תמונת מצב'}</p><h1>{hasResults ? 'תוצאות המדגמים' : 'מה הסקרים אומרים?'}</h1><p>{hasResults ? 'תמונת המנדטים מכל ערוץ והשוואה לתחזית שלך. המדגמים הם הערכה ואינם תוצאות האמת.' : 'תוצאות הסקרים, מגמות לאורך זמן והשוואה לתחזית שלך.'}</p></div>
       </div>
+      {hasResults && <div className="exit-poll-channels" role="group" aria-label="בחירת ערוץ">
+        {channelSurveys.map(s => {
+          const blocs = calculateBlocs(s.seats);
+          return <button key={s.id} type="button" aria-pressed={activeSurvey?.id === s.id} onClick={() => setSelectedChannel(s.channelOrMedia || s.title)}>
+            <strong>{s.channelOrMedia}</strong>
+            <span>{s.kind === 'official_results' ? 'תוצאות רשמיות' : 'מדגם'}</span>
+            <span className="exit-poll-bloc-totals"><span>גוש נתניהו <b>{blocs.coalition}</b></span><span>גוש איזנקוט <b>{blocs.opposition}</b></span></span>
+          </button>;
+        })}
+      </div>}
       <div className="survey-toolbar">
         <div className="survey-selectors">
-          <label>תקופה<select value={period.weeks} onChange={e => setWeeksAgo(Number(e.target.value))}>
+          {!hasResults && <><label>תקופה<select value={period.weeks} onChange={e => setWeeksAgo(Number(e.target.value))}>
             {periods.map(p => <option key={p.weeks} value={p.weeks}>{p.label}</option>)}
           </select></label>
           <label>ערוץ ומכון סקרים<select value={activeSurvey?.channelOrMedia || activeSurvey?.title || ''} onChange={e => setSelectedChannel(e.target.value)} disabled={!channelSurveys.length}>
@@ -136,8 +150,10 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
             {channelSurveys.map(s => <option key={s.id} value={s.channelOrMedia || s.title}>{s.channelOrMedia || s.title} · {s.institute}</option>)}
           </select></label>
           <p className="survey-period-note">{period.weeks ? `הסקר האחרון מכל ערוץ עד ${new Date(`${period.cutoff}T12:00:00Z`).toLocaleDateString('he-IL')}` : 'הסקר האחרון מכל ערוץ'}</p>
+          </>}
+          {hasResults && activeSurvey && <div><strong>{activeSurvey.title}</strong><p className="survey-period-note">{activeSurvey.publishedAt ? `עדכון המקור: ${new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' }).format(new Date(activeSurvey.publishedAt))} · שעון ישראל` : activeSurvey.date}</p></div>}
         </div>
-        <div className="survey-source">{activeSurvey?.sourceUrl && <a href={activeSurvey.sourceUrl} target="_blank" rel="noopener noreferrer">מקור הנתונים</a>}{activeSurvey?.originalSourceUrls?.[0] && <a href={activeSurvey.originalSourceUrls[0]} target="_blank" rel="noopener noreferrer">פרסום הסקר</a>}</div>
+        <div className="survey-source">{activeSurvey?.sourceUrl && <a href={activeSurvey.sourceUrl} target="_blank" rel="noopener noreferrer">מקור הנתונים</a>}{activeSurvey?.sourceImageUrl && <a href={activeSurvey.sourceImageUrl} target="_blank" rel="noopener noreferrer">צילום המקור</a>}{activeSurvey?.originalSourceUrls?.[0] && <a href={activeSurvey.originalSourceUrls[0]} target="_blank" rel="noopener noreferrer">פרסום ה{resultName}</a>}</div>
       </div>
 
       {picksStatus === 'loading' && <p role="status">טוענים את התחזית שלך…</p>}
@@ -148,25 +164,25 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
         </select></label>}
         <p>השוואה לתחזית שלך{selectedPick.pickName && <> · <strong>{selectedPick.pickName}</strong></>}</p>
       </div>}
-      <PollTrendChart surveys={surveys} selectedChannel={activeSurvey?.channelOrMedia} />
+      {!hasResults && <PollTrendChart surveys={surveys} selectedChannel={activeSurvey?.channelOrMedia} />}
       {!selectedPick && activeSurvey && <section className="survey-results">
-        <h2>תוצאות הסקר · {activeSurvey.channelOrMedia}</h2>
-        <p>{activeSurvey.institute} · {activeSurvey.date}</p>
+        <h2>תוצאות ה{resultName} · {activeSurvey.channelOrMedia}</h2>
+        {!hasResults && <p>{activeSurvey.institute} · {activeSurvey.date}</p>}
         <div className="survey-result-blocs">{Object.entries(pollBlocCounts).map(([bloc, seats]) => <div key={bloc}><span>{{coalition:'קואליציה', opposition:'אופוזיציה', arab:'מפלגות ערביות', other:'אחרות'}[bloc]}</span><strong>{seats}</strong></div>)}</div>
         <table><thead><tr><th>מפלגה</th><th>מנדטים</th></tr></thead><tbody>{PARTIES_LIST.filter(p => Object.hasOwn(activeSurvey.seats, p.id)).map(p => <tr key={p.id}><td>{p.name}</td><td>{activeSurvey.seats[p.id]}</td></tr>)}</tbody></table>
       </section>}
-      {selectedPick && <>
+      {selectedPick && activeSurvey && <>
       {/* Bloc comparison */}
       <div className="rounded-lg bg-white text-slate-900 p-5 border border-slate-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-3 mb-4">
           <div className="flex items-center gap-2">
 
             <span className="font-black text-base sm:text-lg text-slate-900">
-              השוואת הגושים: הניחוש שלך מול סקר {activeSurvey?.channelOrMedia}
+              השוואת הגושים: הניחוש שלך מול {resultName} {activeSurvey?.channelOrMedia}
             </span>
           </div>
           <span className="text-xs text-slate-500">
-            {activeSurvey?.institute ? `מכון: ${activeSurvey.institute} • ` : ''}
+            {!hasResults && activeSurvey?.institute ? `מכון: ${activeSurvey.institute} • ` : ''}
             תאריך: {activeSurvey?.date}
           </span>
         </div>
@@ -183,7 +199,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 {userBlocCounts.opposition}
               </span>
               <span className="text-xs text-slate-500">
-                / בסקר: {pollBlocCounts.opposition}
+                / ב{resultName}: {pollBlocCounts.opposition}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
@@ -191,11 +207,11 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.opposition - pollBlocCounts.opposition > 0 ? (
                 <span className="text-slate-700">
-                  {userBlocCounts.opposition - pollBlocCounts.opposition} מעל הסקר
+                  {userBlocCounts.opposition - pollBlocCounts.opposition} מעל ה{resultName}
                 </span>
               ) : (
                 <span className="text-slate-700">
-                  {Math.abs(userBlocCounts.opposition - pollBlocCounts.opposition)} מתחת לסקר
+                  {Math.abs(userBlocCounts.opposition - pollBlocCounts.opposition)} מתחת ל{resultName}
                 </span>
               )}
             </div>
@@ -211,7 +227,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 {userBlocCounts.coalition}
               </span>
               <span className="text-xs text-slate-500">
-                / בסקר: {pollBlocCounts.coalition}
+                / ב{resultName}: {pollBlocCounts.coalition}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
@@ -219,11 +235,11 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.coalition - pollBlocCounts.coalition > 0 ? (
                 <span className="text-slate-700">
-                  {userBlocCounts.coalition - pollBlocCounts.coalition} מעל הסקר
+                  {userBlocCounts.coalition - pollBlocCounts.coalition} מעל ה{resultName}
                 </span>
               ) : (
                 <span className="text-slate-700">
-                  {Math.abs(userBlocCounts.coalition - pollBlocCounts.coalition)} מתחת לסקר
+                  {Math.abs(userBlocCounts.coalition - pollBlocCounts.coalition)} מתחת ל{resultName}
                 </span>
               )}
             </div>
@@ -239,7 +255,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 {userBlocCounts.arab}
               </span>
               <span className="text-xs text-slate-500">
-                / בסקר: {pollBlocCounts.arab}
+                / ב{resultName}: {pollBlocCounts.arab}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
@@ -247,11 +263,11 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.arab - pollBlocCounts.arab > 0 ? (
                 <span className="text-slate-700">
-                  {userBlocCounts.arab - pollBlocCounts.arab} מעל הסקר
+                  {userBlocCounts.arab - pollBlocCounts.arab} מעל ה{resultName}
                 </span>
               ) : (
                 <span className="text-slate-700">
-                  {Math.abs(userBlocCounts.arab - pollBlocCounts.arab)} מתחת לסקר
+                  {Math.abs(userBlocCounts.arab - pollBlocCounts.arab)} מתחת ל{resultName}
                 </span>
               )}
             </div>
@@ -267,7 +283,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 {userBlocCounts.other}
               </span>
               <span className="text-xs text-slate-500">
-                / בסקר: {pollBlocCounts.other}
+                / ב{resultName}: {pollBlocCounts.other}
               </span>
             </div>
             <div className="mt-1 text-[11px] font-bold">
@@ -275,11 +291,11 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 <span className="text-slate-700">✓ פגיעה בול</span>
               ) : userBlocCounts.other - pollBlocCounts.other > 0 ? (
                 <span className="text-slate-700">
-                  {userBlocCounts.other - pollBlocCounts.other} מעל הסקר
+                  {userBlocCounts.other - pollBlocCounts.other} מעל ה{resultName}
                 </span>
               ) : (
                 <span className="text-slate-700">
-                  {Math.abs(userBlocCounts.other - pollBlocCounts.other)} מתחת לסקר
+                  {Math.abs(userBlocCounts.other - pollBlocCounts.other)} מתחת ל{resultName}
                 </span>
               )}
             </div>
@@ -300,7 +316,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
             </div>
             {closestSurvey && (
               <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
-                הסקר הכי קרוב לניחוש שלך: <strong className="text-slate-900">{closestSurvey.survey.channelOrMedia}</strong>
+                ה{resultName} הכי קרוב לניחוש שלך: <strong className="text-slate-900">{closestSurvey.survey.channelOrMedia}</strong>
               </span>
             )}
           </div>
@@ -335,7 +351,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                 <span>{scoreResult.accuracyPercentage}%</span>
               </div>
               <div className="text-[11px] text-slate-500 mt-1 font-medium">
-                ביחס לתוצאות הסקר
+                ביחס לתוצאות ה{resultName}
               </div>
             </div>
 
@@ -412,7 +428,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
               <tr>
                 <th className="py-3 px-4">מפלגה ויו"ר</th>
                 <th className="py-3 px-4 text-center">הניחוש שלך</th>
-                <th className="py-3 px-4 text-center">בסקר {activeSurvey?.channelOrMedia}</th>
+                <th className="py-3 px-4 text-center">ב{resultName} {activeSurvey?.channelOrMedia}</th>
                 <th className="py-3 px-4 text-center">פער והפרש</th>
                 <th className="py-3 px-4 text-center hidden md:table-cell">השוואה חזותית</th>
                 <th className="py-3 px-4 text-center">דיוק</th>
@@ -478,7 +494,7 @@ export const SurveyComparator: React.FC<SurveyComparatorProps> = ({
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className="w-8 text-slate-400 shrink-0">סקר:</span>
+                          <span className="w-8 text-slate-400 shrink-0">{resultName}:</span>
                           <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
                             <div
                               className="bg-[#a43128] h-full rounded-full transition-all"

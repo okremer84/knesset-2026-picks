@@ -62,6 +62,8 @@ export interface Survey {
   sourceUrl?: string;
   originalSourceUrls?: string[];
   syncedAt?: string;
+  publishedAt?: string;
+  turnoutPercentage?: number;
   votePercentages?: Record<string, number>;
   notReportedPartyIds?: string[];
   id: string;

@@ -4,7 +4,7 @@ import { League, Prediction, Survey } from '../types';
 import { calculateScore } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
 import { formatIsraelTime } from '../utils/israelTime';
-import { surveyTitle } from '../utils/surveys';
+import { surveyTitle, latestElectionResults, localizeSurvey } from '../utils/surveys';
 import { GovernmentBuilder } from './GovernmentBuilder';
 import { Avatar } from './ProfileModal';
 const REVEAL_PARTIES = PARTIES_LIST.filter(party => party.id !== 'balad');
@@ -95,21 +95,31 @@ export function LeagueView({ league, allSurveys, selectedSurveyId, onSelectSurve
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [inspect, setInspect] = useState<string | null>(null);
-  const officialBenchmark = ['exit_poll', 'official_results'].includes(league.benchmarkSurvey?.kind || '') ? league.benchmarkSurvey : null;
-  const surveys = [...allSurveys].sort((a, b) => b.date.localeCompare(a.date));
-  const options = officialBenchmark ? [officialBenchmark, ...surveys.filter(s => s.id !== officialBenchmark.id)] : surveys;
-  const benchmark = options.find(s => s.id === selectedSurveyId) ?? officialBenchmark ?? options[0] ?? null;
-  const official = !!officialBenchmark && benchmark?.id === officialBenchmark.id;
+  // The published feed owns availability and corrections; a cached league response
+  // must not reintroduce a withdrawn result or override newer seats.
+  const sources = allSurveys.map(localizeSurvey);
+  const options = latestElectionResults(sources);
+  const selectedSource = sources.find(s => s.id === selectedSurveyId);
+  const benchmark = options.find(s => s.id === selectedSurveyId)
+    ?? options.find(s => s.channelOrMedia === selectedSource?.channelOrMedia)
+    ?? options[0] ?? null;
+  const benchmarkLabel = benchmark?.kind === 'exit_poll' ? `דירוג לפי מדגם ${benchmark.channelOrMedia}` : 'דירוג לפי התוצאות הרשמיות';
   const hidden = league.predictionsHidden;
+  const turnout = benchmark?.kind === 'official_results'
+    ? benchmark.turnoutPercentage ?? (benchmark.id === league.benchmarkSurvey?.id ? league.benchmarkTurnoutPercentage : null) ?? null
+    : null;
 
   // Compatibility for older cached league responses; the server supplies the complete roster.
   const roster: NonNullable<League['participants']> = league.participants ?? [
     ...league.members.map(p => ({ userId: p.userId, name: p.memberName, submitted: true })),
     ...(league.unsubmittedPlayers || []).map(p => ({ userId: Number(p.id), name: p.name, submitted: false })),
   ];
-  const ranks = [...(benchmark ? official ? league.rankings : league.members.map(prediction => {
+  // Every channel ranks the same revealed picks against that channel's current seats.
+  // Cached rankings belong to the server's default source and cannot rank other channels.
+  const ranks = [...(benchmark && !hidden ? league.members.map(prediction => {
     const score = calculateScore(prediction.seats, benchmark.seats);
-    return { predictionId: prediction.id, error: score.totalScore, exactHits: score.exactHitsCount, turnoutDiff: null };
+    return { predictionId: prediction.id, error: score.totalScore, exactHits: score.exactHitsCount,
+      turnoutDiff: turnout === null || prediction.turnoutPercentage == null ? null : Math.round(Math.abs(prediction.turnoutPercentage - turnout) * 10) / 10 };
   }) : [])].sort((a, b) => a.error - b.error || (a.turnoutDiff ?? 0) - (b.turnoutDiff ?? 0));
   const rows = roster.map(person => {
     const prediction = league.members.find(p => p.userId === person.userId);
@@ -139,14 +149,14 @@ export function LeagueView({ league, allSurveys, selectedSurveyId, onSelectSurve
     </div>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {!hidden && view === 'rankings' && options.length > 0 && <div className="league-comparison-control">
-      <label htmlFor="league-survey">מקור ההשוואה
+      <label htmlFor="league-survey">המדגם לדירוג
         <select id="league-survey" value={benchmark?.id ?? ''} onChange={event => onSelectSurveyId(event.target.value)}>
-          {options.map(survey => <option key={survey.id} value={survey.id}>{surveyTitle(survey)} · {survey.date}</option>)}
+          {options.map(survey => <option key={survey.id} value={survey.id}>{survey.kind === 'official_results' ? 'תוצאות רשמיות' : `מדגם ${survey.channelOrMedia}`}</option>)}
         </select>
       </label>
-      <p aria-live="polite">{official ? 'דירוג לפי תוצאות הבחירות' : 'דירוג זמני לפי הסקר הנבחר'} · הניקוד, המקומות והתחזיות מתעדכנים יחד</p>
+      <div className="league-result-heading" aria-live="polite"><h2>{benchmarkLabel}</h2><p>{benchmark?.kind === 'exit_poll' ? 'דירוג זמני · ' : ''}פחות נקודות = תחזית קרובה יותר לתוצאה</p></div>
     </div>}
-    {(hidden || view === 'rankings') && <div className="league-table-caption">{hidden ? <p>התחזיות וההערות ייחשפו בתאריך האחרון להגשה, בשעה 20:00 בשעון ישראל.</p> : <><p>{benchmark?.kind === 'official_results' ? 'תוצאות סופיות' : benchmark ? official ? 'מדגם · דירוג זמני' : 'השוואה לסקר · דירוג זמני' : 'ממתינים לפרסום המדגם · הניקוד יופיע לאחר הפרסום'}</p><details><summary>איך הניקוד עובד?</summary><p>פחות נקודות עדיף: סכום ההפרשים המוחלטים במנדטים. בשוויון, התחזית הקרובה יותר לאחוז ההצבעה הרשמי מנצחת. עד פרסום אחוז ההצבעה, או כשהפער זהה, המקום משותף. מפלגות שלא דווחו אינן נכללות בניקוד.</p>{benchmark?.sourceUrl && <a href={benchmark.sourceUrl} target="_blank" rel="noreferrer">מקור הנתונים</a>}</details></>}</div>}
+    {(hidden || view === 'rankings') && <div className="league-table-caption">{hidden ? <p>התחזיות וההערות ייחשפו בתאריך האחרון להגשה, בשעה 20:00 בשעון ישראל.</p> : <><p>{benchmark?.kind === 'official_results' ? 'תוצאות סופיות' : benchmark ? 'מדגם · דירוג זמני' : 'ממתינים לפרסום המדגם · הניקוד יופיע לאחר הפרסום'}</p><details><summary>איך הניקוד עובד?</summary><p>פחות נקודות עדיף: סכום ההפרשים המוחלטים במנדטים. במדגם, נקודות זהות מקנות מקום משותף. בתוצאות הרשמיות, שוויון מוכרע לפי הקרבה לאחוז ההצבעה הרשמי; אם גם הפער הזה זהה, המקום משותף. מפלגות שלא דווחו אינן נכללות בניקוד.</p>{benchmark?.sourceUrl && <a href={benchmark.sourceUrl} target="_blank" rel="noreferrer">מקור הנתונים</a>}</details></>}</div>}
     {!hidden && <div className="league-view-switch" role="group" aria-label="תצוגת ליגה">
       <button aria-pressed={view === 'rankings'} onClick={() => setView('rankings')}>דירוג הליגה</button>
       <button aria-pressed={view === 'parties'} onClick={() => setView('parties')}>תחזיות לפי מפלגה</button>
@@ -154,7 +164,7 @@ export function LeagueView({ league, allSurveys, selectedSurveyId, onSelectSurve
     </div>}
     {!hidden && view === 'government' ? <GovernmentBuilder predictions={league.members}/> : !hidden && view === 'parties' ? <PartyComparison rows={[...rows].sort((a, b) => a.person.name.localeCompare(b.person.name, 'he'))}/> :
     <div className="league-table-scroll"><table className={`league-table ${hidden ? 'before-reveal' : ''}`}>
-      <caption className="sr-only">משתתפי {league.name}</caption>
+      <caption className="sr-only">{hidden || !benchmark ? `משתתפי ${league.name}` : `${league.name} · ${benchmarkLabel}`}</caption>
       <thead><tr>{(hidden ? ['שם', 'תחזית'] : ['מקום', 'שם', 'נקודות ↓', 'אחוז הצבעה', 'הכי קרוב', 'הכי רחוק', 'הערה']).map((title, i) => <th key={i} scope="col">{title || <span className="sr-only">פעולות</span>}</th>)}</tr></thead>
       <tbody>{rows.map(({ person, prediction, rank, position }) => {
         const mine = (currentUserId ?? userPrediction?.userId) === person.userId;

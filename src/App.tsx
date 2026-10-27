@@ -6,7 +6,7 @@ import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
 import { useUser } from './components/AuthGate';
-import { surveySyncNotice } from './utils/surveys';
+import { surveySyncNotice, latestElectionResults } from './utils/surveys';
 import { initialLeagueId, loadInitialLeague, initialTab } from './lib/navigation';
 import { readPreference, writePreference } from './lib/preferences';
 import { createPredictionSync } from './lib/predictionSync';
@@ -21,11 +21,12 @@ import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const user = useUser();
-  const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הסקרים עד לקבלת עדכון מהשרת');
+  const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הנתונים עד לקבלת עדכון מהשרת');
   const [joinCode, setJoinCode] = useState('');
   const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
   const [activeTab, setActiveTab] = useState(() => initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)));
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
+  const hasResults = latestElectionResults(allSurveys).length > 0;
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
   const [switchingLeague, setSwitchingLeague] = useState(false);
@@ -179,23 +180,39 @@ export default function App() {
     }
   };
 
-  // Load surveys from backend
+  // Refresh published results while the election-night page stays open.
   useEffect(() => {
-    fetch('/api/surveys')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data.surveys)) {
+    const controller = new AbortController();
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const res = await fetch('/api/surveys', { signal: controller.signal });
+        if (!res.ok) throw new Error('Failed to load election data');
+        const data = await res.json();
+        if (!Array.isArray(data.surveys)) throw new Error('Invalid election data');
+        if (!controller.signal.aborted) {
           setAllSurveys(data.surveys);
-          setSurveyNotice(surveySyncNotice(data.surveys.length, data.sync));
+          setSurveyNotice(latestElectionResults(data.surveys).length ? '' : surveySyncNotice(data.surveys.length, data.sync));
         }
-      })
-      .catch(() => setSurveyNotice('לא ניתן לטעון סקרים מהשרת. מוצג עותק שמור עם תאריכי המקור.'));
+      } catch {
+        if (!controller.signal.aborted) setSurveyNotice('לא ניתן לעדכן את הנתונים מהשרת. מוצג העותק השמור האחרון עם תאריכי המקור.');
+      } finally {
+        refreshing = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
 
-  // Old leagues may still reference demo survey IDs.
+  // Old poll selections must resolve to an available election result.
   useEffect(() => {
-    if (allSurveys.length && !allSurveys.some(s => s.id === selectedSurveyId)) {
-      setSelectedSurveyId(allSurveys[0].id);
+    const results = latestElectionResults(allSurveys);
+    if (results.length && !results.some(s => s.id === selectedSurveyId)) {
+      const previousChannel = allSurveys.find(s => s.id === selectedSurveyId)?.channelOrMedia;
+      setSelectedSurveyId((results.find(s => s.channelOrMedia === previousChannel) ?? results[0]).id);
     }
   }, [allSurveys, selectedSurveyId]);
 
@@ -218,7 +235,6 @@ export default function App() {
         const detail: { league: League } = await response.json();
         if (cancelled) return;
         await selectLeague(detail.league);
-        if (detail.league.targetSurveyId) setSelectedSurveyId(detail.league.targetSurveyId);
       } catch (e) {
         if (!cancelled) showToast((e as Error).message, 'error');
       } finally {
@@ -381,9 +397,6 @@ export default function App() {
         return created;
       });
       if (!league) return;
-      if (league.targetSurveyId) {
-        setSelectedSurveyId(league.targetSurveyId);
-      }
 
       showToast(`ליגת "${league.name}" נוצרה בהצלחה! שתף את הקישור עם החברים.`);
       setActiveTab('league');
@@ -514,6 +527,7 @@ export default function App() {
 
       {/* Header */}
       <Header
+        hasResults={hasResults}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />

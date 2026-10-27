@@ -6,6 +6,7 @@ export type AppTab = 'picker' | 'league' | 'surveys' | 'historical' | 'coffee';
 interface HeaderProps {
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
+  hasResults?: boolean;
 }
 const pages: { id: AppTab; label: string }[] = [
   { id: 'picker', label: 'התחזית שלי' },
@@ -15,7 +16,7 @@ const pages: { id: AppTab; label: string }[] = [
   { id: 'historical', label: 'בחירות קודמות' },
 ];
 
-export function Header({ activeTab, setActiveTab }: HeaderProps) {
+export function Header({ activeTab, setActiveTab, hasResults = false }: HeaderProps) {
   const { user } = useAccount();
   const [profileOpen, setProfileOpen] = useState(false);
   return <header className="site-header">
@@ -32,7 +33,7 @@ export function Header({ activeTab, setActiveTab }: HeaderProps) {
 
     </div>
     <nav className="main-nav" aria-label="ניווט ראשי">
-      {pages.map(page => <button key={page.id} aria-current={activeTab === page.id ? 'page' : undefined} onClick={() => setActiveTab(page.id)}>{page.label}</button>)}
+      {pages.map(page => <button key={page.id} aria-current={activeTab === page.id ? 'page' : undefined} onClick={() => setActiveTab(page.id)}>{page.id === 'surveys' && hasResults ? 'תוצאות המדגמים' : page.label}</button>)}
     </nav>
   </header>;
 }

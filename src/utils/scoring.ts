@@ -1,5 +1,11 @@
 import { ScoreResult } from '../types';
 import { PARTIES_LIST } from '../data/parties';
+import partyCatalog from '../../config/parties.json';
+
+// Score the persisted party catalog, including retired entries in older picks.
+const SCORING_PARTIES = Object.entries(partyCatalog).map(([id, party]) => ({
+  id, ...party, color: PARTIES_LIST.find(p => p.id === id)?.color ?? '#6b7280',
+}));
 
 export function calculateScore(
   predictedSeats: Record<string, number>,
@@ -12,7 +18,7 @@ export function calculateScore(
   const predictedBlocs: Record<string, number> = { coalition: 0, opposition: 0, arab: 0, other: 0 };
   const actualBlocs: Record<string, number> = { coalition: 0, opposition: 0, arab: 0, other: 0 };
 
-  const partyBreakdown = PARTIES_LIST.filter(p => Object.hasOwn(actualSeats, p.id)).map((party) => {
+  const partyBreakdown = SCORING_PARTIES.filter(p => Object.hasOwn(actualSeats, p.id)).map((party) => {
     const predicted = Number(predictedSeats[party.id]) || 0;
     const actual = Number(actualSeats[party.id]) || 0;
     const diff = Math.abs(predicted - actual);
@@ -95,6 +101,6 @@ export function calculateScore(
 // Derive game blocs from reported seats when a publisher omits precomputed totals.
 export function calculateBlocs(seats: Record<string, number>) {
   const blocs = { coalition: 0, opposition: 0, arab: 0, other: 0 };
-  for (const party of PARTIES_LIST) blocs[party.bloc] += seats[party.id] ?? 0;
+  for (const party of SCORING_PARTIES) blocs[party.bloc] += seats[party.id] ?? 0;
   return blocs;
 }

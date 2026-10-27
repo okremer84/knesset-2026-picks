@@ -93,3 +93,12 @@ test('without a submitted pick only survey results and trends are rendered', () 
   assert.ok(multiple.includes('תחזית להשוואה'));
   assert.ok(multiple.includes('<option value="second"'));
 });
+
+// Balad no longer has a separate ballot row, but persisted picks can still contain it.
+test('retired party allocations count against explicit result zeroes', () => {
+  const score = calculateScore({ likud: 116, balad: 4 }, { likud: 120, balad: 0 });
+  assert.equal(score.totalScore, 8);
+  assert.equal(score.partyBreakdown.find(p => p.partyId === 'balad')?.diff, 4);
+  assert.equal(calculateBlocs({ likud: 116, balad: 4 }).arab, 4);
+  assert.equal(calculateScore({ likud: 116, balad: 4 }, { likud: 120 }).totalScore, 4);
+});

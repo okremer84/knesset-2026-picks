@@ -19,7 +19,6 @@ const PUBLISHER_NAMES: Record<string, string> = {
   'Kan 11': 'כאן 11',
   'Channel 13': 'חדשות 13',
   'Channel 14': 'ערוץ 14',
-  'Channel 16': 'ערוץ 16',
   'i24 News': 'איי־24',
   'Maariv': 'מעריב',
   'Walla': 'וואלה',
@@ -63,4 +62,18 @@ export function latestPollsByChannel(surveys: Survey[], cutoff: string): Survey[
     if (!channels.has(channel)) channels.set(channel, survey);
   }
   return [...channels.values()];
+}
+
+export function latestElectionResults(surveys: Survey[], cutoff = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date())): Survey[] {
+  const channels = new Map<string, Survey>();
+  const results = surveys.filter(s => (s.kind === 'exit_poll' || s.kind === 'official_results') && s.date <= cutoff);
+  for (const survey of results.sort((a, b) => b.date.localeCompare(a.date)
+    || (b.publishedAt ?? b.syncedAt ?? '').localeCompare(a.publishedAt ?? a.syncedAt ?? '')
+    || b.id.localeCompare(a.id))) {
+    const channel = survey.channelOrMedia || survey.title;
+    if (!channels.has(channel)) channels.set(channel, survey);
+  }
+  return [...channels.values()].sort((a, b) => Number(b.kind === 'official_results') - Number(a.kind === 'official_results')
+    || Number(a.channelOrMedia.match(/\d+/)?.[0] ?? Infinity) - Number(b.channelOrMedia.match(/\d+/)?.[0] ?? Infinity)
+    || a.channelOrMedia.localeCompare(b.channelOrMedia, 'he', { numeric: true }));
 }

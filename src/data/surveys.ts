@@ -1,7 +1,8 @@
 import { Survey } from '../types';
 import feed from '../../data/wikipedia-surveys.json';
+import results from '../../data/election-results.json';
 
-export const DEFAULT_SURVEYS = feed.surveys as Survey[];
+export const DEFAULT_SURVEYS = [...results.surveys, ...feed.surveys] as Survey[];
 
 // Retained design fixtures, never served as current polls or election outcomes.
 export const DEMO_SURVEYS: Survey[] = [
