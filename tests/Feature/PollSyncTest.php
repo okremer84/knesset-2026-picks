@@ -24,6 +24,55 @@ class PollSyncTest extends TestCase
         return file_get_contents(base_path('tests/Fixtures/wikipedia-october-metadata.html'));
     }
 
+    private function leadHtml(): string
+    {
+        $html = file_get_contents(base_path('tests/Fixtures/wikipedia-october-withdrawal.html'));
+
+        // Lead spans both header rows and sits between Others and Gov.
+        $html = str_replace(
+            ['<th class="unsortable" id="mwASs">', '<td id="mwAWs">', '<td id="mwAY4">'],
+            ['<th rowspan="2">Lead</th><th class="unsortable" id="mwASs">', '<td>2</td><td id="mwAWs">', '<td>11</td><td id="mwAY4">'],
+            $html,
+            $replacements,
+        );
+        $this->assertSame(3, $replacements);
+
+        return $html;
+    }
+
+    public function test_lead_column_does_not_change_imported_polls_or_create_revisions(): void
+    {
+        $this->freezeTime();
+        $original = file_get_contents(base_path('tests/Fixtures/wikipedia-october-withdrawal.html'));
+        Http::fake(['*' => Http::sequence()->push($original)->push($this->leadHtml())->push($this->leadHtml())]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $before = Survey::all()->toArray();
+        $this->artisan('polls:sync')->assertSuccessful();
+        $this->artisan('polls:sync')->assertSuccessful();
+
+        $this->assertEquals($before, Survey::all()->toArray());
+        $this->assertDatabaseCount('surveys', 2);
+        $this->assertDatabaseCount('survey_revisions', 2);
+    }
+
+    public function test_lead_column_does_not_bypass_party_or_seat_total_validation(): void
+    {
+        $html = $this->leadHtml();
+        $unknown = str_replace('Likud', 'Unknown Alliance', $html);
+        $invalidTotal = str_replace('>18</td>', '>17</td>', $html, $replacements);
+        $this->assertSame(1, $replacements);
+        Http::fake(['*' => Http::sequence()->push($html)->push($unknown)->push($invalidTotal)]);
+        $this->artisan('polls:sync')->assertSuccessful();
+        $before = Survey::all()->toArray();
+        $this->artisan('polls:sync')->assertFailed();
+        $this->assertStringContainsString('Unmapped or duplicate party: Unknown Alliance', DB::table('poll_imports')->latest('id')->value('error'));
+        $this->assertEquals($before, Survey::all()->toArray());
+        $this->artisan('polls:sync')->assertFailed();
+        $this->assertStringContainsString('total=119', DB::table('poll_imports')->latest('id')->value('error'));
+        $this->assertEquals($before, Survey::all()->toArray());
+        $this->assertDatabaseCount('survey_revisions', 2);
+    }
+
     public function test_sync_accepts_the_october_19_table_without_blue_and_white(): void
     {
         $html = file_get_contents(base_path('tests/Fixtures/wikipedia-october-withdrawal.html'));
