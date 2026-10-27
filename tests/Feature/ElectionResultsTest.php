@@ -32,6 +32,21 @@ class ElectionResultsTest extends TestCase
         $this->assertDatabaseCount('survey_revisions', $before);
     }
 
+    public function test_upgrade_migration_publishes_results_on_existing_installations(): void
+    {
+        $poll = json_decode(file_get_contents(base_path('data/wikipedia-surveys.json')), true)['surveys'][0];
+        app(PollStore::class)->store($poll);
+        $migration = require database_path('migrations/2026_10_27_000000_publish_exit_poll_results.php');
+        $migration->up();
+        $this->assertSame(4, Survey::where('kind', 'exit_poll')->where('active', true)->count());
+        $this->assertDatabaseHas('surveys', ['id' => $poll['id'], 'active' => true]);
+        $before = DB::table('survey_revisions')->count();
+        $migration->up();
+        $migration->down();
+        $this->assertDatabaseCount('survey_revisions', $before);
+        $this->assertSame(4, Survey::where('kind', 'exit_poll')->where('active', true)->count());
+    }
+
     public function test_redeployment_preserves_operator_corrections_and_withdrawals(): void
     {
         $this->seed();

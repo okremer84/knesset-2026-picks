@@ -27,6 +27,8 @@ php artisan view:cache
 
 ## Deploy commands
 
+Releases go through GitHub and the existing automatic deployment. Do not deploy manually on Laravel Cloud or change its settings to ship a release. The October 27 upgrade migration publishes the result bundle on existing installations, so migration-only deployment configurations work without modification.
+
 ```sh
 php artisan migrate --force
 php artisan db:seed --force

@@ -64,7 +64,7 @@ Reviewed sample-size and source-link corrections live in `config/poll-metadata-c
 
 The October 27 bundle contains channels 11, 12, 13 and 14 from the user-supplied ynet screenshots, retained in `public/results/2026-10-27/`. Channels 11–13 carry the screenshot's 22:41 Israel-time update. Channel 14's label and its omitted Otzma Yehudit value (7) were explicitly confirmed by the user. Balad is included in the Joint List; Blue and White is not a separate competing list. Their separate game entries receive zero, avoiding double-counting. These records are exit polls, not official results; no official turnout is supplied.
 
-The normal deployment's `php artisan db:seed --force` publishes missing bundle records, even when the database already has polls. It preserves later corrections and deactivated records. The browser checks for published updates every 30 seconds; opinion-poll import status does not appear as an exit-poll update status.
+The October 27 upgrade migration publishes missing bundle records on existing installations during the normal `php artisan migrate --force` deployment. Fresh installations publish the bundle with `php artisan db:seed --force`. It preserves later corrections and deactivated records. The browser checks for published updates every 30 seconds; opinion-poll import status does not appear as an exit-poll update status.
 
 Use `php artisan polls:publish /path/to/reviewed-survey.json` through an operator console. The JSON uses the same Survey shape as `data/wikipedia-surveys.json`, with a unique `id`, `title`, `date` (YYYY-MM-DD), `institute`, `channelOrMedia`, `sourceUrl` (HTTPS), and `seats`.
 
