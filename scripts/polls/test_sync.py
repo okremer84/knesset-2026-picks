@@ -28,6 +28,12 @@ class SyncTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse(FIXTURE.replace('<h2>Seat projections</h2>', '<h2>Scenario polls</h2>'))
 
+    def test_lead_column_is_not_a_party_result(self):
+        html = FIXTURE.replace('<th>Gov.</th>', '<th rowspan="2">Lead</th><th>Gov.</th>')
+        html = html.replace('<td>60</td><td>60</td></tr>', '<td>60</td><td>0</td><td>60</td></tr>')
+        self.assertNotEqual(html, FIXTURE)
+        self.assertEqual(parse(html), parse(FIXTURE))
+
     def test_measure(self):
         self.assertIsNone(measure('—')['seats'])
         self.assertEqual(measure('(2.9%)')['seats'], 0)

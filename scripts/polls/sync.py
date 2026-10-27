@@ -101,7 +101,8 @@ def parse(html):
                 results, seen = [], set()
                 for i, cell in row.items():
                     label = headers.get(i, '')
-                    if label in {'Fieldwork date', 'Polling firm', 'Publisher', 'Sample size', 'Gov.', 'Others', 'Other'}:
+                    # Lead is the margin between the top parties, not a seat result.
+                    if label in {'Fieldwork date', 'Polling firm', 'Publisher', 'Sample size', 'Gov.', 'Others', 'Other', 'Lead'}:
                         continue
                     if id(cell) in seen:
                         continue

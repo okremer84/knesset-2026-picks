@@ -183,7 +183,8 @@ class WikipediaPolls
                 $additionalNotes = [];
                 foreach ($row as $i => $cell) {
                     $label = $headers[$i] ?? '';
-                    if (in_array($label, ['Fieldwork date', 'Polling firm', 'Publisher', 'Sample size', 'Gov.', 'Others', 'Other'])) {
+                    // Lead is the margin between the top parties, not a seat result.
+                    if (in_array($label, ['Fieldwork date', 'Polling firm', 'Publisher', 'Sample size', 'Gov.', 'Others', 'Other', 'Lead'])) {
                         continue;
                     }
                     $identity = spl_object_id($cell);
