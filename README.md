@@ -20,7 +20,7 @@ php artisan serve
 
 Open http://localhost:8000 and sign in with Google. For frontend development, also run `npm run dev` in a second terminal, while continuing to browse port 8000.
 
-The seeder imports only the bundled, previously reviewed Wikipedia feed into an empty database. It never creates demo users and never overwrites live surveys. Authentication uses Google only. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` before signing in; see [Google setup](docs/laravel-cloud.md#google-sign-in).
+The seeder initializes an empty database from the reviewed Wikipedia feed and adds missing reviewed election-night results from `data/election-results.json` to both new and existing databases. It never creates demo users or overwrites existing surveys, result corrections, or withdrawals. Authentication uses Google only. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` before signing in; see [Google setup](docs/laravel-cloud.md#google-sign-in).
 
 ## Game rules
 
@@ -32,7 +32,7 @@ The seeder imports only the bundled, previously reviewed Wikipedia feed into an 
 - Other players' picks and notes stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
 - Lower total absolute seat error wins. Closeness to official turnout is the only tiebreak; until it is published, equal seat errors share a position. Complete ties share a position.
 - A poll's unreported parties are excluded from comparison rather than invented as zero.
-- League scoring uses active published election results only. Opinion polls remain available in the surveys tab.
+- League scoring uses active published election results only. Once results are available, the surveys tab becomes **תוצאות המדגמים**, with a result and prediction comparison for each channel. Pre-election polls stay in storage.
 - Published election-result corrections update standings across leagues. Historical deadline-change audit records are retained.
 - Exit polls and official results must be published by an operator; leagues automatically select the latest eligible result, preferring official results. Publishing results does not reopen submissions.
 
@@ -62,9 +62,15 @@ Reviewed sample-size and source-link corrections live in `config/poll-metadata-c
 
 ### Publishing reviewed election results
 
+The October 27 bundle contains channels 11, 12, 13 and 14 from the user-supplied ynet screenshots, retained in `public/results/2026-10-27/`. Channels 11–13 carry the screenshot's 22:41 Israel-time update. Channel 14's label and its omitted Otzma Yehudit value (7) were explicitly confirmed by the user. Balad is included in the Joint List; Blue and White is not a separate competing list. Their separate game entries receive zero, avoiding double-counting. These records are exit polls, not official results; no official turnout is supplied.
+
+The normal deployment's `php artisan db:seed --force` publishes missing bundle records, even when the database already has polls. It preserves later corrections and deactivated records. The browser checks for published updates every 30 seconds; opinion-poll import status does not appear as an exit-poll update status.
+
 Use `php artisan polls:publish /path/to/reviewed-survey.json` through an operator console. The JSON uses the same Survey shape as `data/wikipedia-surveys.json`, with a unique `id`, `title`, `date` (YYYY-MM-DD), `institute`, `channelOrMedia`, `sourceUrl` (HTTPS), and `seats`.
 
-Set `kind` to `opinion_poll`, `exit_poll`, or `official_results`. Election-result payloads must explicitly report every configured party (including zeros) and sum to 120. Leagues automatically use published active `exit_poll` records from election day onward, then prefer `official_results`. Include `turnoutPercentage` in official results for tiebreaks. Within a kind, the latest dated record wins (then latest update and ID). Future-dated records and opinion polls never score leagues. Publishing or correcting results updates all league standings; league owners cannot choose a scoring source.
+To correct a bundled result, publish its existing ID with the corrected payload. Editing the bundle and reseeding deliberately does not overwrite an existing result. Set `publishedAt` to the source's update timestamp with its timezone offset when known; the results page uses it to choose between same-day versions of a channel's result. `sourceImageUrl` can point to the retained source screenshot.
+
+Set `kind` to `opinion_poll`, `exit_poll`, or `official_results`. Election-result payloads must explicitly report every configured party (including zeros) and sum to 120. Leagues automatically use published active `exit_poll` records from election day onward, then prefer `official_results`. Include `turnoutPercentage` in official results for tiebreaks. Within a kind, the latest dated record wins (then latest update and ID). Future-dated records and opinion polls never score leagues. Publishing or correcting results updates league standings. Each viewer can select a channel’s exit poll to compare rankings; equal errors share a position, and turnout breaks ties only for official results.
 
 ## Checks
 

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React, { act } from 'react';
 import { JSDOM } from 'jsdom';
-import type { League, Prediction, SavedPick } from '../../src/types';
+import type { League, Prediction, SavedPick, Survey } from '../../src/types';
+import resultFeed from '../../data/election-results.json';
 
 const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/', pretendToBeVisual: true });
 Object.assign(globalThis, {
@@ -24,7 +25,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
   window.history.replaceState({}, '', options.url ?? '/?tab=picker');
   localStorage.clear();
   clearCsrf();
-  const api = { pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, failCreatedPick: options.failCreatedPick ?? false, joins: 0, locked: false, failPickRead: options.failPickRead ?? false, secondPick: null as Prediction | null, personalPick: (options.personalPick ?? null) as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
+  const api = { surveys: [] as Survey[], surveyFailure: false, pick: initialPick, refreshFailure: '', saveFailure: false, saves: 0, creates: 0, failCreatedPick: options.failCreatedPick ?? false, joins: 0, locked: false, failPickRead: options.failPickRead ?? false, secondPick: null as Prediction | null, personalPick: (options.personalPick ?? null) as Prediction | null, savedLeagueId: '', extraPicks: [] as SavedPick[], gates: new Map<string, Promise<void>>() };
   if (options.personalGate) api.gates.set('/api/my-picks', options.personalGate);
   const league: League = {
     id: 'league', name: 'Our league', creatorName: 'Tester', isCommissioner: true,
@@ -43,7 +44,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
     if (url === '/api/auth/user') return Response.json({ user: { id: 1, name: 'Tester', email: 'test@example.org' } });
     if (url === '/api/auth/config') return Response.json({ googleEnabled: true });
     if (url === '/api/csrf') return Response.json({ token: 'test-csrf' });
-    if (url === '/api/surveys') return Response.json({ surveys: [], sync: null });
+    if (url === '/api/surveys') return api.surveyFailure ? new Response('', { status: 503 }) : Response.json({ surveys: api.surveys, sync: null });
     if (url === '/api/leagues/join') { api.joins++; return Response.json({ league: { ...league, id: 'created', name: 'Joined league' } }); }
     if (url.startsWith('/api/my-picks') && api.failPickRead) return new Response('', { status: 503 });
     if (url === '/api/election') return Response.json({ deadlineLimit: '2026-10-27T18:00:00Z' });
@@ -84,7 +85,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
   const render = () => act(async () => { root.render(<AuthGate><App/></AuthGate>); });
   await render();
   t.after(async () => { await act(async () => root.unmount()); });
-  return { api, async reload() { await act(async () => root.unmount()); root = createRoot(container); await render(); },
+  return { api, league, async reload() { await act(async () => root.unmount()); root = createRoot(container); await render(); },
     async refreshWithoutRender() { await Promise.all([...refreshes.values()].map(fn => fn())); },
     async refresh() { await act(async () => { for (const fn of [...refreshes.values()]) await fn(); }); } };
 }
@@ -596,3 +597,59 @@ for (const edited of [false, true]) {
     assert.equal(app.api.saves, 0);
   });
 }
+
+test('published results replace polls on refresh and survive a temporary API failure', async t => {
+  const app = await start(t);
+  app.api.surveys = resultFeed.surveys as Survey[];
+  await app.refresh();
+  await click('תוצאות המדגמים');
+  assert.match(document.body.textContent!, /תוצאות המדגם/);
+  assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 4);
+  app.api.surveyFailure = true;
+  await app.refresh();
+  assert.match(document.body.textContent!, /לא ניתן לעדכן את הנתונים/);
+  assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 4);
+  app.api.surveyFailure = false;
+  app.api.surveys = app.api.surveys.filter(s => s.channelOrMedia !== 'ערוץ 14');
+  await app.refresh();
+  assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 3);
+  assert.doesNotMatch(document.body.textContent!, /לא ניתן לעדכן את הנתונים/);
+});
+
+test('the league page keeps the selected channel on refresh and removes withdrawn results', async t => {
+  const results = resultFeed.surveys as Survey[];
+  const app = await start(t, { ...submitted, seats: results[3].seats });
+  app.api.surveys = results;
+  app.league.isLocked = true;
+  app.league.predictionsHidden = false;
+  app.league.benchmarkSurvey = results[3];
+  app.league.targetSurveyId = results[3].id;
+  await app.refresh();
+  await click('הליגות שלי');
+  const selector = () => document.querySelector<HTMLSelectElement>('#league-survey')!;
+  const score = () => document.querySelector('.league-score')!.textContent;
+  assert.equal(selector().options.length, 4);
+  assert.equal(selector().value, results[0].id);
+  assert.equal(score(), '12');
+  await act(async () => {
+    selector().value = results[3].id;
+    selector().dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  assert.equal(score(), '0');
+  await app.refresh();
+  assert.equal(selector().value, results[3].id);
+  assert.equal(score(), '0');
+  app.api.surveys = results.map((s, i) => i === 3 ? { ...s, seats: results[0].seats } : s);
+  await app.refresh();
+  assert.equal(selector().value, results[3].id);
+  assert.equal(score(), '12');
+  app.api.surveys = results.filter(s => s.id !== results[3].id);
+  await app.refresh();
+  assert.equal(selector().options.length, 3, 'stale league benchmark cannot restore a withdrawn source');
+  assert.equal(selector().value, results[0].id);
+  app.api.surveys = [];
+  await app.refresh();
+  assert.equal(selector(), null);
+  assert.equal(score(), '—');
+  assert.match(document.body.textContent!, /ממתינים לפרסום המדגם/);
+});

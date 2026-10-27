@@ -32,7 +32,7 @@ php artisan migrate --force
 php artisan db:seed --force
 ```
 
-The seeder only initializes an empty surveys table. Do not make external Wikipedia availability a deployment requirement; the importer runs separately and preserves the last good data on failure.
+The seeder initializes an empty surveys table with the reviewed polls, then adds missing election-night records from `data/election-results.json` to new or existing databases. It preserves existing records, including operator corrections and withdrawals, and deactivates the removed Channel 16 bundle record while retaining its history. The October 27 bundle activates the channel results view for channels 11–14. Do not make external Wikipedia availability a deployment requirement; the importer runs separately and preserves the last good data on failure.
 
 ## Refresh production polls
 

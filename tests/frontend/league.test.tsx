@@ -16,7 +16,7 @@ const league: League = {
   scoringVersion: '1', createdAt: '2026-10-01',
 };
 function render(value: League) {
-  return renderToStaticMarkup(<LeagueView league={value} allSurveys={[]} selectedSurveyId="" onSelectSurveyId={() => {}} onOpenCreateLeague={() => {}} onJoinExistingLeagueById={() => {}} onNavigateToPicker={() => {}}/>);
+  return renderToStaticMarkup(<LeagueView league={value} allSurveys={value.benchmarkSurvey ? [value.benchmarkSurvey] : []} selectedSurveyId="" onSelectSurveyId={() => {}} onOpenCreateLeague={() => {}} onJoinExistingLeagueById={() => {}} onNavigateToPicker={() => {}}/>);
 }
 test('pre-reveal roster contains every member but no notes, scores, or turnout', () => {
   const html = render(league);
@@ -38,7 +38,8 @@ test('reveal includes notes and turnout; equal points share rank despite differe
   assert.equal((html.match(/<td>1<\/td>/g) || []).length, 2);
 });
 test('official turnout resolves equal points, ignoring exact hits', () => {
-  const html = render({ ...league, predictionsHidden: false, isLocked: true, rankings: league.rankings.map((r, i) => ({ ...r, turnoutDiff: i === 0 ? 8 : 2 })) });
+  const html = render({ ...league, predictionsHidden: false, isLocked: true,
+    benchmarkSurvey: { ...league.benchmarkSurvey!, kind: 'official_results', turnoutPercentage: 82 } });
   assert.ok(html.indexOf('Bob') < html.indexOf('Alice'));
   assert.ok(html.includes('פער 2.0'));
 });
@@ -70,9 +71,9 @@ test('revealed comparison sorts parties by descending prediction', () => {
   assert.ok(html.indexOf('ביחד') < html.indexOf('הליכוד'));
 });
 
-test('selected survey changes provisional league positions', () => {
-  const polls = league.members.map((p, i) => ({ ...league.benchmarkSurvey!, id: 'survey-' + i, kind: 'opinion_poll' as const, seats: p.seats }));
-  const renderSelection = (id: string) => renderToStaticMarkup(<LeagueView league={{ ...league, predictionsHidden: false }} allSurveys={polls} selectedSurveyId={id} onSelectSurveyId={() => {}} onOpenCreateLeague={() => {}} onJoinExistingLeagueById={() => {}} onNavigateToPicker={() => {}}/>);
+test('selected channel exit poll changes provisional league positions', () => {
+  const results = league.members.map((p, i) => ({ ...league.benchmarkSurvey!, id: 'survey-' + i, kind: 'exit_poll' as const, channelOrMedia: 'Channel ' + (12 + i), seats: p.seats }));
+  const renderSelection = (id: string) => renderToStaticMarkup(<LeagueView league={{ ...league, predictionsHidden: false }} allSurveys={results} selectedSurveyId={id} onSelectSurveyId={() => {}} onOpenCreateLeague={() => {}} onJoinExistingLeagueById={() => {}} onNavigateToPicker={() => {}}/>);
   const first = renderSelection('survey-0');
   const second = renderSelection('survey-1');
   assert.ok(first.includes('<select'));
@@ -102,4 +103,16 @@ test('party matrix aligns every pick with its party and distinguishes missing su
   const details = new JSDOM(renderToStaticMarkup(<PickDetails prediction={league.members[0]} benchmark={null}/>)).window.document;
   assert.deepEqual([...details.querySelectorAll('.pick-majorities strong')].map(el => el.textContent), ['כן', 'כן', 'לא']);
   assert.ok(!render(league).includes('תחזיות לפי מפלגה'));
+});
+
+test('published channel results replace opinion poll choices in league comparisons', () => {
+  const exits = league.members.map((p, i) => ({ ...league.benchmarkSurvey!, id: 'exit-' + i, kind: 'exit_poll' as const, channelOrMedia: 'Channel ' + i, seats: p.seats }));
+  const oldPoll = { ...exits[0], id: 'old-opinion', kind: 'opinion_poll' as const };
+  const renderSelection = (id: string) => renderToStaticMarkup(<LeagueView league={{ ...league, predictionsHidden: false, benchmarkSurvey: null }} allSurveys={[oldPoll, ...exits]} selectedSurveyId={id} onSelectSurveyId={() => {}} onOpenCreateLeague={() => {}} onJoinExistingLeagueById={() => {}} onNavigateToPicker={() => {}}/>);
+  const first = renderSelection('old-opinion');
+  const second = renderSelection('exit-1');
+  assert.ok(!first.includes('value="old-opinion"'));
+  assert.ok(first.includes('דירוג לפי מדגם Channel 0'));
+  assert.ok(first.indexOf('Alice') < first.indexOf('Bob'));
+  assert.ok(second.indexOf('Bob') < second.indexOf('Alice'));
 });
