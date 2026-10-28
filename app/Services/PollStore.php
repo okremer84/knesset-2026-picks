@@ -12,12 +12,13 @@ class PollStore
     public function store(array $poll): Survey
     {
         Validator::make($poll, [
-            'id' => 'required|string|max:80', 'kind' => ['required', Rule::in(['opinion_poll', 'exit_poll', 'official_results'])],
+            'id' => 'required|string|max:80', 'kind' => ['required', Rule::in(['opinion_poll', 'exit_poll', 'actual_results', 'official_results'])],
             'title' => 'required|string|max:300', 'date' => 'required|date_format:Y-m-d',
             'institute' => 'required|string', 'channelOrMedia' => 'required|string',
             'sourceUrl' => 'required|url:https',
             'seats' => ['required', 'array:'.implode(',', array_keys(config('election.parties')))],
             'seats.*' => 'required|integer|min:0|max:120',
+            'publishedAt' => 'nullable|date', 'countedPercentage' => 'nullable|numeric|between:0,100',
             'turnoutPercentage' => 'nullable|numeric|between:0,100|decimal:0,1',
         ])->validate();
         foreach ($poll['seats'] as $value) {

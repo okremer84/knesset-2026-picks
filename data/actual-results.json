@@ -1,0 +1,34 @@
+{
+  "surveys": [
+    {
+      "id": "actual-2026-ynet",
+      "kind": "actual_results",
+      "title": "תוצאות אמת · ספירת הקולות",
+      "date": "2026-10-27",
+      "institute": "ספירת הקולות כפי שדווחה ב־ynet",
+      "channelOrMedia": "ynet",
+      "sourceUrl": "https://www.ynet.co.il/news/blogs/article/hjvyjpc2fe",
+      "publishedAt": "2026-10-28T04:03:10+00:00",
+      "syncedAt": "2026-10-28T05:07:06+00:00",
+      "countedPercentage": 37,
+      "seats": {
+        "yashar": 21,
+        "likud": 28,
+        "beyachad": 11,
+        "democrats": 7,
+        "utj": 8,
+        "shas": 7,
+        "israel_beitenu": 8,
+        "otzma_yehudit": 7,
+        "joint_list": 12,
+        "raam": 4,
+        "religious_zionism": 7,
+        "amcha": 0,
+        "hendel": 0,
+        "kachol_lavan": 0,
+        "balad": 0
+      },
+      "notes": "חלוקת המנדטים לפי הספירה שדווחה ב־ynet. התוצאות עשויות להשתנות עד לאישורן הסופי."
+    }
+  ]
+}

@@ -7,8 +7,8 @@ This change prepares the repository for Cloud. It does not create a Cloud applic
 3. Attach a MySQL database and use Cloud's injected connection variables. Enable database backups appropriate to the game's needs. Do not use SQLite or local JSON files on Cloud's ephemeral filesystem.
 4. Set the build and deploy commands below.
 5. Configure the application and Google sign-in environment values below.
-6. Enable the **Scheduler** toggle on the App compute cluster, save and deploy. Laravel Cloud then invokes `schedule:run` every minute. The application schedules its own nightly import; do not add another GitHub cron.
-7. After the first deployment, run `php artisan polls:sync` once through the environment's Commands console. Check its exit status and logs, then sign in with Google, create a league and try an invitation in a second browser session.
+6. Enable the **Scheduler** toggle on the App compute cluster, save and deploy. Laravel Cloud then invokes `schedule:run` every minute. The application schedules its own actual-result check every five minutes; do not add another GitHub cron.
+7. After the automatic deployment, verify `/api/results` and the results page. Its last successful check should advance within five minutes through the existing scheduler.
 
 ## Build commands
 
@@ -27,30 +27,20 @@ php artisan view:cache
 
 ## Deploy commands
 
-Releases go through GitHub and the existing automatic deployment. Do not deploy manually on Laravel Cloud or change its settings to ship a release. The October 27 upgrade migration publishes the result bundle on existing installations, so migration-only deployment configurations work without modification.
+Releases go through GitHub and the existing automatic deployment. Do not deploy manually on Laravel Cloud or change its settings to ship a release. The October 28 upgrade migration publishes the actual-result bundle on existing installations, so migration-only deployment configurations work without modification.
 
 ```sh
 php artisan migrate --force
 php artisan db:seed --force
 ```
 
-The seeder initializes an empty surveys table with the reviewed polls, then adds missing election-night records from `data/election-results.json` to new or existing databases. It preserves existing records, including operator corrections and withdrawals, and deactivates the removed Channel 16 bundle record while retaining its history. The October 27 bundle activates the channel results view for channels 11–14. Do not make external Wikipedia availability a deployment requirement; the importer runs separately and preserves the last good data on failure.
+The seeder publishes `data/actual-results.json` and deactivates opinion/exit polls while retaining their history. It preserves later live counts, operator corrections and withdrawals. Migration-only deployments seed the bundle in the October 28 upgrade migration; no external fetch is required during deployment.
 
-## Refresh production polls
+## Automatic result updates
 
-Deploy the latest code first, including any importer fixes. In Laravel Cloud, open the application's **production environment → Commands** and run:
+The existing scheduler runs `results:sync` every five minutes. It validates Ynet's national seat-count updates before publishing them; the browser checks `/api/results` every five minutes and displays the source update and last successful check in Israel time. Failures keep the last good result visible with a delayed-update notice. The old nightly `polls:sync` schedule is removed.
 
-```sh
-php artisan polls:sync
-```
-
-Check that it exits successfully and prints `Imported N polls`. This updates the production poll tables and retains revision history. It does not change player predictions or league memberships. Re-running `db:seed` will not update an existing surveys table, and these picker/importer fixes need no new database migration.
-
-The command fetches live Wikipedia data and applies reviewed metadata corrections from `config/poll-metadata-corrections.json` before saving. This includes Channel 14's October 7 sample size (1,100) and Israel Hayom's October 8 source link. Deploying this configuration and running `polls:sync` updates existing production rows and preserves the corrections on nightly imports; no manual SQL or separate bundle import is needed. The standard build's `php artisan config:cache` includes the correction configuration.
-
-Each correction records its evidence, review date, known source value, and replacement. If Wikipedia already has the reviewed replacement, the import accepts it without creating another revision. If the affected field contains an unexpected third value, the entire import fails for review and keeps the previous polls. Confirm the new value against the publisher, update or retire the correction, deploy, and run `polls:sync` again.
-
-With the App compute cluster's **Scheduler** enabled and deployed, future imports run nightly at **03:17 Asia/Jerusalem**. Run `php artisan schedule:list` in Commands to inspect the configured schedule.
+Do not deploy directly through Laravel Cloud or change its settings to ship this release. Merge through GitHub and allow the existing automation to build and migrate. Final certified results must be reviewed and published explicitly; they take precedence and stop partial-count imports.
 
 ## Environment
 
@@ -77,8 +67,8 @@ Set `WIKI_USER_AGENT` to an identifiable application/contact string. Mail delive
 
 - Confirm Google sign-in creates an account, repeat sign-in returns to that account, logout works, and an invitation survives the Google redirect.
 - Create a short-lived test league, join with another account and verify that picks are hidden before the deadline and submissions fail afterwards.
-- Inspect `php artisan schedule:list`: `polls:sync` should run at 03:17 in Asia/Jerusalem.
-- Monitor `poll_imports` for failures or an absent successful run for more than a day. Logs include import errors and the frontend warns after a failed run.
+- Inspect `php artisan schedule:list`: `results:sync` should run every five minutes, and `polls:sync` should be absent.
+- Monitor `election_result_syncs` for failures or a last successful check older than ten minutes. The result page displays both source and check timestamps.
 - Back up SQL data, including prediction revisions and league benchmark snapshots. Source HTML bodies are compressed and deduplicated, then pruned after 30 days without another observation; hashes and import statuses remain.
 - Original anonymous prototype data remains outside the new backend. Do not publish or import it by guessing ownership from names.
 

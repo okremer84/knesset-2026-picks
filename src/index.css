@@ -379,3 +379,15 @@
 .import-pick-button { padding: 6px 0; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .import-pick-button:hover:not(:disabled) { color: #30382c; }
 .import-pick-button:disabled { opacity: .45; cursor: default; }
+
+/* Current vote-count results */
+.actual-result-status { margin: 1rem 0 1.5rem; padding: 1rem 1.25rem; border: 1px solid var(--line, #d8d8d0); border-radius: 12px; background: #f6f7f2; }
+.actual-result-status p { margin: .25rem 0; font-size: .85rem; color: #575d53; }
+.actual-result-status strong { font-size: 1rem; color: #263021; }
+.actual-result-status a { display: inline-block; margin-top: .5rem; text-decoration: underline; font-size: .85rem; }
+.actual-result-status .result-stale { color: #8b4a13; font-weight: 600; }
+.actual-results-page .survey-result-blocs { margin: 1.5rem 0; }
+.actual-results-page .survey-results { margin-top: 1.5rem; overflow-x: auto; }
+.actual-results-page .survey-results table { width: 100%; }
+.actual-results-page .survey-results th { text-align: right; }
+.actual-results-score strong { font-size: 1.5rem; }

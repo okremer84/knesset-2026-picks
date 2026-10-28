@@ -9,7 +9,7 @@ use App\Services\Coffee\SettleVotes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('polls:sync')->dailyAt('03:17')->timezone('Asia/Jerusalem')->withoutOverlapping(30)->onOneServer();
+Schedule::command('results:sync')->everyFiveMinutes()->withoutOverlapping(2)->onOneServer();
 
 Schedule::command('polls:prune-snapshots')->dailyAt('03:05')->timezone('Asia/Jerusalem')->withoutOverlapping(30)->onOneServer();
 
