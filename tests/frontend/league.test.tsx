@@ -58,7 +58,7 @@ test('Israel deadline conversion uses Israel DST, independent of host timezone',
 
 test('league ignores legacy opinion poll benchmarks and waits for election results', () => {
   const html = render({ ...league, isLocked: true, predictionsHidden: false, benchmarkSurvey: { ...league.benchmarkSurvey!, kind: 'opinion_poll' } });
-  assert.ok(html.includes('ממתינים לפרסום המדגם'));
+  assert.ok(html.includes('ממתינים לפרסום תוצאות האמת'));
   assert.ok(!html.includes('league-score">2'));
 });
 test('dates display DD/MM/YYYY and 24-hour Israel time', () => {

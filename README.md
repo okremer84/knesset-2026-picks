@@ -1,6 +1,6 @@
 # Knesset Fantasy
 
-A Hebrew React frontend with a Laravel 13 backend for private fantasy election leagues. PHP owns authentication, SQL persistence, deadlines, scoring and the nightly Wikipedia import. Vite builds the existing picker, survey comparison and historical views; Laravel serves the application from `public/`.
+A Hebrew React frontend with a Laravel 13 backend for private fantasy election leagues. PHP owns authentication, SQL persistence, deadlines, scoring and five-minute actual-result imports. Vite builds the existing picker, actual-result comparison and historical views; Laravel serves the application from `public/`.
 
 ## Local setup
 
@@ -20,7 +20,7 @@ php artisan serve
 
 Open http://localhost:8000 and sign in with Google. For frontend development, also run `npm run dev` in a second terminal, while continuing to browse port 8000.
 
-The seeder initializes an empty database from the reviewed Wikipedia feed and adds missing reviewed election-night results from `data/election-results.json` to both new and existing databases. It never creates demo users or overwrites existing surveys, result corrections, or withdrawals. Authentication uses Google only. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` before signing in; see [Google setup](docs/laravel-cloud.md#google-sign-in).
+The seeder publishes the reviewed initial vote count in `data/actual-results.json`, preserving later live updates and withdrawals. It deactivates opinion polls and exit polls without deleting their history. Authentication uses Google only. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`; see [Google setup](docs/laravel-cloud.md#google-sign-in).
 
 ## Game rules
 
@@ -32,45 +32,34 @@ The seeder initializes an empty database from the reviewed Wikipedia feed and ad
 - Other players' picks and notes stay private until the deadline, including from the commissioner. Membership and submission status remain visible.
 - Lower total absolute seat error wins. Closeness to official turnout is the only tiebreak; until it is published, equal seat errors share a position. Complete ties share a position.
 - A poll's unreported parties are excluded from comparison rather than invented as zero.
-- League scoring uses active published election results only. Once results are available, the surveys tab becomes **תוצאות המדגמים**, with a result and prediction comparison for each channel. Pre-election polls stay in storage.
+- League scoring and the **תוצאות אמת** page use the same current vote count. Channel selectors and opinion-poll trends are retired; previous records remain in storage.
 - Published election-result corrections update standings across leagues. Historical deadline-change audit records are retained.
-- Exit polls and official results must be published by an operator; leagues automatically select the latest eligible result, preferring official results. Publishing results does not reopen submissions.
+- Partial actual counts update automatically and keep shared ranks for equal seat error. Only operator-published official results enable the turnout tiebreak. Publishing results never reopens submissions.
 
 Draft seats, prediction name, turnout and note are stored per account and league in the browser and survive tab navigation and reloads. Background refreshes preserve unsaved edits. The historical tab presents past election results without scoring today's party lists against different historical alliances.
 
 Authentication uses Google OAuth through Laravel Socialite, database sessions, HttpOnly cookies, CSRF checks and rate limits. All writes use same-origin requests. No public AI ingestion endpoint is exposed.
 
-## Poll imports
+## Actual election results
+
+`results:sync` reads the [Ynet live count](https://www.ynet.co.il/news/blogs/article/hjvyjpc2fe) every five minutes through the existing Laravel scheduler. The browser reads `/api/results` at the same interval. The page shows the count percentage, the result post's publication time, and the last successful source check, all in Israel time. These are partial actual counts, not final certified results. The near-final turnout reported in the article is deliberately not used for a tiebreak.
+
+The parser uses individual national-count posts with explicit seat allocations and timestamps. It never combines updates, cities, percentages or exit-poll estimates. A complete allocation must total 120 seats. Invalid/ambiguous breakdowns, changed HTML, older cached updates and network errors retain the last valid count. The UI warns after a failed check or more than ten minutes without a successful one. `election_result_syncs` records the most recent check and success; `survey_revisions` preserves every changed result. An unchanged successful check advances the check time without creating another revision.
+
+The October 28 migration publishes the reviewed initial count on existing installations during the normal migration-only release. Fresh installations use `php artisan db:seed`. Reseeding never overwrites later updates, corrections or withdrawals. Migrate through the existing GitHub-triggered deployment; no manual Cloud deployment or settings change is needed.
+
+For local validation:
 
 ```sh
-php artisan polls:sync
-php artisan polls:sync --html=/absolute/path/wikipedia.html
+php artisan results:sync --html=tests/Fixtures/ynet-actual-results.html
+php artisan results:sync
 php artisan schedule:list
+php artisan schedule:work
 ```
 
-The schedule is **03:17 Asia/Jerusalem every night**, with shared cache locks preventing simultaneous runs. Enable the scheduler on Cloud; locally use `php artisan schedule:work`.
+The old `polls:sync` schedule is removed. Legacy poll commands, historical fixtures, and the original channel screenshots are retained for audit/reference; they no longer supply the current results page. A daily cleanup still prunes old poll HTML snapshots.
 
-The importer parses the 2026 seat-projection tables, expands row/column spans, resolves original citations and uses explicit current-party mappings in `config/poll-aliases.json`. The current mapping starts on 2026-09-08. Earlier alliances are deliberately not combined with today's lists.
-
-A successful batch is committed atomically. Unknown labels, ambiguous identities, missing figures, layout changes or an HTTP failure fail the run and retain the last good data. The command exits nonzero and writes a log entry. `poll_imports` keeps run status and source hashes; `survey_revisions` preserves corrections. Removed Wikipedia entries become inactive while their history and league snapshots remain.
-
-The API reports the latest import status. The frontend shows a notice after a failed import or when it must display its bundled fallback. Operators should monitor failed runs and the last successful timestamp, and arrange database backups. Source HTML is gzip-compressed and deduplicated by SHA-256 in `poll_snapshots`. A daily 03:05 Asia/Jerusalem cleanup removes bodies not observed for 30 days; import hashes/statuses and survey revisions remain. Run `php artisan polls:prune-snapshots` to clean up manually. Long-term raw-source archival is not configured.
-
-Wikipedia is a secondary source that can be edited incorrectly. Seat-total validation does not establish factual accuracy. Each poll includes its source links. Party labels and alliance mappings need human review when the ballot changes.
-
-Reviewed sample-size and source-link corrections live in `config/poll-metadata-corrections.json`, keyed by the exact poll ID with evidence and review notes. The importer applies them on every sync, accepts an upstream fix to the reviewed value, and fails for review on any unexpected value. Corrected metadata and notes are recorded in the normal survey revisions; raw Wikipedia snapshots remain unchanged. Deploy changes to this configuration before running `polls:sync` in production.
-
-### Publishing reviewed election results
-
-The October 27 bundle contains channels 11, 12, 13 and 14 from the user-supplied ynet screenshots, retained in `public/results/2026-10-27/`. Channels 11–13 carry the screenshot's 22:41 Israel-time update. Channel 14's label and its omitted Otzma Yehudit value (7) were explicitly confirmed by the user. Balad is included in the Joint List; Blue and White is not a separate competing list. Their separate game entries receive zero, avoiding double-counting. These records are exit polls, not official results; no official turnout is supplied.
-
-The October 27 upgrade migration publishes missing bundle records on existing installations during the normal `php artisan migrate --force` deployment. Fresh installations publish the bundle with `php artisan db:seed --force`. It preserves later corrections and deactivated records. The browser checks for published updates every 30 seconds; opinion-poll import status does not appear as an exit-poll update status.
-
-Use `php artisan polls:publish /path/to/reviewed-survey.json` through an operator console. The JSON uses the same Survey shape as `data/wikipedia-surveys.json`, with a unique `id`, `title`, `date` (YYYY-MM-DD), `institute`, `channelOrMedia`, `sourceUrl` (HTTPS), and `seats`.
-
-To correct a bundled result, publish its existing ID with the corrected payload. Editing the bundle and reseeding deliberately does not overwrite an existing result. Set `publishedAt` to the source's update timestamp with its timezone offset when known; the results page uses it to choose between same-day versions of a channel's result. `sourceImageUrl` can point to the retained source screenshot.
-
-Set `kind` to `opinion_poll`, `exit_poll`, or `official_results`. Election-result payloads must explicitly report every configured party (including zeros) and sum to 120. Leagues automatically use published active `exit_poll` records from election day onward, then prefer `official_results`. Include `turnoutPercentage` in official results for tiebreaks. Within a kind, the latest dated record wins (then latest update and ID). Future-dated records and opinion polls never score leagues. Publishing or correcting results updates league standings. Each viewer can select a channel’s exit poll to compare rankings; equal errors share a position, and turnout breaks ties only for official results.
+Final certified results remain an explicit reviewed publication with `kind: official_results`, all configured party allocations totalling 120, and the certified `turnoutPercentage`. They take priority over partial counts and stop the Ynet importer. Automatic source parsing never declares a winner or upgrades a partial count to certified results.
 
 ## Checks
 

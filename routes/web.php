@@ -7,6 +7,7 @@ use App\Http\Controllers\CoffeeController;
 use App\Http\Controllers\LeagueController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Survey;
+use App\Services\ElectionResults;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('api')->group(function () {
     Route::get('election', fn () => ['deadlineLimit' => LeagueController::deadlineLimit()]);
     Route::get('csrf', fn () => ['token' => csrf_token()]);
+    Route::get('results', fn () => app(ElectionResults::class)->feed());
     Route::get('surveys', fn () => ['surveys' => Survey::where('active', true)->get()->pluck('payload')->sortByDesc('date')->values(), 'sync' => DB::table('poll_imports')->latest('id')->first(['status', 'updated_at'])]);
     Route::get('auth/config', [AuthController::class, 'config']);
     Route::middleware('auth')->group(function () {

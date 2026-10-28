@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Share2, Plus } from 'lucide-react';
-import { League, Prediction, Survey } from '../types';
+import { League, Prediction, Survey, ResultSync } from '../types';
 import { calculateScore } from '../utils/scoring';
 import { PARTIES_LIST } from '../data/parties';
 import { formatIsraelTime } from '../utils/israelTime';
-import { surveyTitle, latestElectionResults, localizeSurvey } from '../utils/surveys';
+import { surveyTitle, latestElectionResults, localizeSurvey, isActualResult } from '../utils/surveys';
 import { GovernmentBuilder } from './GovernmentBuilder';
+import { ResultStatus } from './ResultStatus';
 import { Avatar } from './ProfileModal';
 const REVEAL_PARTIES = PARTIES_LIST.filter(party => party.id !== 'balad');
 
@@ -14,6 +15,7 @@ const blocTotal = (prediction: Prediction, blocs: string[]) => REVEAL_PARTIES
   .reduce((total, party) => total + (prediction.seats[party.id] ?? 0), 0);
 
 interface LeagueViewProps {
+  resultSync?: ResultSync | null;
   league: League; allSurveys: Survey[]; selectedSurveyId: string;
   onSelectSurveyId: (id: string) => void; onOpenCreateLeague: () => void;
   onJoinExistingLeagueById: (code: string) => void; onNavigateToPicker: () => void;
@@ -36,7 +38,7 @@ export function PickDetails({ prediction, benchmark }: { prediction: Prediction;
     </dl>
     <p className="pick-majority-note">לפי התחזית · רוב של 61 מנדטים ומעלה</p>
     <p className="pick-legend"><span>תחזית</span>{benchmark && <span>{surveyTitle(benchmark)}</span>}</p>
-    <table><caption className="sr-only">פירוט התחזית של {prediction.memberName}</caption><thead><tr><th>מפלגה</th><th>תחזית</th><th>מדגם</th><th>הפרש</th><th>השוואה</th></tr></thead><tbody>
+    <table><caption className="sr-only">פירוט התחזית של {prediction.memberName}</caption><thead><tr><th>מפלגה</th><th>תחזית</th><th>{isActualResult(benchmark) ? 'תוצאות אמת' : 'מדגם'}</th><th>הפרש</th><th>השוואה</th></tr></thead><tbody>
       {[...REVEAL_PARTIES].sort((a, b) => (prediction.seats[b.id] || 0) - (prediction.seats[a.id] || 0) || a.name.localeCompare(b.name, 'he')).map(party => {
         const predicted = prediction.seats[party.id] || 0;
         const actual = benchmark?.seats[party.id];
@@ -90,7 +92,7 @@ export function PartyComparison({ rows }: { rows: ComparisonPlayer[] }) {
   </section>;
 }
 
-export function LeagueView({ league, allSurveys, selectedSurveyId, onSelectSurveyId, onOpenCreateLeague, onNavigateToPicker, userPrediction, currentUserId }: LeagueViewProps) {
+export function LeagueView({ league, resultSync, allSurveys, selectedSurveyId, onSelectSurveyId, onOpenCreateLeague, onNavigateToPicker, userPrediction, currentUserId }: LeagueViewProps) {
   const [view, setView] = useState<'rankings' | 'parties' | 'government'>('rankings');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -103,7 +105,7 @@ export function LeagueView({ league, allSurveys, selectedSurveyId, onSelectSurve
   const benchmark = options.find(s => s.id === selectedSurveyId)
     ?? options.find(s => s.channelOrMedia === selectedSource?.channelOrMedia)
     ?? options[0] ?? null;
-  const benchmarkLabel = benchmark?.kind === 'exit_poll' ? `דירוג לפי מדגם ${benchmark.channelOrMedia}` : 'דירוג לפי התוצאות הרשמיות';
+  const benchmarkLabel = benchmark?.kind === 'actual_results' ? 'דירוג לפי תוצאות האמת' : benchmark?.kind === 'exit_poll' ? `דירוג לפי מדגם ${benchmark.channelOrMedia}` : 'דירוג לפי התוצאות הרשמיות';
   const hidden = league.predictionsHidden;
   const turnout = benchmark?.kind === 'official_results'
     ? benchmark.turnoutPercentage ?? (benchmark.id === league.benchmarkSurvey?.id ? league.benchmarkTurnoutPercentage : null) ?? null
@@ -149,14 +151,15 @@ export function LeagueView({ league, allSurveys, selectedSurveyId, onSelectSurve
     </div>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {!hidden && view === 'rankings' && options.length > 0 && <div className="league-comparison-control">
-      <label htmlFor="league-survey">המדגם לדירוג
+      {!isActualResult(benchmark) && <label htmlFor="league-survey">המדגם לדירוג
         <select id="league-survey" value={benchmark?.id ?? ''} onChange={event => onSelectSurveyId(event.target.value)}>
           {options.map(survey => <option key={survey.id} value={survey.id}>{survey.kind === 'official_results' ? 'תוצאות רשמיות' : `מדגם ${survey.channelOrMedia}`}</option>)}
         </select>
-      </label>
-      <div className="league-result-heading" aria-live="polite"><h2>{benchmarkLabel}</h2><p>{benchmark?.kind === 'exit_poll' ? 'דירוג זמני · ' : ''}פחות נקודות = תחזית קרובה יותר לתוצאה</p></div>
+      </label>}
+      <div className="league-result-heading" aria-live="polite"><h2>{benchmarkLabel}</h2><p>{benchmark?.kind !== 'official_results' ? 'דירוג זמני · ' : ''}פחות נקודות = תחזית קרובה יותר לתוצאה</p></div>
     </div>}
-    {(hidden || view === 'rankings') && <div className="league-table-caption">{hidden ? <p>התחזיות וההערות ייחשפו בתאריך האחרון להגשה, בשעה 20:00 בשעון ישראל.</p> : <><p>{benchmark?.kind === 'official_results' ? 'תוצאות סופיות' : benchmark ? 'מדגם · דירוג זמני' : 'ממתינים לפרסום המדגם · הניקוד יופיע לאחר הפרסום'}</p><details><summary>איך הניקוד עובד?</summary><p>פחות נקודות עדיף: סכום ההפרשים המוחלטים במנדטים. במדגם, נקודות זהות מקנות מקום משותף. בתוצאות הרשמיות, שוויון מוכרע לפי הקרבה לאחוז ההצבעה הרשמי; אם גם הפער הזה זהה, המקום משותף. מפלגות שלא דווחו אינן נכללות בניקוד.</p>{benchmark?.sourceUrl && <a href={benchmark.sourceUrl} target="_blank" rel="noreferrer">מקור הנתונים</a>}</details></>}</div>}
+    {!hidden && isActualResult(benchmark) && benchmark && <ResultStatus result={benchmark} sync={resultSync}/>}
+    {(hidden || view === 'rankings') && <div className="league-table-caption">{hidden ? <p>התחזיות וההערות ייחשפו בתאריך האחרון להגשה, בשעה 20:00 בשעון ישראל.</p> : <><p>{benchmark?.kind === 'official_results' ? 'תוצאות סופיות' : benchmark?.kind === 'actual_results' ? 'ספירה חלקית · דירוג זמני' : benchmark ? 'מדגם · דירוג זמני' : 'ממתינים לפרסום תוצאות האמת · הניקוד יופיע לאחר הפרסום'}</p><details><summary>איך הניקוד עובד?</summary><p>פחות נקודות עדיף: סכום ההפרשים המוחלטים במנדטים. כל עוד הספירה נמשכת, נקודות זהות מקנות מקום משותף. בתוצאות הרשמיות, שוויון מוכרע לפי הקרבה לאחוז ההצבעה הרשמי; אם גם הפער הזה זהה, המקום משותף. מפלגות שלא דווחו אינן נכללות בניקוד.</p>{benchmark?.sourceUrl && <a href={benchmark.sourceUrl} target="_blank" rel="noreferrer">מקור הנתונים</a>}</details></>}</div>}
     {!hidden && <div className="league-view-switch" role="group" aria-label="תצוגת ליגה">
       <button aria-pressed={view === 'rankings'} onClick={() => setView('rankings')}>דירוג הליגה</button>
       <button aria-pressed={view === 'parties'} onClick={() => setView('parties')}>תחזיות לפי מפלגה</button>

@@ -6,27 +6,27 @@ import { SeatPicker } from './components/SeatPicker';
 import { LeagueView } from './components/LeagueView';
 import { apiFetch as fetch } from './lib/api';
 import { useUser } from './components/AuthGate';
-import { surveySyncNotice, latestElectionResults } from './utils/surveys';
+import { latestElectionResults } from './utils/surveys';
 import { initialLeagueId, loadInitialLeague, initialTab } from './lib/navigation';
 import { readPreference, writePreference } from './lib/preferences';
 import { createPredictionSync } from './lib/predictionSync';
 import { reconcileDraft, reconcileDetails, predictionDetails, storedPredictionDetails, type PredictionDetails } from './utils/predictionDraft';
-import { SurveyComparator } from './components/SurveyComparator';
+import { ResultsView } from './components/ResultsView';
 import { HistoricalAnalysis } from './components/HistoricalAnalysis';
 import { CreateLeagueModal } from './components/CreateLeagueModal';
 import { DEFAULT_SURVEYS } from './data/surveys';
 import { PARTIES_LIST, partiesForPick } from './data/parties';
-import { League, LeagueSummary, Prediction, Survey, SavedPick } from './types';
+import { League, LeagueSummary, Prediction, Survey, SavedPick, ResultSync } from './types';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const user = useUser();
   const [surveyNotice, setSurveyNotice] = useState('מציגים עותק שמור של הנתונים עד לקבלת עדכון מהשרת');
+  const [resultSync, setResultSync] = useState<ResultSync | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
   const [activeTab, setActiveTab] = useState(() => initialTab(new URLSearchParams(window.location.search), readPreference('knesset_fantasy_tab_' + user.id)));
   const [allSurveys, setAllSurveys] = useState<Survey[]>(DEFAULT_SURVEYS);
-  const hasResults = latestElectionResults(allSurveys).length > 0;
   const [selectedSurveyId, setSelectedSurveyId] = useState<string>(DEFAULT_SURVEYS[0]?.id || '');
   const [currentLeague, setCurrentLeague] = useState<League | null>(null);
   const [switchingLeague, setSwitchingLeague] = useState(false);
@@ -180,7 +180,7 @@ export default function App() {
     }
   };
 
-  // Refresh published results while the election-night page stays open.
+  // The server checks Ynet every five minutes; refresh the published snapshot at the same cadence.
   useEffect(() => {
     const controller = new AbortController();
     let refreshing = false;
@@ -188,13 +188,14 @@ export default function App() {
       if (refreshing) return;
       refreshing = true;
       try {
-        const res = await fetch('/api/surveys', { signal: controller.signal });
+        const res = await fetch('/api/results', { signal: controller.signal });
         if (!res.ok) throw new Error('Failed to load election data');
         const data = await res.json();
         if (!Array.isArray(data.surveys)) throw new Error('Invalid election data');
         if (!controller.signal.aborted) {
           setAllSurveys(data.surveys);
-          setSurveyNotice(latestElectionResults(data.surveys).length ? '' : surveySyncNotice(data.surveys.length, data.sync));
+          setResultSync(data.sync ?? null);
+          setSurveyNotice('');
         }
       } catch {
         if (!controller.signal.aborted) setSurveyNotice('לא ניתן לעדכן את הנתונים מהשרת. מוצג העותק השמור האחרון עם תאריכי המקור.');
@@ -203,7 +204,7 @@ export default function App() {
       }
     };
     void refresh();
-    const timer = window.setInterval(refresh, 30000);
+    const timer = window.setInterval(refresh, 300000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
 
@@ -527,7 +528,6 @@ export default function App() {
 
       {/* Header */}
       <Header
-        hasResults={hasResults}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
@@ -572,6 +572,7 @@ export default function App() {
             <LeagueView
               key={currentLeague.id}
               league={currentLeague}
+              resultSync={resultSync}
               allSurveys={allSurveys}
               selectedSurveyId={selectedSurveyId}
               onSelectSurveyId={setSelectedSurveyId}
@@ -596,7 +597,8 @@ export default function App() {
 
 
         {activeTab === 'surveys' && (
-          <SurveyComparator
+          <ResultsView
+            sync={resultSync}
             surveys={allSurveys}
             picks={picksStatus === 'ready' ? savedPicks.filter(pick => pick.leagueId) : []}
             picksStatus={picksStatus}

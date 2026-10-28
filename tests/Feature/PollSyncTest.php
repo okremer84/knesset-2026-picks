@@ -251,8 +251,7 @@ class PollSyncTest extends TestCase
     public function test_seed_never_overwrites_existing_data_or_creates_demo_users(): void
     {
         $this->seed();
-        $this->assertDatabaseCount('surveys', count(json_decode(file_get_contents(base_path('data/wikipedia-surveys.json')), true)['surveys'])
-            + count(json_decode(file_get_contents(base_path('data/election-results.json')), true)['surveys']));
+        $this->assertDatabaseCount('surveys', count(json_decode(file_get_contents(base_path('data/actual-results.json')), true)['surveys']));
         $this->assertDatabaseCount('users', 0);
         $id = Survey::first()->id;
         Survey::whereKey($id)->update(['active' => false]);

@@ -65,6 +65,10 @@ export function latestPollsByChannel(surveys: Survey[], cutoff: string): Survey[
 }
 
 export function latestElectionResults(surveys: Survey[], cutoff = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date())): Survey[] {
+  const actual = surveys.filter(s => isActualResult(s) && s.date <= cutoff).sort((a, b) =>
+    Number(b.kind === 'official_results') - Number(a.kind === 'official_results')
+    || (b.publishedAt ?? b.date).localeCompare(a.publishedAt ?? a.date));
+  if (actual.length) return [actual[0]];
   const channels = new Map<string, Survey>();
   const results = surveys.filter(s => (s.kind === 'exit_poll' || s.kind === 'official_results') && s.date <= cutoff);
   for (const survey of results.sort((a, b) => b.date.localeCompare(a.date)
@@ -76,4 +80,8 @@ export function latestElectionResults(surveys: Survey[], cutoff = new Intl.DateT
   return [...channels.values()].sort((a, b) => Number(b.kind === 'official_results') - Number(a.kind === 'official_results')
     || Number(a.channelOrMedia.match(/\d+/)?.[0] ?? Infinity) - Number(b.channelOrMedia.match(/\d+/)?.[0] ?? Infinity)
     || a.channelOrMedia.localeCompare(b.channelOrMedia, 'he', { numeric: true }));
+}
+
+export function isActualResult(survey: Survey | null | undefined): boolean {
+  return survey?.kind === 'actual_results' || survey?.kind === 'official_results';
 }

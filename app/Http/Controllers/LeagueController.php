@@ -6,6 +6,7 @@ use App\Models\League;
 use App\Models\Prediction;
 use App\Models\Survey;
 use App\Models\User;
+use App\Services\ElectionResults;
 use App\Services\Scoring;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -163,6 +164,10 @@ class LeagueController extends Controller
 
     private function publishedResult(): ?array
     {
+        if ($actual = app(ElectionResults::class)->current()) {
+            return $actual;
+        }
+
         // Only explicitly published election-night/result records can score a league.
         // Opinion poll imports never participate in this selection.
         return Survey::where('active', true)->whereIn('kind', ['exit_poll', 'official_results'])->get()
@@ -194,7 +199,7 @@ class LeagueController extends Controller
         return ['id' => $l->id, 'name' => $l->name, 'description' => $l->description, 'creatorName' => $l->owner->name, 'createdAt' => $l->created_at->toIso8601String(),
             'isCommissioner' => $l->owner_id === $r->user()->id, 'isLocked' => $locked, 'locksAt' => $l->effectiveDeadline()->toIso8601String(),
             'inviteCode' => $l->invite_code, 'electionStage' => match ($benchmark['kind'] ?? null) {
-                'official_results' => 'final_results', 'exit_poll' => 'exit_poll', default => 'voting_open'
+                'official_results' => 'final_results', 'actual_results' => 'counting', 'exit_poll' => 'exit_poll', default => 'voting_open'
             }, 'targetSurveyId' => $benchmark['id'] ?? null, 'benchmarkSurvey' => $benchmark,
             'benchmarkTurnoutPercentage' => $turnout, 'members' => $members, 'rankings' => $locked && $benchmark ? $rankings : [],
             'unsubmittedPlayers' => $l->users->filter(fn ($u) => ! $predictions->contains('user_id', $u->id))->map(fn ($u) => ['id' => (string) $u->id, 'name' => $u->name, 'joinedAt' => $u->pivot->created_at->toIso8601String()])->values(),

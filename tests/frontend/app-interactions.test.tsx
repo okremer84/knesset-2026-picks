@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { JSDOM } from 'jsdom';
 import type { League, Prediction, SavedPick, Survey } from '../../src/types';
 import resultFeed from '../../data/election-results.json';
+import actualFeed from '../../data/actual-results.json';
 
 const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/', pretendToBeVisual: true });
 Object.assign(globalThis, {
@@ -35,8 +36,9 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
     participants: [{ userId: 1, name: 'Tester', submitted: false }],
   };
   const refreshes = new Map<number, () => Promise<void>>();
+  const intervals: number[] = [];
   let timerId = 0;
-  window.setInterval = ((fn: () => Promise<void>) => { refreshes.set(++timerId, fn); return timerId; }) as typeof window.setInterval;
+  window.setInterval = ((fn: () => Promise<void>, ms: number) => { intervals.push(ms); refreshes.set(++timerId, fn); return timerId; }) as typeof window.setInterval;
   window.clearInterval = id => { refreshes.delete(id); };
   window.fetch = async (input, init) => {
     const url = String(input);
@@ -44,7 +46,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
     if (url === '/api/auth/user') return Response.json({ user: { id: 1, name: 'Tester', email: 'test@example.org' } });
     if (url === '/api/auth/config') return Response.json({ googleEnabled: true });
     if (url === '/api/csrf') return Response.json({ token: 'test-csrf' });
-    if (url === '/api/surveys') return api.surveyFailure ? new Response('', { status: 503 }) : Response.json({ surveys: api.surveys, sync: null });
+    if (url === '/api/results') return api.surveyFailure ? new Response('', { status: 503 }) : Response.json({ surveys: api.surveys, sync: null });
     if (url === '/api/leagues/join') { api.joins++; return Response.json({ league: { ...league, id: 'created', name: 'Joined league' } }); }
     if (url.startsWith('/api/my-picks') && api.failPickRead) return new Response('', { status: 503 });
     if (url === '/api/election') return Response.json({ deadlineLimit: '2026-10-27T18:00:00Z' });
@@ -85,7 +87,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
   const render = () => act(async () => { root.render(<AuthGate><App/></AuthGate>); });
   await render();
   t.after(async () => { await act(async () => root.unmount()); });
-  return { api, league, async reload() { await act(async () => root.unmount()); root = createRoot(container); await render(); },
+  return { api, league, intervals, async reload() { await act(async () => root.unmount()); root = createRoot(container); await render(); },
     async refreshWithoutRender() { await Promise.all([...refreshes.values()].map(fn => fn())); },
     async refresh() { await act(async () => { for (const fn of [...refreshes.values()]) await fn(); }); } };
 }
@@ -163,7 +165,7 @@ test('the full draft survives tab navigation and reloading the app', async t => 
   const app = await start(t);
   await openDraft();
   await click('ביטול');
-  await click('סקרים אחרונים');
+  await click('תוצאות אמת');
   await click('התחזית שלי');
   assert.equal(input('מנדטים להליכוד').value, '120');
   await click('הגשת התחזית');
@@ -598,22 +600,26 @@ for (const edited of [false, true]) {
   });
 }
 
-test('published results replace polls on refresh and survive a temporary API failure', async t => {
+test('actual results refresh every five minutes and survive a temporary API failure', async t => {
   const app = await start(t);
-  app.api.surveys = resultFeed.surveys as Survey[];
+  assert.ok(app.intervals.includes(300000), 'actual-result refresh uses a five-minute interval');
+  app.api.surveys = actualFeed.surveys as Survey[];
   await app.refresh();
-  await click('תוצאות המדגמים');
-  assert.match(document.body.textContent!, /תוצאות המדגם/);
-  assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 4);
+  await click('תוצאות אמת');
+  assert.match(document.body.textContent!, /37% מהקולות נספרו/);
+  assert.match(document.body.textContent!, /עדכון התוצאות:/);
+  assert.match(document.body.textContent!, /כל 5 דקות/);
+  assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 0);
+  assert.doesNotMatch(document.body.textContent!, /תוצאות המדגמים|המגמה לאורך זמן/);
   app.api.surveyFailure = true;
   await app.refresh();
   assert.match(document.body.textContent!, /לא ניתן לעדכן את הנתונים/);
-  assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 4);
+  assert.match(document.body.textContent!, /37% מהקולות נספרו/);
   app.api.surveyFailure = false;
-  app.api.surveys = app.api.surveys.filter(s => s.channelOrMedia !== 'ערוץ 14');
+  app.api.surveys = [];
   await app.refresh();
-  assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 3);
-  assert.doesNotMatch(document.body.textContent!, /לא ניתן לעדכן את הנתונים/);
+  assert.match(document.body.textContent!, /ממתינים לפרסום תוצאות האמת/);
+  assert.doesNotMatch(document.body.textContent!, /37%|לא ניתן לעדכן את הנתונים/);
 });
 
 test('the league page keeps the selected channel on refresh and removes withdrawn results', async t => {
@@ -651,5 +657,5 @@ test('the league page keeps the selected channel on refresh and removes withdraw
   await app.refresh();
   assert.equal(selector(), null);
   assert.equal(score(), '—');
-  assert.match(document.body.textContent!, /ממתינים לפרסום המדגם/);
+  assert.match(document.body.textContent!, /ממתינים לפרסום תוצאות האמת/);
 });

@@ -20,7 +20,7 @@ export interface Prediction {
   turnoutPercentage?: number; // tiebreaker vote participation % (e.g. 71.5)
 }
 
-export type ElectionStage = 'voting_open' | 'exit_poll' | 'final_results';
+export type ElectionStage = 'voting_open' | 'exit_poll' | 'counting' | 'final_results';
 
 export interface UnsubmittedPlayer {
   id: string;
@@ -57,12 +57,13 @@ export interface League {
 }
 
 export interface Survey {
-  kind?: 'opinion_poll' | 'exit_poll' | 'official_results';
+  kind?: 'opinion_poll' | 'exit_poll' | 'actual_results' | 'official_results';
   source?: 'wikipedia';
   sourceUrl?: string;
   originalSourceUrls?: string[];
   syncedAt?: string;
   publishedAt?: string;
+  countedPercentage?: number;
   turnoutPercentage?: number;
   votePercentages?: Record<string, number>;
   notReportedPartyIds?: string[];
@@ -81,6 +82,13 @@ export interface Survey {
   };
   notes?: string;
   sourceImageUrl?: string;
+}
+
+export interface ResultSync {
+  status: 'pending' | 'succeeded' | 'failed';
+  checkedAt?: string | null;
+  lastSuccessAt?: string | null;
+  stale?: boolean;
 }
 
 export interface ScoreResult {
