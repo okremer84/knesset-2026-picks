@@ -38,7 +38,7 @@ The seeder publishes `data/actual-results.json` and deactivates opinion/exit pol
 
 ## Automatic result updates
 
-The existing scheduler runs `results:sync` every five minutes. It validates Ynet's national seat-count updates before publishing them; the browser checks `/api/results` every five minutes and displays the source update and last successful check in Israel time. Failures keep the last good result visible with a delayed-update notice. The old nightly `polls:sync` schedule is removed.
+The existing scheduler runs `results:sync` every five minutes. It validates Ynet's national seat-count updates before publishing them; the browser checks `/api/results` every 30 seconds and when the tab becomes visible or focused and displays the source update and last successful check in Israel time. When a Ynet blog closes, the importer follows its explicit continuation and saves the new source URL. Missing or invalid continuations are failures, so a closed blog cannot keep advancing the last-success timestamp. Failures keep the last good result visible with a delayed-update notice. The old nightly `polls:sync` schedule is removed.
 
 Do not deploy directly through Laravel Cloud or change its settings to ship this release. Merge through GitHub and allow the existing automation to build and migrate. Final certified results must be reviewed and published explicitly; they take precedence and stop partial-count imports.
 
