@@ -180,7 +180,7 @@ export default function App() {
     }
   };
 
-  // The server checks Ynet every five minutes; refresh the published snapshot at the same cadence.
+  // Ynet is checked every five minutes; pick up the published snapshot promptly.
   useEffect(() => {
     const controller = new AbortController();
     let refreshing = false;
@@ -204,8 +204,18 @@ export default function App() {
       }
     };
     void refresh();
-    const timer = window.setInterval(refresh, 300000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    const timer = window.setInterval(refresh, 30000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, []);
 
   // Old poll selections must resolve to an available election result.

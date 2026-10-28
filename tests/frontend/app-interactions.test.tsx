@@ -89,7 +89,7 @@ async function start(t: test.TestContext, initialPick: Prediction | null = null,
   t.after(async () => { await act(async () => root.unmount()); });
   return { api, league, intervals, async reload() { await act(async () => root.unmount()); root = createRoot(container); await render(); },
     async refreshWithoutRender() { await Promise.all([...refreshes.values()].map(fn => fn())); },
-    async refresh() { await act(async () => { for (const fn of [...refreshes.values()]) await fn(); }); } };
+    async refresh(withinMs = Infinity) { await act(async () => { for (const [id, fn] of [...refreshes.entries()]) if (intervals[id - 1] <= withinMs) await fn(); }); } };
 }
 
 function input(label: string): HTMLInputElement {
@@ -600,9 +600,8 @@ for (const edited of [false, true]) {
   });
 }
 
-test('actual results refresh every five minutes and survive a temporary API failure', async t => {
+test('newly published results appear within thirty seconds and survive a temporary API failure', async t => {
   const app = await start(t);
-  assert.ok(app.intervals.includes(300000), 'actual-result refresh uses a five-minute interval');
   app.api.surveys = actualFeed.surveys as Survey[];
   await app.refresh();
   await click('תוצאות אמת');
@@ -611,16 +610,35 @@ test('actual results refresh every five minutes and survive a temporary API fail
   assert.match(document.body.textContent!, /כל 5 דקות/);
   assert.equal(document.querySelectorAll('.exit-poll-channels button').length, 0);
   assert.doesNotMatch(document.body.textContent!, /תוצאות המדגמים|המגמה לאורך זמן/);
+  app.api.surveys = actualFeed.surveys.map(s => ({ ...s, countedPercentage: 48.43, seats: { ...s.seats, likud: 27, yashar: 22, joint_list: 11, democrats: 9, religious_zionism: 6 } })) as Survey[];
+  await app.refresh(30000);
+  assert.match(document.body.textContent!, /48.43% מהקולות נספרו/);
+  const likud = [...document.querySelectorAll('tbody tr')].find(row => row.textContent?.includes('הליכוד'));
+  assert.ok(likud?.textContent?.includes('27'), 'the updated seats are displayed too');
   app.api.surveyFailure = true;
-  await app.refresh();
+  await app.refresh(30000);
   assert.match(document.body.textContent!, /לא ניתן לעדכן את הנתונים/);
-  assert.match(document.body.textContent!, /37% מהקולות נספרו/);
+  assert.match(document.body.textContent!, /48.43% מהקולות נספרו/);
   app.api.surveyFailure = false;
   app.api.surveys = [];
-  await app.refresh();
+  await app.refresh(30000);
   assert.match(document.body.textContent!, /ממתינים לפרסום תוצאות האמת/);
-  assert.doesNotMatch(document.body.textContent!, /37%|לא ניתן לעדכן את הנתונים/);
+  assert.doesNotMatch(document.body.textContent!, /48.43%|לא ניתן לעדכן את הנתונים/);
 });
+
+for (const event of ['focus', 'visibilitychange']) {
+  test(`returning to the page via ${event} immediately loads newly published results`, async t => {
+    const app = await start(t, null, { url: '/?tab=surveys' });
+    app.api.surveys = actualFeed.surveys as Survey[];
+    await app.refresh();
+    assert.match(document.body.textContent!, /37% מהקולות נספרו/);
+    app.api.surveys = actualFeed.surveys.map(s => ({ ...s, countedPercentage: 48.43 })) as Survey[];
+    await act(async () => {
+      (event === 'focus' ? window : document).dispatchEvent(new window.Event(event));
+    });
+    assert.match(document.body.textContent!, /48.43% מהקולות נספרו/);
+  });
+}
 
 test('the league page keeps the selected channel on refresh and removes withdrawn results', async t => {
   const results = resultFeed.surveys as Survey[];
