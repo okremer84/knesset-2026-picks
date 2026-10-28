@@ -42,7 +42,9 @@ Authentication uses Google OAuth through Laravel Socialite, database sessions, H
 
 ## Actual election results
 
-`results:sync` reads the [Ynet live count](https://www.ynet.co.il/news/blogs/article/hjvyjpc2fe) every five minutes through the existing Laravel scheduler. The browser reads `/api/results` at the same interval. The page shows the count percentage, the result post's publication time, and the last successful source check, all in Israel time. These are partial actual counts, not final certified results. The near-final turnout reported in the article is deliberately not used for a tiebreak.
+`results:sync` reads the [Ynet live count](https://www.ynet.co.il/news/blogs/article/hjvyjpc2fe) every five minutes through the existing Laravel scheduler. The browser reads `/api/results` every 30 seconds and when the tab becomes visible or focused. The page shows the count percentage, the result post's publication time, and the last successful source check, all in Israel time. These are partial actual counts, not final certified results. The near-final turnout reported in the article is deliberately not used for a tiebreak.
+
+When Ynet ends a live blog, the importer follows the explicit continuation link in its closure notice and remembers the validated current blog for subsequent checks. Only HTTPS Ynet live-blog URLs are accepted; redirects, missing/ambiguous continuation links, loops and chains longer than three pages fail without refreshing the last-success timestamp. A closed saved HTML snapshot cannot be published as a fresh count.
 
 The parser uses individual national-count posts with explicit seat allocations and timestamps. It never combines updates, cities, percentages or exit-poll estimates. A complete allocation must total 120 seats. Invalid/ambiguous breakdowns, changed HTML, older cached updates and network errors retain the last valid count. The UI warns after a failed check or more than ten minutes without a successful one. `election_result_syncs` records the most recent check and success; `survey_revisions` preserves every changed result. An unchanged successful check advances the check time without creating another revision.
 

@@ -9,7 +9,6 @@ use App\Services\YnetResults;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -28,15 +27,15 @@ class SyncResults extends Command
             return self::SUCCESS;
         }
         try {
-            if ((app(ElectionResults::class)->current()['kind'] ?? null) === 'official_results') {
+            $current = app(ElectionResults::class)->current();
+            if (($current['kind'] ?? null) === 'official_results') {
                 $this->info('Final results already published; automatic partial counts are stopped');
 
                 return self::SUCCESS;
             }
-            $html = $this->option('html') ? file_get_contents($this->option('html'))
-                : Http::withUserAgent(config('election.user_agent'))->accept('text/html')->timeout(30)
-                    ->get(config('election.results_source_url'))->throw()->body();
-            $result = $parser->parse($html);
+            $result = $this->option('html')
+                ? $parser->parse(file_get_contents($this->option('html')))
+                : $parser->fetch($current['sourceUrl'] ?? null);
             $previous = Survey::find($result['id'])?->payload;
             if ($previous && strcmp($result['publishedAt'], $previous['publishedAt']) < 0) {
                 throw new RuntimeException('Source returned an older count; latest result retained');

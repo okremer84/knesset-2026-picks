@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schedule;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ElectionResultsTest extends TestCase
@@ -47,6 +48,108 @@ class ElectionResultsTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('No national seat-count update found');
         app(YnetResults::class)->parse(str_replace('<h3>', '<h3>מדגם מעודכן: ', $this->html()));
+    }
+
+    public function test_sync_follows_the_closed_blog_and_remembers_the_current_source(): void
+    {
+        $this->seed();
+        $nextUrl = 'https://www.ynet.co.il/news/blogs/article/bkiwzbj6mg';
+        Http::fake([
+            config('election.results_source_url') => Http::response(file_get_contents(base_path('tests/Fixtures/ynet-closed-results.html'))),
+            $nextUrl => Http::response(file_get_contents(base_path('tests/Fixtures/ynet-next-results.html'))),
+        ]);
+        $this->artisan('results:sync')->assertSuccessful();
+        $this->getJson('/api/results')->assertJsonPath('surveys.0.countedPercentage', 85.6)
+            ->assertJsonPath('surveys.0.seats.likud', 26)->assertJsonPath('surveys.0.seats.raam', 7)
+            ->assertJsonPath('surveys.0.sourceUrl', $nextUrl)
+            ->assertJsonPath('surveys.0.publishedAt', '2026-10-28T12:38:08+00:00')
+            ->assertJsonPath('surveys.0.kind', 'actual_results')->assertJsonPath('sync.status', 'succeeded');
+        Http::assertSentCount(2);
+        $this->travel(5)->minutes();
+        $this->artisan('results:sync')->assertSuccessful();
+        Http::assertSentCount(3);
+        $this->assertSame($nextUrl, Http::recorded()->last()[0]->url());
+    }
+
+    public function test_a_failed_continuation_does_not_refresh_the_closed_blogs_success_time(): void
+    {
+        $oldUrl = config('election.results_source_url');
+        Http::fake([
+            $oldUrl => Http::sequence()->push($this->html())->push(file_get_contents(base_path('tests/Fixtures/ynet-closed-results.html'))),
+            'https://www.ynet.co.il/news/blogs/article/bkiwzbj6mg' => Http::response('', 503),
+        ]);
+        $this->artisan('results:sync')->assertSuccessful();
+        $before = $this->getJson('/api/results')->json();
+        $this->travel(5)->minutes();
+        $this->artisan('results:sync')->assertFailed();
+        $after = $this->getJson('/api/results')->assertJsonPath('sync.status', 'failed')->json();
+        $this->assertSame($before['surveys'], $after['surveys']);
+        $this->assertSame($before['sync']['lastSuccessAt'], $after['sync']['lastSuccessAt']);
+    }
+
+    public function test_a_closed_saved_snapshot_is_not_published_as_a_fresh_count(): void
+    {
+        $this->seed();
+        $before = Survey::find('actual-2026-ynet')->payload;
+        $this->artisan('results:sync', ['--html' => base_path('tests/Fixtures/ynet-closed-results.html')])->assertFailed();
+        $this->assertSame($before, Survey::find('actual-2026-ynet')->payload);
+        Http::assertNothingSent();
+    }
+
+    public static function invalidContinuationLinks(): array
+    {
+        return [
+            'missing link' => [''],
+            'different host' => ['https://example.com/news/blogs/article/next'],
+            'different Ynet page type' => ['https://www.ynet.co.il/news/article/next'],
+            'credentials in URL' => ['https://user@www.ynet.co.il/news/blogs/article/next'],
+        ];
+    }
+
+    #[DataProvider('invalidContinuationLinks')]
+    public function test_closed_blog_without_a_valid_continuation_marks_failure(string $target): void
+    {
+        $this->seed();
+        $before = Survey::find('actual-2026-ynet')->payload;
+        $closed = str_replace('https://www.ynet.co.il/news/blogs/article/bkiwzbj6mg', $target,
+            file_get_contents(base_path('tests/Fixtures/ynet-closed-results.html')));
+        Http::fake([config('election.results_source_url') => Http::response($closed)]);
+        $this->artisan('results:sync')->assertFailed();
+        $this->assertSame($before, Survey::find('actual-2026-ynet')->payload);
+        $this->getJson('/api/results')->assertJsonPath('sync.status', 'failed');
+        Http::assertSentCount(1);
+    }
+
+    public function test_continuation_loops_are_bounded_and_retain_the_last_valid_result(): void
+    {
+        $this->seed();
+        $before = Survey::find('actual-2026-ynet')->payload;
+        $oldUrl = config('election.results_source_url');
+        $nextUrl = 'https://www.ynet.co.il/news/blogs/article/bkiwzbj6mg';
+        $closed = file_get_contents(base_path('tests/Fixtures/ynet-closed-results.html'));
+        Http::fake([
+            $oldUrl => Http::response($closed),
+            $nextUrl => Http::response(str_replace($nextUrl, $oldUrl, $closed)),
+        ]);
+        $this->artisan('results:sync')->assertFailed();
+        $this->assertSame($before, Survey::find('actual-2026-ynet')->payload);
+        Http::assertSentCount(2);
+    }
+
+    public function test_relative_continuation_links_are_resolved_without_following_other_article_links(): void
+    {
+        $nextUrl = 'https://www.ynet.co.il/news/blogs/article/bkiwzbj6mg';
+        $closed = str_replace($nextUrl, '/news/blogs/article/bkiwzbj6mg',
+            file_get_contents(base_path('tests/Fixtures/ynet-closed-results.html')));
+        $current = file_get_contents(base_path('tests/Fixtures/ynet-next-results.html'));
+        $current = str_replace('</body>', '<p><a href="'.config('election.results_source_url').'">לעדכונים מהלילה</a></p></body>', $current);
+        Http::fake([
+            config('election.results_source_url') => Http::response($closed),
+            $nextUrl => Http::response($current),
+        ]);
+        $this->artisan('results:sync')->assertSuccessful();
+        $this->getJson('/api/results')->assertJsonPath('surveys.0.countedPercentage', 85.6)->assertJsonPath('surveys.0.sourceUrl', $nextUrl);
+        Http::assertSentCount(2);
     }
 
     public function test_seed_and_upgrade_replace_active_polls_without_deleting_history(): void

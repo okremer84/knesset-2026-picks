@@ -5,21 +5,46 @@ namespace App\Services;
 use Carbon\CarbonImmutable;
 use DOMDocument;
 use DOMXPath;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class YnetResults
 {
-    public function parse(string $html): array
+    public function fetch(?string $sourceUrl = null): array
     {
-        $dom = new DOMDocument;
-        $previous = libxml_use_internal_errors(true);
-        try {
-            $dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET);
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($previous);
+        $url = $this->blogUrl($sourceUrl ?? config('election.results_source_url'))
+            ?? throw new RuntimeException('Invalid Ynet results source URL');
+        $visited = [];
+        // Bound both the continuation chain and its total request time below the import lock.
+        for ($page = 0; $page < 3; $page++) {
+            if (isset($visited[$url])) {
+                throw new RuntimeException('Ynet blog continuation forms a loop');
+            }
+            $visited[$url] = true;
+            $response = Http::withUserAgent(config('election.user_agent'))->accept('text/html')
+                ->connectTimeout(5)->timeout(20)->withoutRedirecting()->get($url)->throw();
+            if (! $response->successful()) {
+                throw new RuntimeException('Unexpected Ynet response status: '.$response->status());
+            }
+            $html = $response->body();
+            $next = $this->continuationUrl($this->document($html));
+            if ($next !== null) {
+                $url = $next;
+
+                continue;
+            }
+
+            return $this->parse($html, $url);
         }
-        $xpath = new DOMXPath($dom);
+        throw new RuntimeException('Too many Ynet blog continuations');
+    }
+
+    public function parse(string $html, ?string $sourceUrl = null): array
+    {
+        $xpath = $this->document($html);
+        if ($this->continuationUrl($xpath) !== null) {
+            throw new RuntimeException('Ynet blog has ended; use its continuation for current results');
+        }
         $candidates = [];
         foreach ($xpath->query('//*[@data-post-id]') as $post) {
             $heading = $xpath->evaluate('string(.//h3)', $post);
@@ -59,12 +84,76 @@ class YnetResults
             'id' => 'actual-2026-ynet', 'kind' => 'actual_results',
             'title' => 'תוצאות אמת · ספירת הקולות', 'date' => config('election.date'),
             'institute' => 'ספירת הקולות כפי שדווחה ב־ynet', 'channelOrMedia' => 'ynet',
-            'sourceUrl' => config('election.results_source_url'),
+            'sourceUrl' => $sourceUrl ?? config('election.results_source_url'),
             'publishedAt' => $latest['publishedAt'], 'countedPercentage' => (float) $counted[1],
             // A complete 120-seat allocation implies zero for the unallocated parties.
             'seats' => array_replace(array_fill_keys(array_keys(config('election.parties')), 0), $latest['seats']),
             'notes' => 'חלוקת המנדטים לפי הספירה שדווחה ב־ynet. התוצאות עשויות להשתנות עד לאישורן הסופי.',
         ];
+    }
+
+    private function document(string $html): DOMXPath
+    {
+        $dom = new DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NONET);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        return new DOMXPath($dom);
+    }
+
+    private function continuationUrl(DOMXPath $xpath): ?string
+    {
+        foreach ($xpath->query('//*[@data-post-id]') as $post) {
+            $heading = $xpath->evaluate('string(.//h3)', $post);
+            $paragraphs = $xpath->query('.//*[contains(concat(" ",normalize-space(@class)," ")," text_editor_paragraph ")]', $post);
+            $announcement = $heading.' '.($paragraphs->item(0)?->textContent ?? '');
+            if (! preg_match('/העדכונים.{0,80}הסתיימו|הבלוג.{0,80}(?:הסתיים|נסגר)/u', $announcement)) {
+                continue;
+            }
+            $urls = [];
+            foreach ($paragraphs as $paragraph) {
+                if (! preg_match('/(?:עדכונים|בלוג).{0,80}חדש/u', $paragraph->textContent)) {
+                    continue;
+                }
+                foreach ($xpath->query('.//a[@href]', $paragraph) as $link) {
+                    $url = $this->blogUrl($link->getAttribute('href'));
+                    if ($url !== null) {
+                        $urls[$url] = true;
+                    }
+                }
+            }
+            if (count($urls) !== 1) {
+                throw new RuntimeException('Ynet blog has ended without one valid continuation link');
+            }
+
+            return array_key_first($urls);
+        }
+
+        return null;
+    }
+
+    private function blogUrl(string $url): ?string
+    {
+        $url = trim($url);
+        if (str_starts_with($url, '//')) {
+            $url = 'https:'.$url;
+        } elseif (str_starts_with($url, '/')) {
+            $url = 'https://www.ynet.co.il'.$url;
+        }
+        $parts = parse_url($url);
+        if (! $parts || ($parts['scheme'] ?? '') !== 'https'
+            || ! in_array(strtolower($parts['host'] ?? ''), ['www.ynet.co.il', 'ynet.co.il'], true)
+            || isset($parts['port']) || isset($parts['user']) || isset($parts['pass'])
+            || ! preg_match('~^/news/blogs/article/[a-z0-9]+$~i', $parts['path'] ?? '')) {
+            return null;
+        }
+
+        return 'https://www.ynet.co.il'.$parts['path'];
     }
 
     private function seats(string $text): array
