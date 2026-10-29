@@ -152,6 +152,81 @@ class ElectionResultsTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_latest_90_percent_post_updates_the_feed_with_the_combined_party_name(): void
+    {
+        $this->seed();
+        Http::fake(['*' => Http::response(file_get_contents(base_path('tests/Fixtures/ynet-results-90.html')))]);
+        $this->artisan('results:sync')->assertSuccessful();
+        $feed = $this->getJson('/api/results')->assertJsonPath('surveys.0.countedPercentage', 90.4)
+            ->assertJsonPath('surveys.0.publishedAt', '2026-10-28T23:34:29+00:00')
+            ->assertJsonPath('surveys.0.seats.religious_zionism', 6)->assertJsonPath('sync.status', 'succeeded')->json();
+        $this->assertSame(120, array_sum($feed['surveys'][0]['seats']));
+    }
+
+    public function test_explicit_national_no_change_updates_advance_counting_progress_only(): void
+    {
+        $allocation = file_get_contents(base_path('tests/Fixtures/ynet-next-results.html'));
+        $progress = file_get_contents(base_path('tests/Fixtures/ynet-results-progress.html'));
+        Http::fake(['*' => Http::response($progress.$allocation)]);
+        $this->artisan('results:sync')->assertSuccessful();
+        $feed = $this->getJson('/api/results')->assertJsonPath('surveys.0.countedPercentage', 90)
+            ->assertJsonPath('surveys.0.publishedAt', '2026-10-28T21:59:11+00:00')
+            ->assertJsonPath('surveys.0.seatsPublishedAt', '2026-10-28T12:38:08+00:00')->json();
+        $this->assertSame(app(YnetResults::class)->parse($allocation)['seats'], $feed['surveys'][0]['seats']);
+    }
+
+    public static function allocationWording(): array
+    {
+        return [
+            'Hebrew conjunction' => ['הציונות הדתית וזהות', 'ורע"מ - 7'],
+            'combined with dash' => ['הציונות הדתית-זהות', 'רע"מ-7'],
+            'combined with plus' => ['הציונות הדתית + זהות', 'רע"מ — 7'],
+        ];
+    }
+
+    #[DataProvider('allocationWording')]
+    public function test_equivalent_party_names_and_separators_keep_the_same_allocation(string $combined, string $raam): void
+    {
+        $html = file_get_contents(base_path('tests/Fixtures/ynet-results-90.html'));
+        $expected = app(YnetResults::class)->parse($html);
+        $varied = str_replace(['הציונות הדתית וזהות', 'רע"מ - 7'], [$combined, $raam], $html);
+        $this->assertSame($expected, app(YnetResults::class)->parse($varied));
+    }
+
+    public static function insufficientProgress(): array
+    {
+        return [
+            'local count' => ['90% מהקולות נספרו בחיפה', 'ועדת הבחירות המרכזית: אין שינוי במספר המנדטים של המפלגות.'],
+            'only blocs unchanged' => ['90% מהקולות נספרו - ללא שינוי', 'ועדת הבחירות המרכזית: אין שינוי בגושים.'],
+            'exit poll' => ['90% מהקולות נספרו - ללא שינוי', 'ועדת הבחירות המרכזית: מדגם ללא שינוי. אין שינוי במספר המנדטים.'],
+            'no committee attribution' => ['90% מהקולות נספרו - ללא שינוי', 'אין שינוי במספר המנדטים של המפלגות.'],
+            'polling stations not votes' => ['90% מהקלפיות נספרו - ללא שינוי', 'ועדת הבחירות המרכזית: אין שינוי במספר המנדטים.'],
+            'conflicting partial allocation' => ['90% מהקולות נספרו - ללא שינוי', 'ועדת הבחירות המרכזית: אין שינוי במספר המנדטים. הליכוד עם 27 מנדטים.'],
+        ];
+    }
+
+    #[DataProvider('insufficientProgress')]
+    public function test_progress_requires_explicit_unchanged_national_party_mandates(string $heading, string $body): void
+    {
+        $baseline = file_get_contents(base_path('tests/Fixtures/ynet-next-results.html'));
+        $post = '<div data-post-id="progress"><time datetime="2026-10-28T22:00:00Z"></time><h3>'.$heading.'</h3><div class="blogs-auto-feed-item__body">'.$body.'</div></div>';
+        $this->assertSame(app(YnetResults::class)->parse($baseline), app(YnetResults::class)->parse($post.$baseline));
+    }
+
+    public function test_progress_cannot_publish_without_a_complete_allocation(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No national seat-count update found');
+        app(YnetResults::class)->parse(file_get_contents(base_path('tests/Fixtures/ynet-results-progress.html')));
+    }
+
+    public function test_newer_complete_breakdown_supersedes_progress_and_clears_its_provenance(): void
+    {
+        $progress = file_get_contents(base_path('tests/Fixtures/ynet-results-progress.html'));
+        $newest = file_get_contents(base_path('tests/Fixtures/ynet-results-90.html'));
+        $this->assertSame(app(YnetResults::class)->parse($newest), app(YnetResults::class)->parse($progress.$newest));
+    }
+
     public function test_seed_and_upgrade_replace_active_polls_without_deleting_history(): void
     {
         $exit = json_decode(file_get_contents(base_path('data/election-results.json')), true)['surveys'][0];

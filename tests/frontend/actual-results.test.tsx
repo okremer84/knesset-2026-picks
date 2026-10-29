@@ -61,3 +61,15 @@ test('actual-count corrections update an open user comparison and ranking togeth
     assert.doesNotMatch(document.body.textContent!,/נק׳ אחוז|תוצאות סופיות|המדגם לדירוג/);
   } finally { await act(async()=>root.unmount()); }
 });
+
+
+test('progress-only updates distinguish the count timestamp from the unchanged seat allocation', () => {
+  const progress = { ...actual, countedPercentage: 90, publishedAt: '2026-10-28T21:59:11Z', seatsPublishedAt: '2026-10-28T12:38:08Z' };
+  const html = renderToStaticMarkup(<ResultStatus result={progress}/>);
+  assert.match(html, /90% מהקולות נספרו/);
+  assert.match(html, /חלוקת המנדטים ללא שינוי מאז/);
+  const markup = new JSDOM(html).window.document;
+  assert.ok(markup.querySelector('time[datetime="2026-10-28T21:59:11Z"]'));
+  assert.ok(markup.querySelector('time[datetime="2026-10-28T12:38:08Z"]'));
+  assert.doesNotMatch(renderToStaticMarkup(<ResultStatus result={actual}/>), /חלוקת המנדטים ללא שינוי מאז/);
+});

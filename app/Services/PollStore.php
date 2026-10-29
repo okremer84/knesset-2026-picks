@@ -18,7 +18,7 @@ class PollStore
             'sourceUrl' => 'required|url:https',
             'seats' => ['required', 'array:'.implode(',', array_keys(config('election.parties')))],
             'seats.*' => 'required|integer|min:0|max:120',
-            'publishedAt' => 'nullable|date', 'countedPercentage' => 'nullable|numeric|between:0,100',
+            'publishedAt' => 'nullable|date', 'seatsPublishedAt' => 'nullable|date', 'countedPercentage' => 'nullable|numeric|between:0,100',
             'turnoutPercentage' => 'nullable|numeric|between:0,100|decimal:0,1',
         ])->validate();
         foreach ($poll['seats'] as $value) {

@@ -63,6 +63,7 @@ export interface Survey {
   originalSourceUrls?: string[];
   syncedAt?: string;
   publishedAt?: string;
+  seatsPublishedAt?: string;
   countedPercentage?: number;
   turnoutPercentage?: number;
   votePercentages?: Record<string, number>;
