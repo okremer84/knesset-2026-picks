@@ -172,7 +172,12 @@ class ElectionResultsTest extends TestCase
         $feed = $this->getJson('/api/results')->assertJsonPath('surveys.0.countedPercentage', 90)
             ->assertJsonPath('surveys.0.publishedAt', '2026-10-28T21:59:11+00:00')
             ->assertJsonPath('surveys.0.seatsPublishedAt', '2026-10-28T12:38:08+00:00')->json();
-        $this->assertSame(app(YnetResults::class)->parse($allocation)['seats'], $feed['surveys'][0]['seats']);
+        $expected = app(YnetResults::class)->parse($allocation)['seats'];
+        $stored = $feed['surveys'][0]['seats'];
+        // JSON object key order is not preserved by MySQL.
+        ksort($expected);
+        ksort($stored);
+        $this->assertSame($expected, $stored);
     }
 
     public static function allocationWording(): array
